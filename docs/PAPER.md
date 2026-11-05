@@ -107,6 +107,7 @@ Building directly on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>`
 | **`Qwen/Qwen3-8B`** | `8.2B` | `36` (`4096, 12288`) | `281.4` (`L12`) | **`219.7x`** (`+2.19` vs `-0.010`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` (`0.3953`) | **`7.14e-10` / `6.06e-09`** |
 | **`microsoft/phi-4`** | `14.7B` | `40` (`5120, 17920`) | `27,362.3` (`L32`) | **`326.9x`** (`+3.60` vs `-0.011`) | **`48.7x`** (`+4.24` vs `+0.087`) | `8.42%` (`0.0842`) | **`9.51e-10` / `1.04e-08`** |
 | **`Qwen/Qwen3-14B`** | `14.8B` | `40` (`5120, 17408`) | `475.1` (`L16`) | **`252.5x`** (`+2.53` vs `+0.010`) | **`492.8x`** (`+142.9` vs `-0.290`) | `41.33%` (`0.4133`) | **`5.77e-10` / `4.68e-09`** |
+| **`Qwen/Qwen3-32B`** | `32.8B` | `64` (`5120, 25600`) | `93.6` (`L48`) | **`158.6x`** (`+18.89` vs `+0.119`) | **`510.5x`** (`+41.52` vs `-0.081`) | `30.75%` (`0.3075`) | **`4.83e-10` / `8.29e-09`** |
 
 Across every tested architecture and width ($d_{\text{model}} \in \{1024, 2048, 2560, 3584, 4096, 5120\}$):
 1. **Contrastive direction localization (`SNR_proj`) scales cleanly with model width:** Peak `B2` projected signal-to-noise ratio reaches `281.4` on `Qwen3-8B`, `475.1` on `Qwen3-14B`, and `27,362.3` (`cos = 0.9971` across all prompts) on `Microsoft Phi-4` (`14.7B`).

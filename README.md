@@ -66,7 +66,7 @@ secant heal --adapter lora_adapter.safetensors --basis basis.json --out lora_loc
 
 ---
 
-## Headline Empirical Results (`0.8B` to `14.8B` Across 6 Model Families)
+## Headline Empirical Results (`0.8B` to `32.8B` Across 6 Model Families)
 
 Full derivations, SHA-256 artifact manifests, and reproduction scripts are in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**:
 
@@ -80,6 +80,7 @@ Full derivations, SHA-256 artifact manifests, and reproduction scripts are in th
 | **`Qwen/Qwen3-8B`** | `8.2B` | **`219.7x`** | **`29.1x`** | `39.53%` | **`7.14e-10`** |
 | **`microsoft/phi-4`** | `14.7B` | **`326.9x`** (`cos = 0.9971`) | **`48.7x`** | `8.42%` | **`9.51e-10`** |
 | **`Qwen/Qwen3-14B`** | `14.8B` | **`252.5x`** | **`492.8x`** | `41.33%` | **`5.77e-10`** |
+| **`Qwen/Qwen3-32B`** | `32.8B` | **`158.6x`** | **`510.5x`** | `30.75%` | **`4.83e-10`** |
 
 ---
 
