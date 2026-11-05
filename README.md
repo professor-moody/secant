@@ -12,6 +12,10 @@
 
 **[Documentation](https://professor-moody.github.io/secant/)** · **[Quickstart](https://professor-moody.github.io/secant/quickstart)** · **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal](https://professor-moody.github.io/secant/project-then-heal)** · **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**
 
+<br/>
+
+<img src="docs/assets/secant-pipeline.svg" alt="Secant End-to-End Weight-Space Engine" width="100%" />
+
 </div>
 
 ---
@@ -66,20 +70,27 @@ secant heal --adapter lora_adapter.safetensors --basis basis.json --out lora_loc
 
 ---
 
-## Headline Empirical Results (`0.8B` to `32.8B` Across 6 Model Families)
+## Headline Empirical Results (`0.8B` to `32.8B` Across 12 Models & 8 Architectures)
 
-Full derivations, SHA-256 artifact manifests, and reproduction scripts are in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**:
+Full derivations, visual charts, SHA-256 artifact manifests, and reproduction scripts are in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**:
+
+<p align="center">
+  <img src="docs/assets/project-then-heal-chart.svg" alt="Cross-family 60-step AdamW healing benchmark from 0.8B to 32.8B" width="100%" />
+</p>
 
 | Model Family & Checkpoint | Params | Calibrated `B2` Shift vs. Random | Calibrated `B3` Shift vs. Random | Standard LoRA Erasure (60 steps) | `ProjectThenHealLinear` Leakage (`float64`) |
 |---|---:|---:|---:|---:|---:|
-| **`Qwen/Qwen3.5-0.8B`** | `0.8B` | **`35.4x`** (`100%` `</think>` close) | **`28.1x`** (`60.0%` strict RC) | `15.61%` | **`3.76e-17`** |
+| **`Qwen/Qwen3.5-0.8B`** | `0.8B` | **`35.4x`** (`100%` `</think>` close) | **`28.1x`** (`60.0%` strict RC) | `15.63%` | **`3.76e-17`** |
 | **`HuggingFaceTB/SmolLM2-1.7B-Instruct`** | `1.7B` | **`68.0x`** | **`22.2x`** | `14.20%` | **`4.21e-18`** |
-| **`Qwen/Qwen3.5-4B`** | `4.0B` | **`100.0%`** `</think>` close (`1.5x` dose) | **`73.3%`** post-`</think>` RC | `18.40%` | **`7.01e-18`** |
+| **`Qwen/Qwen3.5-4B`** | `4.0B` | **`100.0%`** `</think>` close (`1.5x` dose) | **`76.7%`** strict class & frame | `18.40%` | **`7.01e-18`** |
 | **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | **`663.9x`** | **`98.9x`** | `46.79%` | **`7.73e-10`** |
 | **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | **`155.1x`** | **`132.7x`** | `31.34%` | **`7.55e-10`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | **`1,269.9x`** | **`143.3x`** | **`52.55%`** | **`6.39e-10`** |
 | **`Qwen/Qwen3-8B`** | `8.2B` | **`219.7x`** | **`29.1x`** | `39.53%` | **`7.14e-10`** |
+| **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | **`103.3x`** | **`262.9x`** | `30.73%` | **`1.08e-09`** |
 | **`microsoft/phi-4`** | `14.7B` | **`326.9x`** (`cos = 0.9971`) | **`48.7x`** | `8.42%` | **`9.51e-10`** |
 | **`Qwen/Qwen3-14B`** | `14.8B` | **`252.5x`** | **`492.8x`** | `41.33%` | **`5.77e-10`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | **`66.7x`** | **`64.9x`** | `32.57%` | **`6.11e-10`** |
 | **`Qwen/Qwen3-32B`** | `32.8B` | **`158.6x`** | **`510.5x`** | `30.75%` | **`4.83e-10`** |
 
 ---

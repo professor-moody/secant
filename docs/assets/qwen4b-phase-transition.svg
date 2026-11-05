@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <rect width="960" height="360" rx="16" fill="#0b1120" stroke="#1e293b" stroke-width="2"/>
+  
+  <text x="32" y="36" fill="#94a3b8" font-size="11" font-weight="700" letter-spacing="1.5" font-family="ui-monospace, monospace">QWEN3.5-4B (N=30 C++ SANITIZER BENCHMARK, 1,536-TOKEN CAP)</text>
+  <text x="32" y="60" fill="#f8fafc" font-size="18" font-weight="700">Target-Shift Calibration Triggers a Sharp Phase Transition in &lt;/think&gt; Closure</text>
+
+  <!-- Legend -->
+  <rect x="650" y="38" width="14" height="14" rx="3" fill="#34d399"/>
+  <text x="670" y="49" fill="#e2e8f0" font-size="12">&lt;/think&gt; Loop Closed (%)</text>
+  <rect x="815" y="38" width="14" height="14" rx="3" fill="#38bdf8"/>
+  <text x="835" y="49" fill="#e2e8f0" font-size="12">Strict Bug Class (%)</text>
+
+  <!-- Grid lines -->
+  <line x1="250" y1="95" x2="910" y2="95" stroke="#1e293b" stroke-width="1"/>
+  <line x1="250" y1="315" x2="910" y2="315" stroke="#334155" stroke-width="1.5"/>
+  
+  <!-- X-axis ticks -->
+  <text x="250" y="336" fill="#64748b" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">0%</text>
+  <line x1="415" y1="95" x2="415" y2="315" stroke="#1e293b" stroke-dasharray="4,4"/>
+  <text x="415" y="336" fill="#64748b" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">25%</text>
+  <line x1="580" y1="95" x2="580" y2="315" stroke="#1e293b" stroke-dasharray="4,4"/>
+  <text x="580" y="336" fill="#64748b" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">50%</text>
+  <line x1="745" y1="95" x2="745" y2="315" stroke="#1e293b" stroke-dasharray="4,4"/>
+  <text x="745" y="336" fill="#64748b" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">75%</text>
+  <line x1="910" y1="95" x2="910" y2="315" stroke="#1e293b" stroke-dasharray="4,4"/>
+  <text x="910" y="336" fill="#64748b" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">100%</text>
+
+  <!-- Row 1: Base / Random / g030 -->
+  <text x="32" y="118" fill="#f8fafc" font-size="13" font-weight="600">0.0x Base &amp; Random Controls</text>
+  <text x="32" y="134" fill="#64748b" font-size="11" font-family="ui-monospace, monospace">base, rand1, rand2, g030 (γ=0.30)</text>
+  <rect x="250" y="104" width="6" height="14" rx="2" fill="#fb7185"/>
+  <text x="264" y="116" fill="#fb7185" font-size="12" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 closed — trapped at 1,536 tokens)</text>
+
+  <!-- Row 2: 0.5x Half Dose -->
+  <text x="32" y="162" fill="#f8fafc" font-size="13" font-weight="600">0.5x Half Calibrated Dose</text>
+  <text x="32" y="178" fill="#64748b" font-size="11" font-family="ui-monospace, monospace">a05 (Δ_target = -3.69)</text>
+  <rect x="250" y="148" width="6" height="14" rx="2" fill="#fb7185"/>
+  <text x="264" y="160" fill="#fb7185" font-size="12" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 — below attractor threshold)</text>
+
+  <!-- Row 3: B1 Only (1.0x) -->
+  <text x="32" y="206" fill="#f8fafc" font-size="13" font-weight="600">1.0x Loop Edit Only (B1)</text>
+  <text x="32" y="222" fill="#64748b" font-size="11" font-family="ui-monospace, monospace">b1only (L13 + L8 ffn_down)</text>
+  <rect x="250" y="191" width="374" height="13" rx="3" fill="#34d399"/>
+  <text x="632" y="202" fill="#34d399" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">56.7% (17/30)</text>
+  <rect x="250" y="207" width="330" height="13" rx="3" fill="#38bdf8"/>
+  <text x="588" y="218" fill="#38bdf8" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">50.0% (15/30)</text>
+
+  <!-- Row 4: 1.0x Composed (cal738) -->
+  <text x="32" y="252" fill="#f8fafc" font-size="13" font-weight="600">1.0x Composed (B1+B2+B3)</text>
+  <text x="32" y="268" fill="#64748b" font-size="11" font-family="ui-monospace, monospace">cal738 (Δ_target = -7.38, 954 tok)</text>
+  <rect x="250" y="237" width="462" height="13" rx="3" fill="#34d399"/>
+  <text x="720" y="248" fill="#34d399" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">70.0% (21/30)</text>
+  <rect x="250" y="253" width="396" height="13" rx="3" fill="#38bdf8"/>
+  <text x="654" y="264" fill="#38bdf8" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">60.0% (18/30)</text>
+
+  <!-- Row 5: 1.5x Composed (a15) -->
+  <text x="32" y="298" fill="#34d399" font-size="13.5" font-weight="700">1.5x Composed (a15 Tipping Point)</text>
+  <text x="32" y="314" fill="#94a3b8" font-size="11" font-family="ui-monospace, monospace">a15 (Δ_target = -11.07, 789 tok)</text>
+  <rect x="250" y="283" width="660" height="13" rx="3" fill="#34d399"/>
+  <text x="815" y="279" fill="#34d399" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">100.0% (30/30 closed!)</text>
+  <rect x="250" y="299" width="506" height="13" rx="3" fill="#38bdf8"/>
+  <text x="764" y="310" fill="#38bdf8" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">76.7% (23/30 class &amp; frame)</text>
+</svg>

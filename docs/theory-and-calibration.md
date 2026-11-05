@@ -1,12 +1,24 @@
 # Mathematical Theory & Scale Calibration
 
-This chapter derives the linear-algebraic formulation behind Secant's contrastive direction capture, multi-subspace orthogonalization, and **Target-Shift Calibration**.
+Before diving into the equations, here is the core intuition behind Secant's mathematical pipeline:
+
+1. **Finding where a behavior lives (`SNR_proj`):** A transformer layer writes into a shared residual stream of width $d_{\text{model}}$ (`1,024` to `5,120` dimensions). If you measure variance across all `5,120` dimensions at once (`SNR_trace`), background language noise drowns out a single behavioral direction. Measuring signal-to-noise ratio **projected onto the candidate direction (`SNR_proj`)** on held-out prompts isolates the exact layer and writer (`attn_out` vs. `mlp_out`) where the behavior is sharpest.
+2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors often overlap (e.g., cosine `0.7475` between layers 15 and 19). Two-pass modified Gram-Schmidt orthogonalization in `float64` removes all pairwise overlap ($< 10^{-14}$) before compiling the weight patch.
+3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model produces a `-0.90` activation shift instead of the `-7.38` shift needed to exit `<think>`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
+
+```{figure} assets/qwen4b-phase-transition.svg
+:name: fig-theory-phase-transition
+:alt: Qwen3.5-4B Target-Shift Calibration phase transition
+:width: 100%
+
+Why calibration matters: on `Qwen3.5-4B`, an uncalibrated norm ratio (`g030`, $\gamma = 0.30$) and a half-dose edit (`a05`, $\alpha = 0.5\times$) both close `0/30` `<think>` loops. Crossing the calibrated threshold ($\alpha = 1.0\times \to 1.5\times$) triggers a phase transition from `0%` to `70%` and `100%` completion.
+```
 
 ---
 
 ## 1. Contrastive Capture & Held-Out Signal-to-Noise Metrics
 
-Let $h_\ell(x) \in \mathbb{R}^{d_{\text{model}}}$ denote the residual-stream activation exiting layer $\ell \in \{0, \dots, L-1\}$ at the final prompt token of input $x$. Given $N$ paired contrastive inputs $\{(x_i^+, x_i^-)\}_{i=1}^N$, we partition the pairs deterministically into a capture split $\mathcal{I}_{\text{cap}}$ and a held-out evaluation split $\mathcal{I}_{\text{eval}}$ ($|\mathcal{I}_{\text{cap}}| = |\mathcal{I}_{\text{eval}}| = N/2$).
+Let $h_\ell(x) \in \mathbb{R}^{d_{\text{model}}}$ denote the activation exiting layer $\ell \in \{0, \dots, L-1\}$ (either in the residual stream or a specific writer sub-stream such as `attn_out` / `ssm_out` or `mlp_out`) at the final prompt token of input $x$. Given $N$ paired contrastive inputs $\{(x_i^+, x_i^-)\}_{i=1}^N$, we partition the pairs deterministically into a capture split $\mathcal{I}_{\text{cap}}$ and a held-out evaluation split $\mathcal{I}_{\text{eval}}$.
 
 For each pair $i$, define the per-pair difference vector:
 
@@ -22,7 +34,7 @@ $$
 
 ### Why `SNR_proj` Replaces Full-Trace `SNR_trace`
 
-In high-dimensional residual streams ($d_{\text{model}} \in [1024, 8192]$), the total within-class variance $\mathrm{tr}(\Sigma_\ell)$ sums noise across all $d_{\text{model}} - 1$ orthogonal directions, making raw trace SNR artificially small ($\approx 0.05\text{–}0.35$) even when a 1D concept direction cleanly separates the classes. Secant therefore reports three complementary held-out diagnostics on $\mathcal{I}_{\text{eval}}$:
+In high-dimensional residual streams ($d_{\text{model}} \in [1024, 5120]$), total within-class variance sums noise across all $d_{\text{model}} - 1$ orthogonal directions, making raw trace SNR artificially small ($\approx 0.05\text{–}0.35$) even when a 1D concept direction cleanly separates the two prompt classes. Secant therefore evaluates three held-out diagnostics on $\mathcal{I}_{\text{eval}}$:
 
 1. **Projected Signal-to-Noise Ratio (`snr_proj`)**:
    $$
@@ -49,7 +61,7 @@ $$
 h_\ell^{\text{post-mlp}}(x) = h_\ell^{\text{pre-mlp}}(x) + W_\ell \, m_\ell(x)
 $$
 
-Rather than modifying all $d_{\text{ffn}}$ columns of $W_\ell$, Secant selects the top-$K$ intermediate neurons $\mathcal{C}_b \subset \{0, \dots, d_{\text{ffn}}-1\}$ ($|\mathcal{C}_b| = K$, typically $K \in \{64, 128\}$) with the largest mean positive activation $\bar{m}_{\ell, j}$ on the target distribution, and constructs a column-sparse selector vector $u_b \in \mathbb{R}^{d_{\text{ffn}}}$ supported solely on $\mathcal{C}_b$:
+Rather than modifying all $d_{\text{ffn}}$ columns of $W_\ell$, Secant selects the top-$K$ intermediate neurons $\mathcal{C}_b \subset \{0, \dots, d_{\text{ffn}}-1\}$ ($|\mathcal{C}_b| = K$, typically $K \in \{64, 128\}$) that couple most strongly to the behavior, and constructs a column-sparse selector vector $u_b \in \mathbb{R}^{d_{\text{ffn}}}$ supported solely on $\mathcal{C}_b$:
 
 $$
 u_{b, j} = \begin{cases} \dfrac{\bar{m}_{\ell, j}}{\sqrt{\sum_{r \in \mathcal{C}_b} \bar{m}_{\ell, r}^2}} & \text{if } j \in \mathcal{C}_b, \\[8pt] 0 & \text{otherwise.} \end{cases}
@@ -61,11 +73,13 @@ $$
 \Delta W_{\ell, b} = \gamma_b \, v_b \, u_b^\top, \qquad \|\Delta W_{\ell, b}\|_F = |\gamma_b| \cdot \|v_b\|_2 \cdot \|u_b\|_2 = |\gamma_b|
 $$
 
+Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.5-4B`), over **99% of the matrix entries remain completely untouched**.
+
 ---
 
 ## 3. Multi-Subspace Gram-Schmidt Orthogonalization
 
-When $k$ behavioral edits $b \in \{1, \dots, k\}$ share output space $\mathbb{R}^{d_{\text{model}}}$ (either within the same layer or across coupled residual layers), non-orthogonal directions $\langle v_b, v_{b'} \rangle \ne 0$ cause constructive or destructive interference.
+When $k$ behavioral edits $b \in \{1, \dots, k\}$ share the coordinate basis $\mathbb{R}^{d_{\text{model}}}$, non-orthogonal directions $\langle v_b, v_{b'} \rangle \ne 0$ can interfere constructively or destructively.
 
 Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce an orthonormal basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$ satisfying:
 
@@ -81,21 +95,30 @@ $$
 
 ---
 
-## 4. Target-Shift Calibration Across Model Scales (`0.8B` $\to$ `4B`+)
+## 4. Target-Shift Calibration Across Model Scales (`0.8B` to `32.8B`)
 
-### Why Fixed $\gamma$ Fails as Model Scale Increases
+Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_S$ restricted to the selected columns $S$:
 
-Suppose an edit step size $\gamma_0$ is tuned on a small model (`Qwen3.5-0.8B`, $d_{\text{model}} = 1024$, $\|W_\ell\|_F \approx 41.2$). When applied directly to a $5\times$ larger model (`Qwen3.5-4B`, $d_{\text{model}} = 2560$, $\|W_\ell\|_F \approx 89.4$), the relative Frobenius perturbation $\|\Delta W_\ell\|_F / \|W_\ell\|_F$ drops by more than $2.1\times$, and the induced logit shift falls below the threshold required to close `<think>` loops (`16.7%` closed under `fix_g` vs `13.3%` unedited baseline).
+$$
+\Delta W = \mathrm{sign}(\Delta_{\text{target}}) \cdot \beta \, q_b \, h_S^\top, \qquad \beta = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}
+$$
 
-### Target-Shift Calibration Law
+Then the induced output shift along $q_b$ at $h_{\text{ref}}$ is exact by construction:
 
-To make behavioral surgery **scale-invariant**, `secant compose --calibration target-shift` specifies a dimensionless target relative perturbation $\tau_b$ (anchored to the layer Frobenius norm $\|W_\ell\|_F$ and reference activation norm $\|h_{\text{ref},\ell}\|_2$) scaled by a global dose parameter $\alpha > 0$:
+$$
+\langle q_b, \, \Delta W \, h_{\text{ref}} \rangle = \mathrm{sign}(\Delta_{\text{target}}) \cdot \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2} \, \underbrace{q_b^\top q_b}_{=1} \, \underbrace{h_S^\top h_{\text{ref}}}_{=\|h_S\|_2^2} = \Delta_{\text{target}}
+$$
+
+and the Frobenius norm of the update adapts automatically to the layer's activation scale:
+
+$$
+\|\Delta W\|_F = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2}
+$$
+
+Equivalently, in dimensionless relative-perturbation form (`secant compose --calibration target-shift`), scaling by a global dose multiplier $\alpha > 0$ gives:
 
 $$
 \gamma_b(\alpha) = \alpha \cdot \frac{\tau_b \, \|W_\ell\|_F}{\|q_b\|_2 \, \|u_b\|_2}
 $$
 
-As demonstrated on `Qwen3.5-4B` (`n = 30`), sweeping $\alpha \in \{0.0, 0.5, 1.0, 1.5\}$ uncovers a sharp **first-order phase transition**:
-- At $\alpha = 0.5$ (`a05`), the induced residual shift along $q_{\text{B1}}$ remains below the `</think>` emission logit gap on every prompt (`0/30` closed).
-- At $\alpha = 1.0$ (`cal738`), the shift crosses the threshold on `21/30` (`70.0%`) prompts (`18/30` `60.0%` strict root-cause accuracy).
-- At $\alpha = 1.5$ (`a15`), **`30/30` (`100.0%`) prompts emit `</think>` and terminate cleanly with `stop = eos`**, reducing mean generation length from `1,429.2` tokens to **`789.0` tokens** (`-44.8%`) while boosting strict root-cause attribution from `6.7%` to **`63.3%`** (`73.3%` post-`</think>`).
+Across **11 models from `0.8B` to `32.8B`**, Target-Shift Calibration separates target behavioral shifts from equal-norm random controls by **`29x` to `1,269.9x`** on the first pass without hyperparameter grid searches.
