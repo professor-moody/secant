@@ -1,0 +1,16 @@
+[package]
+name = "secant-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "C ABI for Secant (libsecant.a / libsecant.so)"
+
+[lib]
+name = "secant"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+secant-core.workspace = true
+
+[dev-dependencies]
+secant-core.workspace = true

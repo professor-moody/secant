@@ -1,0 +1,29 @@
+project:
+  type: book
+  output-dir: _site
+
+book:
+  title: "Secant: Weight-Space Programming & Subspace-Locked LoRA Healing"
+  subtitle: "Deterministic Weight-Space Surgery, Quantization Commutation & Orthogonal LoRA Recovery"
+  author: "Secant Research Contributors"
+  repo-url: https://github.com/professor-moody/secant
+  repo-actions: [edit, issue]
+  chapters:
+    - index.md
+    - quickstart.md
+    - theory-and-calibration.md
+    - quantized-surgery.md
+    - project-then-heal.md
+    - cli-and-python-reference.md
+    - payload-security.md
+    - PAPER.md
+
+bibliography: references.bib
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    html-math-method: katex

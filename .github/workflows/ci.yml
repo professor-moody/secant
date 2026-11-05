@@ -1,0 +1,28 @@
+name: Rust & Python CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build Rust workspace (release)
+        run: cargo build --workspace --release
+
+      - name: Run Rust unit & integration tests
+        run: cargo test --workspace
+
+      - name: Install Python package and run pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "./python[torch,test]"
+          SECANT_BIN="$PWD/target/release/secant" SECANT_LIB="$PWD/target/release/libsecant.so" pytest python/tests -ra

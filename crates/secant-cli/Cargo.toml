@@ -1,0 +1,18 @@
+[package]
+name = "secant-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "secant command line"
+
+[[bin]]
+name = "secant"
+path = "src/main.rs"
+
+[dependencies]
+secant-core.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]

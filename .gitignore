@@ -1,0 +1,13 @@
+/target
+__pycache__/
+*.pyc
+/python/*.egg-info
+/python/.venv
+/python/.pytest_cache
+.venv/
+.pytest_cache/
+_build/
+_site/
+.myst/
+.quarto/
+.DS_Store
