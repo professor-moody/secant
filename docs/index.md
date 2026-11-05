@@ -4,6 +4,8 @@
 
 Motivated by the landmark MIT CSAIL release by Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab (*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*, Nov 2, 2026) [@rikiyat2026wsp] alongside representation-engineering and circuit-breaker research [@zou2023representation; @zou2024circuitbreakers; @arditi2024refusal], Secant turns behavioral direction surgery into a **reproducible, hash-bracketed systems discipline** across scales (`0.8B` to `14.8B+`) and model families (`Qwen3.5`, `Qwen3`, `Qwen2.5`, `SmolLM2`, `Mistral`, and `Microsoft Phi-4`).
 
+In their **"What Comes Next?"** section, Takehi et al. explicitly called for *"turning what currently seems like black magic into a rigorous, reproducible engineering discipline"* and *"auditing without evaluation (e.g., backdoors directly from weights)."* **We took this on and decided to see what we could do.**
+
 ---
 
 ## Core Capabilities at a Glance

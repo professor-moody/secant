@@ -30,6 +30,8 @@ jobs:
         run: npm install -g mystmd
 
       - name: Build MyST static HTML site
+        env:
+          BASE_URL: /secant
         run: myst build --html
 
       - name: Upload Pages artifact
