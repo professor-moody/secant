@@ -2,7 +2,7 @@
 
 **Secant** is an open-source Rust workspace (`secant-core`, `secant-cli`, `secant-ffi`) and Python library (`secant`, `secant.nn.ProjectThenHealLinear`) for **deterministic Weight-Space Programming (WSP)**, **in-place quantized block surgery (`Q8_0`)**, and **Subspace-Locked LoRA Healing (`Project-Then-Heal`)** on `.safetensors` and `.gguf` (v2/v3) checkpoints.
 
-Motivated by MIT CSAIL's release by Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab (*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*, Nov 2, 2026) [@rikiyat2026wsp] alongside representation-engineering and null-space editing research [@zou2023representation; @zou2024circuitbreakers; @arditi2024refusal], Secant turns direct weight surgery into a **reproducible, hash-bracketed engineering discipline** across model scales (`0.8B` to `32.8B`) and architectures (`Qwen3.5`, `Qwen3`, `Qwen2.5`, `SmolLM2`, `Mistral`, `OLMo-2`, `Phi-4`, and `DeepSeek-R1-Distill`).
+Motivated by MIT CSAIL's release by Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab (*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*, Nov 2, 2026) [@rikiyat2026wsp] alongside representation-engineering and null-space editing research [@zou2023representation; @zou2024circuitbreakers; @arditi2024refusal], Secant turns direct weight surgery into a **reproducible, hash-bracketed engineering discipline** across **17 model checkpoints (`0.8B` to `72.7B`)** and **9 architecture families** (`Qwen3.5`, `Qwen3`, `Qwen2.5`, `SmolLM2`, `Llama-3.1`, `Gemma-2`, `Mistral`, `OLMo-2`, `Phi-4`, and `DeepSeek-R1-Distill`).
 
 > *"Turning what currently seems like black magic into a rigorous, reproducible engineering discipline... and auditing without evaluation (e.g., backdoors directly from weights)."*
 >
@@ -46,7 +46,15 @@ The four stages of Secant: (1) Zero-eval weight reading and Boundary-3 payload s
 
 Small reasoning models (`Qwen3.5-0.8B`, `Qwen3.5-4B`) frequently get trapped inside an unfinished `<think>...</think>` block when analyzing C++ AddressSanitizer crash dumps (`0/30` strict completion on unedited `Qwen3.5-4B` at a 1,536-token budget).
 
-Simply copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from `0.8B` to `4B` fails completely (`0/30` closed) because the induced activation shift (`-0.90`) is an order of magnitude smaller than the `-7.38` shift needed to cross the `</think>` termination threshold. Solving for the weight update via **Target-Shift Calibration** triggers a clean phase transition:
+Simply copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from `0.8B` to `4B` fails completely (`0/30` closed) because the induced activation shift (`-0.90`) is an order of magnitude smaller than the `-7.38` shift needed to cross the `</think>` termination threshold. As shown in [](#fig-phase-surface-3d) and [](#fig-qwen4b-phase-transition), solving for the weight update via **Target-Shift Calibration** triggers a clean phase transition across both layer depth and calibrated dose $\alpha$:
+
+```{figure} assets/fig-phase-surface-3d.svg
+:name: fig-phase-surface-3d
+:alt: 3D phase-transition surface over layer depth and calibrated dose alpha on Qwen3.5-4B
+:width: 100%
+
+**(A)** 3D phase-transition surface over target layer index $\ell \in [8, 28]$ and calibrated dose multiplier $\alpha \in [0, 1.75]$ on `Qwen3.5-4B`. **(B)** Observed vs. sigmoid-fitted phase transition (`n = 30`, `1,536`-token cap), showing `0%` closure at uncalibrated $\gamma = 0.30$ (`alpha = 0.13x`) and half-dose `0.5x`, `70.0%` closure at $\alpha = 1.0\times$, and `100.0%` (`30/30`, McNemar $p = 1.86 \times 10^{-9}$) closure at $\alpha = 1.5\times$.
+```
 
 ```{figure} assets/qwen4b-phase-transition.svg
 :name: fig-qwen4b-phase-transition
@@ -67,18 +75,26 @@ Dose-response phase transition on `Qwen3.5-4B` (`n = 30` C++ sanitizer crash-tri
 
 ---
 
-### 2. Cross-Family Scale-Up (`0.8B` to `32.8B`) & `ProjectThenHealLinear`
+### 2. Cross-Family Scale-Up (`0.8B` to `72.7B`) & `ProjectThenHealLinear`
 
-We evaluate `ProjectThenHealLinear` across 12 checkpoints in two complementary regimes:
-1. **Live causal LM fine-tuning (`Qwen3.5-0.8B` 60-step CPU and `SmolLM2-1.7B` 20-step ROCm GPU):** Both `ProjectThenHealLinear` and unconstrained LoRA train on domain completions after weight surgery. Both arms achieve identical training loss reduction (`2.8242` $\to$ `0.3120` vs. `0.3096` on `0.8B`), while `ProjectThenHealLinear` holds writer leakage $\max |D \Delta W|$ at $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$ (`float64`) vs. $4.64 \times 10^{-3}$ to $1.05 \times 10^{-2}$ for unconstrained LoRA.
-2. **Adversary-aligned subspace stress test across 9 models on H100 (`7.2B` to `32.8B`):** A synthetic target ($Y_{\text{target}} = Y + 1.5 v_{B2}$) pulls the adapter directly toward the forbidden subspace $\operatorname{span}(D)$ for 60 AdamW steps. Under this direct pull, unconstrained LoRA places $8.42\%$ to $52.55\%$ of its adapter norm ($\|D B\|_{\mathrm{F}} / \|B\|_{\mathrm{F}}$) inside $\operatorname{span}(D)$, whereas `ProjectThenHealLinear` holds writer leakage $\max |D B_{\text{locked}}|$ at $4.83 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) and merged `F32` leakage at $3.87 \times 10^{-10}$ to $1.70 \times 10^{-8}$.
+We evaluate `ProjectThenHealLinear` across **17 model checkpoints (`0.8B` to `72.7B`)** in two complementary regimes (visualized in [](#fig-pth-trajectories) and [](#fig-project-then-heal-chart)):
+1. **Live causal LM fine-tuning (`Qwen3.5-0.8B` 60-step CPU and `SmolLM2-1.7B` 20-step ROCm GPU):** Both `ProjectThenHealLinear` and unconstrained LoRA train on domain completions after weight surgery. Both arms achieve identical training loss reduction (`2.8242` $\to$ `0.3120` vs. `0.3096` on `0.8B`, with optimal held-out perplexity `5.435` at Step 20 as shown in [](#fig-pth-trajectories)), while `ProjectThenHealLinear` holds writer leakage $\max |D \Delta W|$ at $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$ (`float64`) vs. $4.64 \times 10^{-3}$ to $1.05 \times 10^{-2}$ for unconstrained LoRA.
+2. **Adversary-aligned subspace stress test across 14 models on H100 (`7.2B` to `72.7B`):** A synthetic target ($Y_{\text{target}} = Y + 1.5 v_{B2}$) pulls the adapter directly toward the forbidden subspace $\operatorname{span}(D)$ for 60 AdamW steps. Under this direct pull, unconstrained LoRA places $8.42\%$ to $52.55\%$ of its adapter norm ($\|D B\|_{\mathrm{F}} / \|B\|_{\mathrm{F}}$) inside $\operatorname{span}(D)$, whereas `ProjectThenHealLinear` holds writer leakage $\max |D B_{\text{locked}}|$ at $4.83 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) and merged `F32` leakage at $3.87 \times 10^{-10}$ to $3.98 \times 10^{-8}$.
+
+```{figure} assets/fig-pth-trajectories.svg
+:name: fig-pth-trajectories
+:alt: 60-step AdamW training loss, held-out perplexity, and log-scale subspace leakage trajectories
+:width: 100%
+
+**(A)** 60-step AdamW training cross-entropy loss and held-out validation perplexity on `Qwen3.5-0.8B`, showing zero learning penalty and the Step-20 early-stopping perplexity minimum (`PPL = 5.435`). **(B)** Log-scale subspace leakage trajectories across 60 AdamW steps from `0.8B` to `72.7B`, showing unconstrained LoRA overwriting `8.4%`–`52.6%` of the surgical subspace while `ProjectThenHealLinear` locks leakage below $10^{-9}$ (`float64`).
+```
 
 ```{figure} assets/project-then-heal-chart.svg
 :name: fig-project-then-heal-chart
-:alt: Cross-family 60-step LoRA healing comparison chart from 0.8B to 32.8B
+:alt: Cross-family 60-step LoRA healing comparison chart from 0.8B to 72.7B
 :width: 100%
 
-Across models from `0.8B` to `32.8B`, unconstrained LoRA intrudes into the protected subspace during 60 AdamW steps, while `ProjectThenHealLinear` holds writer-level leakage at $9.87 \times 10^{-18}$ to $1.08 \times 10^{-9}$ (`float64`) and $1.46 \times 10^{-10}$ to $1.70 \times 10^{-8}$ (`F32`).
+Across models from `0.8B` to `72.7B`, unconstrained LoRA intrudes into the protected subspace during 60 AdamW steps, while `ProjectThenHealLinear` holds writer-level leakage at $9.87 \times 10^{-18}$ to $1.08 \times 10^{-9}$ (`float64`) and $1.46 \times 10^{-10}$ to $3.98 \times 10^{-8}$ (`F32`).
 ```
 
 | Model Checkpoint | Params | Layers ($d_{\text{model}}$) | `B2` Shift Ratio vs. Random (`Shift` Pair) | `B3` Shift Ratio vs. Random (`Shift` Pair) | Unconstrained LoRA Subspace Intrusion | `ProjectThenHealLinear` Leakage (`float64` / `F32`) |
@@ -88,13 +104,18 @@ Across models from `0.8B` to `32.8B`, unconstrained LoRA intrudes into the prote
 | **`Qwen/Qwen3.5-4B`** (6-Arm + Static Lock) | `4.0B` | `32` (`2560`) | **`30/30`** (`100%`) close at `1.5x` | **`23/30`** (`76.7%`) class+frame | `1.40e-03` (`BF16` merge floor) | **`7.01e-18` / `2.20e-10`** |
 | **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | `32` (`4096`) | **`663.9x`** (`+0.257` vs `-0.00039`) | **`98.9x`** (`+3.212` vs `-0.0325`) | `46.79%` (`0.4679`) | **`7.73e-10` / `3.87e-10`** |
 | **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | `28` (`3584`) | **`155.1x`** (`+4.654` vs `+0.0300`) | **`132.7x`** (`+20.82` vs `-0.1568`) | `31.34%` (`0.3134`) | **`7.55e-10` / `6.88e-09`** |
+| **`meta-llama/Llama-3.1-8B-Instruct`** | `8.0B` | `32` (`4096`) | **`176.8x`** (`+3.539` vs `-0.0200`) | **`35.3x`** (`+8.888` vs `-0.2520`) | `48.03%` (`0.4803`) | **`7.62e-10` / `2.72e-09`** |
 | **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | `32` (`4096`) | **`1,269.9x`** (`+2.609` vs `+0.0021`) | **`143.3x`** (`+8.644` vs `-0.0603`) | **`52.55%` (`0.5255`)** | **`6.39e-10` / `2.13e-09`** |
 | **`Qwen/Qwen3-8B`** | `8.2B` | `36` (`4096`) | **`219.7x`** (`+2.187` vs `-0.0100`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` (`0.3953`) | **`7.14e-10` / `5.93e-09`** |
+| **`google/gemma-2-9b-it`** (Logit Soft-Cap + GeGLU) | `9.2B` | `42` (`3584`) | **`127.9x`** (`+19.08` vs `+0.1492`) | **`87.2x`** (`+130.0` vs `+1.491`) | `41.05%` (`0.4105`) | **`6.53e-10` / `8.50e-10`** |
 | **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | `40` (`5120`) | **`103.3x`** (`+1.250` vs `+0.0121`) | **`262.9x`** (`+7.341` vs `-0.0279`) | `30.73%` (`0.3073`) | **`1.08e-09` / `3.33e-09`** |
 | **`microsoft/phi-4`** | `14.7B` | `40` (`5120`) | **`326.9x`** (`-3.399` vs `+0.0104`, abs) | **`48.7x`** (`+30.76` vs `+0.6322`) | `8.42%` (`0.0842`) | **`9.51e-10` / `1.70e-08`** |
 | **`Qwen/Qwen3-14B`** | `14.8B` | `40` (`5120`) | **`252.5x`** (`+4.548` vs `+0.0180`) | **`492.8x`** (`+63.11` vs `-0.1281`) | `41.33%` (`0.4133`) | **`5.77e-10` / `4.68e-09`** |
 | **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | `48` (`5120`) | **`66.7x`** (`+3.762` vs `+0.0564`) | **`64.9x`** (`+51.94` vs `+0.8008`) | `32.57%` (`0.3257`) | **`6.11e-10` / `2.78e-09`** |
+| **`google/gemma-2-27b-it`** (Logit Soft-Cap + GeGLU) | `27.2B` | `46` (`4608`) | **`139.0x`** (`+542.8` vs `+3.905`) | **`196.0x`** (`+5152.2` vs `-26.29`) | `11.54%` (`0.1154`) | **`7.16e-10` / `7.54e-10`** |
 | **`Qwen/Qwen3-32B`** | `32.8B` | `64` (`5120`) | **`158.6x`** (`+18.89` vs `+0.1191`) | **`510.5x`** (`+41.52` vs `-0.0813`) | `30.75%` (`0.3075`) | **`4.83e-10` / `8.29e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Llama-70B`** (Shard SVD) | `70.6B` | `80` (`8192`) | **`537.1x`** (`+8.301` vs `-0.0155`) | `L32 down_proj` (`8192x28672`) | `20.24%` (`0.2024`) | **`5.66e-10` / `3.98e-08`** |
+| **`Qwen/Qwen2.5-72B-Instruct`** (Shard SVD) | `72.7B` | `80` (`8192`) | **`134.2x`** (`+9.043` vs `+0.0674`) | `L40 down_proj` (`8192x29568`) | `36.94%` (`0.3694`) | **`9.85e-10` / `1.58e-08`** |
 
 ---
 

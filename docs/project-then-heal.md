@@ -4,14 +4,22 @@ Suppose you have removed an unwanted behavior, such as `<think>` looping (`B1`) 
 
 In standard LoRA (`unconstrained_lora`), the optimizer has no awareness of the orthonormal row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{out}}}$ ($D D^\top = I_k$) you just carved out. During backpropagation, any task gradient coupling with $D$, combined with AdamW's coordinatewise second-moment scaling, pushes updates into the forbidden directions $D$.
 
-**Project-Then-Heal** (`secant.nn.ProjectThenHealLinear` and `secant heal`) solves this structurally by parameterizing the LoRA output matrix $B$ inside the **orthogonal complement** $P_\perp = I_{d_{\text{out}}} - D^\top D$ on every forward pass.
+**Project-Then-Heal** (`secant.nn.ProjectThenHealLinear` and `secant heal`) solves this structurally by parameterizing the LoRA output matrix $B$ inside the **orthogonal complement** $P_\perp = I_{d_{\text{out}}} - D^\top D$ on every forward pass (see [](#fig-pth-trajectories-detail) and [](#fig-pth-leakage-comparison)).
+
+```{figure} assets/fig-pth-trajectories.svg
+:name: fig-pth-trajectories-detail
+:alt: 60-step AdamW training loss, held-out perplexity, and log-scale subspace leakage trajectories
+:width: 100%
+
+**(A)** 60-step AdamW training cross-entropy loss and held-out validation perplexity on `Qwen3.5-0.8B`, demonstrating zero learning penalty and the Step-20 early-stopping perplexity minimum (`5.435`). **(B)** Log-scale subspace leakage trajectories across 60 AdamW steps from `0.8B` to `72.7B`, contrasting unconstrained LoRA erasure (`8.4%`–`52.6%`) against the algebraically locked `ProjectThenHealLinear` zone ($< 10^{-9}$ in `float64`).
+```
 
 ```{figure} assets/project-then-heal-chart.svg
 :name: fig-pth-leakage-comparison
-:alt: ProjectThenHealLinear vs Unconstrained LoRA leakage across 11 models from 0.8B to 32.8B
+:alt: ProjectThenHealLinear vs Unconstrained LoRA leakage across 17 models from 0.8B to 72.7B
 :width: 100%
 
-Empirical comparison across 11 models (`0.8B` to `32.8B`): during 60 AdamW steps, unconstrained LoRA intrudes into the protected subspace ($1.05 \times 10^{-2}$ max $|D \Delta W|$ on live `0.8B` LM fine-tuning, and $8.42\%$ to $52.55\%$ adapter norm intrusion under H100 adversary-aligned subspace stress testing), whereas `ProjectThenHealLinear` holds writer leakage at $9.87 \times 10^{-18}$ to $1.08 \times 10^{-9}$ (`float64`) and $1.46 \times 10^{-10}$ to $1.70 \times 10^{-8}$ (`F32`).
+Empirical comparison across 17 models (`0.8B` to `72.7B`): during 60 AdamW steps, unconstrained LoRA intrudes into the protected subspace ($1.05 \times 10^{-2}$ max $|D \Delta W|$ on live `0.8B` LM fine-tuning, and $8.42\%$ to $52.55\%$ adapter norm intrusion under H100 adversary-aligned subspace stress testing), whereas `ProjectThenHealLinear` holds writer leakage at $9.87 \times 10^{-18}$ to $1.08 \times 10^{-9}$ (`float64`) and $1.46 \times 10^{-10}$ to $3.98 \times 10^{-8}$ (`F32`).
 ```
 
 ---

@@ -1,54 +1,52 @@
 version: 1
 project:
-  id: secant-docs
-  title: "Secant: Weight-Space Programming & Subspace-Locked LoRA Healing"
+  id: secant-weight-space-programming
+  title: "Secant: Weight-Space Programming & Subspace-Locked LoRA"
   short_title: "Secant"
-  description: "Scientific documentation, mathematical derivations, and API reference for Secant: deterministic weight-space programming, direct Q8_0 and Q4_K quantized block surgery, and Project-Then-Heal subspace-locked LoRA adaptation."
-  keywords:
-    - weight-space-programming
-    - mechanistic-interpretability
-    - representation-engineering
-    - lora
-    - gguf
-    - safetensors
-    - quantization
-  authors:
-    - name: Secant Research Contributors
-      url: https://github.com/professor-moody
+  description: "Standalone Rust + PyTorch toolkit for reading, composing, calibrating, patching, and subspace-healing neural network weights directly on disk."
   github: https://github.com/professor-moody/secant
   license: Apache-2.0
   bibliography:
     - docs/references.bib
+  keywords:
+    - weight-space programming
+    - mechanistic interpretability
+    - activation steering
+    - LoRA
+    - GGUF
+    - SafeTensors
   math:
-    '\PiPerp': '\Pi_{\mathcal{S}^\perp}'
-    '\PiB': '\Pi_{B}'
-    '\dW': '\Delta W'
-    '\fro': '\mathrm{F}'
+    '\Pperp': 'P_{\perp}'
+    '\PiPerp': 'P_{\perp}'
+    '\Dmat': 'D'
+    '\dF': '\|\cdot\|_F'
   toc:
     - file: docs/index.md
-      title: Overview
+      title: Overview & Architecture
     - file: docs/quickstart.md
       title: Quickstart & Live CLI Receipts
     - file: docs/theory-and-calibration.md
-      title: Mathematical Theory & Scale Calibration
+      title: Mathematical Theory & Calibration
     - file: docs/quantized-surgery.md
       title: Quantized Block Surgery (Q8_0 & Q4_K)
     - file: docs/project-then-heal.md
-      title: Project-Then-Heal Subspace-Locked LoRA
+      title: Project-Then-Heal LoRA Lock
     - file: docs/cli-and-python-reference.md
       title: CLI, Python & C-ABI Reference
     - file: docs/payload-security.md
       title: Container Geometry & Payload Security
     - file: docs/PAPER.md
-      title: Technical Paper
+      title: Full Scientific Paper
 site:
   template: book-theme
-  title: "Secant"
+  title: "Secant · Weight-Space Programming"
   options:
-    folders: true
+    logo: docs/assets/secant-logo.svg
     logo_text: "Secant"
-  nav:
-    - title: GitHub
-      url: https://github.com/professor-moody/secant
-    - title: Paper
+    style: docs/assets/secant-theme.css
+    hide_search: false
+  actions:
+    - title: "Scientific Paper"
       url: /PAPER
+    - title: "GitHub Repo"
+      url: https://github.com/professor-moody/secant

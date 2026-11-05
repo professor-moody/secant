@@ -28,7 +28,7 @@ In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural 
 
 **We took this on and decided to see what we could do.**
 
-**Secant** is a standalone Rust workspace (`secant-core`, `secant-cli`, `secant-ffi`) and Python library (`secant.nn.ProjectThenHealLinear`) for deterministic weight-space reading, scale-calibrated multi-subspace surgery (`0.8B` to `32.8B`), direct in-place `Q8_0` / `Q4_K` GGUF block editing, static tensor payload security auditing, and subspace-locked LoRA fine-tuning.
+**Secant** is a standalone Rust workspace (`secant-core`, `secant-cli`, `secant-ffi`) and Python library (`secant.nn.ProjectThenHealLinear`) for deterministic weight-space reading, scale-calibrated multi-subspace surgery (`0.8B` to `72.7B` across 17 checkpoints and 9 architecture families), direct in-place `Q8_0` / `Q4_K` GGUF block editing, static tensor payload security auditing, and subspace-locked LoRA fine-tuning.
 
 ---
 
@@ -79,12 +79,16 @@ secant heal --adapter lora_adapter.safetensors --basis basis.json --out lora_loc
 
 ---
 
-## Headline Empirical Results (`0.8B` to `32.8B` Across 12 Checkpoints)
+## Headline Empirical Results (`0.8B` to `72.7B` Across 17 Checkpoints)
 
 Full derivations, visual charts, SHA-256 artifact manifests, and reproduction scripts are in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**:
 
 <p align="center">
-  <img src="docs/assets/project-then-heal-chart.svg" alt="Cross-family 60-step LoRA healing benchmark from 0.8B to 32.8B" width="100%" />
+  <img src="docs/assets/fig-phase-surface-3d.svg" alt="3D Phase-Transition Surface and Multi-Curve Sigmoid Fit on Qwen3.5-4B" width="100%" />
+</p>
+
+<p align="center">
+  <img src="docs/assets/fig-pth-trajectories.svg" alt="60-Step AdamW Perplexity and Log-Scale Subspace Leakage Trajectories" width="100%" />
 </p>
 
 | Model Checkpoint | Params | `B2` Shift Ratio vs. Random (`Shift` Pair) | `B3` Shift Ratio vs. Random (`Shift` Pair) | Unconstrained LoRA Subspace Intrusion | `ProjectThenHealLinear` Leakage (`float64` / `F32`) |
@@ -94,13 +98,18 @@ Full derivations, visual charts, SHA-256 artifact manifests, and reproduction sc
 | **`Qwen/Qwen3.5-4B`** (6-Arm Calibrated + Static Lock) | `4.0B` | **`30/30`** (`100%`) close at `1.5x` | **`23/30`** (`76.7%`) class & frame | `1.40e-03` (`BF16` merge floor) | **`7.01e-18` / `2.20e-10`** |
 | **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | **`663.9x`** (`+0.257` vs `-0.00039`) | **`98.9x`** (`+3.212` vs `-0.0325`) | `46.79%` ($\|DB\|_F/\|B\|_F$) | **`7.73e-10` / `3.87e-10`** |
 | **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | **`155.1x`** (`+4.654` vs `+0.0300`) | **`132.7x`** (`+20.82` vs `-0.1568`) | `31.34%` ($\|DB\|_F/\|B\|_F$) | **`7.55e-10` / `6.88e-09`** |
+| **`meta-llama/Llama-3.1-8B-Instruct`** | `8.0B` | **`176.8x`** (`+3.539` vs `-0.0200`) | **`35.3x`** (`+8.888` vs `-0.2520`) | `48.03%` ($\|DB\|_F/\|B\|_F$) | **`7.62e-10` / `2.72e-09`** |
 | **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | **`1,269.9x`** (`+2.609` vs `+0.0021`) | **`143.3x`** (`+8.644` vs `-0.0603`) | **`52.55%`** ($\|DB\|_F/\|B\|_F$) | **`6.39e-10` / `2.13e-09`** |
 | **`Qwen/Qwen3-8B`** | `8.2B` | **`219.7x`** (`+2.187` vs `-0.0100`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` ($\|DB\|_F/\|B\|_F$) | **`7.14e-10` / `5.93e-09`** |
+| **`google/gemma-2-9b-it`** | `9.2B` | **`127.9x`** (`+19.08` vs `+0.1492`) | **`87.2x`** (`+130.0` vs `+1.491`) | `41.05%` ($\|DB\|_F/\|B\|_F$) | **`6.53e-10` / `8.50e-10`** |
 | **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | **`103.3x`** (`+1.250` vs `+0.0121`) | **`262.9x`** (`+7.341` vs `-0.0279`) | `30.73%` ($\|DB\|_F/\|B\|_F$) | **`1.08e-09` / `3.33e-09`** |
 | **`microsoft/phi-4`** | `14.7B` | **`326.9x`** (`-3.399` vs `+0.0104`, abs) | **`48.7x`** (`+30.76` vs `+0.6322`) | `8.42%` ($\|DB\|_F/\|B\|_F$) | **`9.51e-10` / `1.70e-08`** |
 | **`Qwen/Qwen3-14B`** | `14.8B` | **`252.5x`** (`+4.548` vs `+0.0180`) | **`492.8x`** (`+63.11` vs `-0.1281`) | `41.33%` ($\|DB\|_F/\|B\|_F$) | **`5.77e-10` / `4.68e-09`** |
 | **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | **`66.7x`** (`+3.762` vs `+0.0564`) | **`64.9x`** (`+51.94` vs `+0.8008`) | `32.57%` ($\|DB\|_F/\|B\|_F$) | **`6.11e-10` / `2.78e-09`** |
+| **`google/gemma-2-27b-it`** | `27.2B` | **`139.0x`** (`+542.8` vs `+3.905`) | **`196.0x`** (`+5152.2` vs `-26.29`) | `11.54%` ($\|DB\|_F/\|B\|_F$) | **`7.16e-10` / `7.54e-10`** |
 | **`Qwen/Qwen3-32B`** | `32.8B` | **`158.6x`** (`+18.89` vs `+0.1191`) | **`510.5x`** (`+41.52` vs `-0.0813`) | `30.75%` ($\|DB\|_F/\|B\|_F$) | **`4.83e-10` / `8.29e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Llama-70B`** | `70.6B` | **`537.1x`** (`+8.301` vs `-0.0155`) | `L32 down_proj` (`234.9M` params) | `20.24%` ($\|DB\|_F/\|B\|_F$) | **`5.66e-10` / `3.98e-08`** |
+| **`Qwen/Qwen2.5-72B-Instruct`** | `72.7B` | **`134.2x`** (`+9.043` vs `+0.0674`) | `L40 down_proj` (`242.2M` params) | `36.94%` ($\|DB\|_F/\|B\|_F$) | **`9.85e-10` / `1.58e-08`** |
 
 ---
 

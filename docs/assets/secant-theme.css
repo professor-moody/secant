@@ -1,0 +1,77 @@
+/* Secant Custom MyST Scientific Theme */
+:root {
+  --secant-accent: #38bdf8;
+  --secant-emerald: #10b981;
+  --secant-violet: #a855f7;
+}
+
+/* Top navigation bar polish */
+header nav,
+.myst-top-nav {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.18) !important;
+}
+
+/* Action buttons in top navbar */
+header a[href*="github.com"],
+header a[href*="PAPER"] {
+  border-radius: 6px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Scientific figure frames and captions */
+figure {
+  margin: 1.75rem 0;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(13, 17, 23, 0.03);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html.dark figure {
+  background: #0d1117;
+  border-color: #30363d;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+figure:hover {
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+figure figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  opacity: 0.92;
+}
+
+/* Hover cross-reference links (Figure X, Section Y, Equation Z) */
+a.reference,
+a[href^="#fig-"],
+a[href^="#eq-"] {
+  font-weight: 600;
+  color: #0284c7;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+html.dark a.reference,
+html.dark a[href^="#fig-"],
+html.dark a[href^="#eq-"] {
+  color: #38bdf8;
+}
+
+/* Clean scientific tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+th {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

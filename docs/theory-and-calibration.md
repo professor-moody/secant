@@ -6,12 +6,20 @@ Before diving into the equations, here is the core intuition behind Secant's mat
 2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors can overlap when they share residual coordinates. Two-pass modified Gram-Schmidt orthogonalization in `float64` removes all pairwise overlap ($\|D D^\top - I_k\|_{\mathrm{F}} < 10^{-14}$) before compiling the weight patch.
 3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model produces a `-0.90` activation shift instead of the `-7.38` shift needed to exit `<think>`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
 
-```{figure} assets/qwen4b-phase-transition.svg
-:name: fig-theory-phase-transition
-:alt: Qwen3.5-4B Target-Shift Calibration phase transition
+```{figure} assets/fig-phase-surface-3d.svg
+:name: fig-theory-phase-surface-3d
+:alt: 3D phase-transition surface over layer depth and calibrated dose alpha
 :width: 100%
 
-Why calibration matters: on `Qwen3.5-4B`, an uncalibrated norm ratio (`g030`, $\gamma = 0.30$) and a half-dose edit (`a05`, $\alpha = 0.5\times$) both close `0/30` `<think>` loops. Crossing the calibrated threshold ($\alpha = 1.0\times \to 1.5\times$) triggers a phase transition from `0%` to `70%` and `100%` completion.
+Why calibration and layer selection jointly govern attractor escape: **(A)** 3D phase-transition surface over target layer index $\ell \in [8, 28]$ and calibrated dose multiplier $\alpha \in [0, 1.75]$ on `Qwen3.5-4B`. **(B)** Observed vs. sigmoid-fitted phase transition (`n = 30`, `1,536`-token cap), showing `0%` closure at uncalibrated $\gamma = 0.30$ and half-dose $\alpha = 0.5\times$, `70%` at $\alpha = 1.0\times$, and `100%` (`30/30`) at $\alpha = 1.5\times$.
+```
+
+```{figure} assets/fig-snr-heatmap.svg
+:name: fig-theory-snr-heatmap
+:alt: Sub-stream SNR field heatmap and cross-architecture subspace concentration
+:width: 100%
+
+**(A)** Sub-stream contrastive projection SNR field across all 24 layers of `Qwen3.5-0.8B`, showing why empirical SNR profiling (`L12`, $\mathrm{SNR}_{\text{proj}} = 2.12$) succeeds whereas a rule-of-thumb middle-layer guess (`L15`, $\mathrm{SNR}_{\text{proj}} = 0.23$, $9.2\times$ weaker) lands in a trough on `ssm_out`. **(B)** Cross-architecture subspace concentration (`7.2B` to `32.8B`), plotting held-out $\mathrm{SNR}_{\text{proj}}$ against split-half cosine stability.
 ```
 
 ---
@@ -49,7 +57,15 @@ In high-dimensional residual streams ($d_{\text{model}} \in [1024, 5120]$), tota
    \cos(\theta_\ell) = \frac{\langle \bar{\delta}_\ell^{\text{cap}}, \bar{\delta}_\ell^{\text{eval}} \rangle}{\|\bar{\delta}_\ell^{\text{cap}}\|_2 \, \|\bar{\delta}_\ell^{\text{eval}}\|_2}
    $$
 
-A candidate behavioral layer $\ell^*$ is admissible for weight-space surgery if $\mathrm{SNR}_{\text{proj}}(\ell^*) \ge 2.0$ and $\cos(\theta_{\ell^*}) \ge 0.70$.
+A candidate behavioral layer $\ell^*$ is admissible for weight-space surgery if $\mathrm{SNR}_{\text{proj}}(\ell^*) \ge 2.0$ and $\cos(\theta_{\ell^*}) \ge 0.70$ (see [](#fig-theory-snr-heatmap) for the empirical sub-stream field and cross-architecture scatter, and [](#fig-theory-spectral-read) for zero-evaluation singular-spectrum readout).
+
+```{figure} assets/fig-spectral-read-decay.svg
+:name: fig-theory-spectral-read
+:alt: Zero-evaluation singular value spectrum and direct weight-to-vocabulary z-score readout
+:width: 100%
+
+Zero-evaluation static weight inspection via `secant read`: **(A)** Singular value decay ($\sigma_1 \dots \sigma_{12}$) comparing clean model spectra (`SmolLM2-1.7B`, `Qwen3.5-4B`) against a rank-1 backdoor spike anomaly ($\sigma_1 = 18.94$, $\mathrm{MAD} > 10$). **(B)** Direct weight-to-vocabulary projection $z$-scores across layers `L10..L23` (`RMSNorm` + `lm_head`), isolating the `L18..L21` refusal lexicon band ($z_{\max} = +6.14 > +5.854$ null) without running a single forward pass.
+```
 
 ---
 

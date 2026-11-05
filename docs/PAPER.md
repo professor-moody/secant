@@ -102,16 +102,40 @@ The algebraic guarantee $D \Delta W_t = 0$ is exact at every protected writer's 
 
 ---
 
-## 4. Cross-Architecture & Large-Model Empirical Evaluation (`0.8B` to `32.8B`)
+## 4. Cross-Architecture & Large-Model Empirical Evaluation (`0.8B` to `72.7B`)
 
-Building directly on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>` reasoning-loop experiment [1], we evaluate Secant across **twelve checkpoints** (`Qwen3.5-0.8B`, `SmolLM2-1.7B`, `Qwen3.5-4B`, `Mistral-7B-v0.3`, `Qwen2.5-7B`, `DeepSeek-R1-Distill-Llama-8B`, `Qwen3-8B`, `OLMo-2-13B`, `Microsoft Phi-4`, `Qwen3-14B`, `DeepSeek-R1-Distill-Qwen-14B`, and `Qwen3-32B`) from `0.8B` up to `32.8B` parameters on AMD ROCm (`gfx1151`) and NVIDIA H100 80GB SXM GPUs:
+Building directly on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>` reasoning-loop experiment [1], we evaluate Secant across **seventeen checkpoints** (`Qwen3.5-0.8B`, `SmolLM2-1.7B`, `Qwen3.5-4B`, `Mistral-7B-v0.3`, `Qwen2.5-7B`, `Llama-3.1-8B`, `DeepSeek-R1-Distill-Llama-8B`, `Qwen3-8B`, `Gemma-2-9B`, `OLMo-2-13B`, `Microsoft Phi-4`, `Qwen3-14B`, `DeepSeek-R1-Distill-Qwen-14B`, `Gemma-2-27B`, `Qwen3-32B`, `DeepSeek-R1-Distill-Llama-70B`, and `Qwen2.5-72B`) from `0.8B` up to `72.7B` parameters ($d_{\text{model}} \in [1024, 8192]$) on AMD ROCm (`gfx1151`) and NVIDIA H100 80GB SXM GPUs. See [](#fig-paper-phase-surface), [](#fig-paper-snr-heatmap), [](#fig-paper-pth-trajectories), and [](#fig-paper-spectral-read) for the full experimental trajectories:
 
-```{figure} assets/project-then-heal-chart.svg
-:name: fig-paper-pth-chart
-:alt: Cross-family 60-step LoRA healing comparison from 0.8B to 32.8B
+```{figure} assets/fig-phase-surface-3d.svg
+:name: fig-paper-phase-surface
+:alt: 3D phase-transition surface and multi-curve sigmoid fit on Qwen3.5-4B
 :width: 100%
 
-Unconstrained LoRA subspace intrusion vs. `ProjectThenHealLinear` writer lock across 60 steps of AdamW training from `0.8B` to `32.8B`.
+**(A)** 3D phase-transition surface over target layer index $\ell \in [8, 28]$ and calibrated dose multiplier $\alpha \in [0, 1.75]$ on `Qwen3.5-4B`. **(B)** Observed vs. sigmoid-fitted phase transition (`n = 30`, `1,536`-token cap), showing `0%` closure at uncalibrated $\gamma = 0.30$ and half-dose `0.5x`, `70.0%` closure at $\alpha = 1.0\times$, and `100.0%` (`30/30`, $p = 1.86 \times 10^{-9}$) closure at $\alpha = 1.5\times$.
+```
+
+```{figure} assets/fig-snr-heatmap.svg
+:name: fig-paper-snr-heatmap
+:alt: Sub-stream SNR field heatmap and cross-architecture subspace concentration
+:width: 100%
+
+**(A)** Sub-stream contrastive projection SNR field across all 24 layers of `Qwen3.5-0.8B`, contrasting the `L12` peak ($\mathrm{SNR}_{\text{proj}} = 2.12$) with the `L15` `ssm_out` trough ($\mathrm{SNR}_{\text{proj}} = 0.23$, $9.2\times$ weaker). **(B)** Cross-architecture subspace concentration (`7.2B` to `32.8B`) plotting held-out $\mathrm{SNR}_{\text{proj}}$ against split-half cosine stability.
+```
+
+```{figure} assets/fig-pth-trajectories.svg
+:name: fig-paper-pth-trajectories
+:alt: 60-step AdamW training loss, held-out perplexity, and log-scale subspace leakage trajectories
+:width: 100%
+
+**(A)** 60-step AdamW training cross-entropy loss and held-out validation perplexity on `Qwen3.5-0.8B` (minimum `PPL = 5.435` at Step 20). **(B)** Log-scale subspace leakage trajectories across 60 AdamW steps from `0.8B` to `72.7B`, contrasting unconstrained LoRA erasure (`8.4%`–`52.6%`) against `ProjectThenHealLinear` ($< 10^{-9}$ in `float64`).
+```
+
+```{figure} assets/fig-spectral-read-decay.svg
+:name: fig-paper-spectral-read
+:alt: Zero-evaluation singular value spectrum and direct weight-to-vocabulary z-score readout
+:width: 100%
+
+Zero-evaluation static weight inspection via `secant read`: **(A)** Singular value decay ($\sigma_1 \dots \sigma_{12}$) with static backdoor spike detection ($\sigma_1 = 18.94$, $\mathrm{MAD} > 10$). **(B)** Direct weight-to-vocabulary projection $z$-scores across layers `L10..L23` (`RMSNorm` + `lm_head`), isolating the `L18..L21` refusal lexicon band ($z_{\max} = +6.14 > +5.854$ null).
 ```
 
 | Model Checkpoint | Params | Layers ($d_{\text{model}}, d_{\text{ffn}}$) | `B2` Peak `SNR_proj` (Layer) | `B2` Shift Ratio vs. Random (`Shift` Pair) | `B3` Shift Ratio vs. Random (`Shift` Pair) | Unconstrained LoRA Subspace Intrusion | `ProjectThenHealLinear` Leakage (`float64` / `F32`) |
@@ -121,13 +145,18 @@ Unconstrained LoRA subspace intrusion vs. `ProjectThenHealLinear` writer lock ac
 | **`Qwen/Qwen3.5-4B`** (6-Arm + Static Lock) | `4.0B` | `32` (`2560, 9216`) | `189.4` (`L16`) | **`30/30`** (`100%`) close (`1.5x`) | **`23/30`** (`76.7%`) class & frame | `1.40e-03` (`BF16` merge floor) | **`7.01e-18` / `2.20e-10`** |
 | **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | `32` (`4096, 14336`) | `87.7` (`L12`) | **`663.9x`** (`+0.257` vs `-0.00039`) | **`98.9x`** (`+3.212` vs `-0.0325`) | `46.79%` ($\|DB\|_F/\|B\|_F$) | **`7.73e-10` / `3.87e-10`** |
 | **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | `28` (`3584, 18944`) | `199.4` (`L10`) | **`155.1x`** (`+4.654` vs `+0.0300`) | **`132.7x`** (`+20.82` vs `-0.1568`) | `31.34%` ($\|DB\|_F/\|B\|_F$) | **`7.55e-10` / `6.88e-09`** |
+| **`meta-llama/Llama-3.1-8B-Instruct`** | `8.0B` | `32` (`4096, 14336`) | `181.8` (`L24`) | **`176.8x`** (`+3.539` vs `-0.0200`) | **`35.3x`** (`+8.888` vs `-0.2520`) | `48.03%` ($\|DB\|_F/\|B\|_F$) | **`7.62e-10` / `2.72e-09`** |
 | **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | `32` (`4096, 14336`) | `184.1` (`L20`) | **`1,269.9x`** (`+2.609` vs `+0.0021`) | **`143.3x`** (`+8.644` vs `-0.0603`) | **`52.55%`** ($\|DB\|_F/\|B\|_F$) | **`6.39e-10` / `2.13e-09`** |
 | **`Qwen/Qwen3-8B`** | `8.2B` | `36` (`4096, 12288`) | `168.4` (`L12`) | **`219.7x`** (`+2.187` vs `-0.0100`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` ($\|DB\|_F/\|B\|_F$) | **`7.14e-10` / `5.93e-09`** |
+| **`google/gemma-2-9b-it`** | `9.2B` | `42` (`3584, 14336`) | `83.0` (`L14`) | **`127.9x`** (`+19.08` vs `+0.1492`) | **`87.2x`** (`+130.0` vs `+1.491`) | `41.05%` ($\|DB\|_F/\|B\|_F$) | **`6.53e-10` / `8.50e-10`** |
 | **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | `40` (`5120, 13824`) | `142.4` (`L16`) | **`103.3x`** (`+1.250` vs `+0.0121`) | **`262.9x`** (`+7.341` vs `-0.0279`) | `30.73%` ($\|DB\|_F/\|B\|_F$) | **`1.08e-09` / `3.33e-09`** |
 | **`microsoft/phi-4`** | `14.7B` | `40` (`5120, 17920`) | `27,362.3` (`L32`) | **`326.9x`** (`-3.399` vs `+0.0104`, abs) | **`48.7x`** (`+30.76` vs `+0.6322`) | `8.42%` ($\|DB\|_F/\|B\|_F$) | **`9.51e-10` / `1.70e-08`** |
 | **`Qwen/Qwen3-14B`** | `14.8B` | `40` (`5120, 17408`) | `172.3` (`L16`) | **`252.5x`** (`+4.548` vs `+0.0180`) | **`492.8x`** (`+63.11` vs `-0.1281`) | `41.33%` ($\|DB\|_F/\|B\|_F$) | **`5.77e-10` / `4.68e-09`** |
 | **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | `48` (`5120, 13824`) | `181.1` (`L16`) | **`66.7x`** (`+3.762` vs `+0.0564`) | **`64.9x`** (`+51.94` vs `+0.8008`) | `32.57%` ($\|DB\|_F/\|B\|_F$) | **`6.11e-10` / `2.78e-09`** |
+| **`google/gemma-2-27b-it`** | `27.2B` | `46` (`4608, 18432`) | `78.8` (`L22`) | **`139.0x`** (`+542.8` vs `+3.905`) | **`196.0x`** (`+5152.2` vs `-26.29`) | `11.54%` ($\|DB\|_F/\|B\|_F$) | **`7.16e-10` / `7.54e-10`** |
 | **`Qwen/Qwen3-32B`** | `32.8B` | `64` (`5120, 25600`) | `93.6` (`L48`) | **`158.6x`** (`+18.89` vs `+0.1191`) | **`510.5x`** (`+41.52` vs `-0.0813`) | `30.75%` ($\|DB\|_F/\|B\|_F$) | **`4.83e-10` / `8.29e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Llama-70B`** | `70.6B` | `80` (`8192, 28672`) | $\sigma_1 = 8.322$ (`L32`) | **`537.1x`** (`+8.301` vs `-0.0155`) | `L32 down_proj` (`234.9M` params) | `20.24%` ($\|DB\|_F/\|B\|_F$) | **`5.66e-10` / `3.98e-08`** |
+| **`Qwen/Qwen2.5-72B-Instruct`** | `72.7B` | `80` (`8192, 29568`) | $\sigma_1 = 6.185$ (`L40`) | **`134.2x`** (`+9.043` vs `+0.0674`) | `L40 down_proj` (`242.2M` params) | `36.94%` ($\|DB\|_F/\|B\|_F$) | **`9.85e-10` / `1.58e-08`** |
 
 Across every tested architecture and width ($d_{\text{model}} \in \{1024, 2048, 2560, 3584, 4096, 5120\}$):
 1. **Contrastive direction localization (`SNR_proj`) isolates candidate layers across all 12 checkpoints:** Held-out `B2` projected signal-to-noise ratio spans `87.7` (`Mistral-7B-v0.3`) to `199.4` (`Qwen2.5-7B`) across standard architectures (`93.6` at `L48` on 64-layer `Qwen3-32B`). On `microsoft/phi-4`, extreme outlier-dimension concentration produces `SNR_proj = 27,362.3` (`SNR_trace = 909.6` at `L16`) and an inverted, saturating `B2` projection shift (`-3.399` at $1.0\times$ and `-3.519` at $1.5\times$), showing why `SNR_proj` and signed shift verification should always be inspected together.
