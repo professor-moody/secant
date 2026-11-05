@@ -6,37 +6,48 @@
 
 ---
 
+## Plain-English Summary
+
+Before presenting the formal propositions, here is what this paper establishes in plain words:
+
+1. **Why we built Secant:** In *Sparks of Weight-Space Programming* (MIT CSAIL, Nov 2026), Takehi, Teoh, Zhang, and Khattab showed that editing `0.016%` of `Qwen3.5-0.8B`'s weights can suppress `<think>` reasoning loops, and called for turning ad-hoc weight inspection into a reproducible engineering discipline and auditing models directly from their weights. Secant is our answer to that challenge.
+2. **Why scale calibration is necessary:** A fixed Frobenius-norm edit percentage that works on a `0.8B` model fails (`0/30` `<think>` loops closed) on `Qwen3.5-4B` because wider layers have different internal activation norms. Solving for the weight update that induces a specific inner-product shift ($\Delta_{\text{target}}$) restores a clean transition (`0/30` $\to$ `21/30` at $1.0\times$ $\to$ `30/30` at $1.5\times$).
+3. **Why `Q8_0` GGUF files can be edited in place while `Q4_K` superblocks cannot:** Each `Qwen3.5` `ssm_out` value head spans 128 columns. Four 32-weight `Q8_0` blocks divide 128 columns evenly ($128 = 4 \times 32$), so `Q8_0` quantization commutes byte-for-byte with 128-column head permutations and allows direct 34-byte block surgery (`98.5%` refusal removal). A 256-weight `Q4_K` superblock straddles two adjacent 128-column heads with a shared scale factor, leaving `67%` of the refusal direction intact when re-encoded in place.
+4. **Why LoRA must be locked inside the forward pass (`Project-Then-Heal`):** Standard LoRA fine-tuning overwrites surgical subspaces when task gradients or AdamW's coordinatewise second-moment scaling push updates back along the excised basis $D$. Parameterizing $B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$ inside the forward graph holds writer-level leakage at $9.87 \times 10^{-18}$ (`float64`) / $2.49 \times 10^{-10}$ (`F32`) during live 60-step LM fine-tuning on `Qwen3.5-0.8B`, and $4.83 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) across 9 models from `7.2B` to `32.8B` under adversary-aligned subspace stress testing on an NVIDIA H100.
+
+---
+
 ## Abstract
 
-Recent advances in weight-space programming demonstrate that specific behavioral failure modes in language models—such as infinite chain-of-thought (`<think>`) loops or over-refusals on benign defensive security prompts—can be localized to low-rank directions written into the residual stream by attention and MLP output matrices. However, moving from single-direction PyTorch experiments to production checkpoints exposes three open problems:
-1. **Cross-scale & multi-subspace calibration:** Fixed Frobenius-norm edit ratios fail when ported across model widths (`0.8B` $\to$ `4B`), and converter permutations (such as `llama.cpp`'s 128-column value-head interleave $\Pi_{128}$ on `Qwen3.5` Gated DeltaNet `blk.N.ssm_out.weight` layers) silently misalign edits applied directly to `.gguf` files.
+Recent advances in weight-space programming demonstrate that specific behavioral failure modes in language models, such as infinite chain-of-thought (`<think>`) loops or over-refusals on benign defensive security prompts, can be localized to low-rank directions written into the residual stream by attention and MLP output matrices. However, moving from single-direction PyTorch experiments to production checkpoints exposes three open problems:
+1. **Cross-scale & multi-subspace calibration:** Fixed Frobenius-norm edit ratios fail when ported across model widths (`0.8B` $\to$ `4B`), and converter permutations (such as `llama.cpp`'s 128-column value-head interleave $\Pi_{128}$ on `Qwen3.5` Gated DeltaNet `blk.N.ssm_out.weight` layers when $r = n_v / n_k > 1$) silently misalign edits applied directly to `.gguf` files.
 2. **Direct surgery on compressed quantized weights:** Can weight edits be applied directly to block-quantized `.gguf` tensors (`Q8_0`, `Q4_K`) without re-exporting from floating-point checkpoints?
-3. **Post-surgical fine-tuning drift:** When a surgically edited model is subsequently fine-tuned with LoRA and AdamW, per-coordinate adaptive second-moment scaling rotates gradient updates back into the excised behavioral subspace, undoing the surgery.
+3. **Post-surgical fine-tuning drift:** When a surgically edited model is subsequently fine-tuned with LoRA and AdamW, task gradients and per-coordinate adaptive second-moment scaling push weight updates back into the excised behavioral subspace, undoing the surgery at the edited writer.
 
 We resolve all three problems in **Secant**:
-- First, we derive **inner-product target-shift calibration** ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) and prove the exact 32-block bijection across all 24 Gated DeltaNet layers of `Qwen3.5-4B` (`24/24` bit-exact match). In a 6-arm controlled ablation on `Qwen3.5-4B` (`n = 30`), calibrated multi-subspace surgery (`cal738`) raises strict post-`</think>` completion from `0/30` (`0.0%`) to `21/30` (`70.0%`, exact two-sided McNemar $p = 9.54 \times 10^{-7}$ vs. base and equal-norm random controls).
-- Second, we prove that $\Pi_{128}$ is block-grid equivariant for any quantization block size $B \mid 128$ (`Q8_0`, $B = 32$) and fails for superblock codecs with $B \nmid 128$ (`Q4_K`, $B = 256$). Empirically (`exp2_receipt.json`), direct block surgery on `Q8_0` removes `98.5%` of the target component (`0.5172` $\to$ `0.0079`) while preserving bit-identity across all untouched 34-byte blocks, whereas `Q4_K` superblock re-encoding leaves `67.0%` of the component intact (`0.346`).
-- Third, we introduce **`Project-Then-Heal`** (`secant.nn.ProjectThenHealLinear`), which parameterizes the LoRA output factor structurally inside the orthogonal complement $P_\perp = I_{d_{\text{out}}} - D D^\top$ ($B = P_\perp \tilde{B}$). Across 60 live AdamW steps on `Qwen3.5-0.8B` (`L15..L17`) and 20 ROCm GPU steps on `SmolLM2-1.7B-Instruct` (`L14..L16`), `Project-Then-Heal` matches unconstrained LoRA task learning (`-89.0%` training loss, lower held-out perplexity `12.11` vs. `12.36`) while holding writer-level weight leakage at $7.01 \times 10^{-18} \text{ to } 9.87 \times 10^{-18}$ in `float64` and $2.20 \times 10^{-10} \text{ to } 2.49 \times 10^{-10}$ in merged `F32`—over $10^{7}\times$ lower than unconstrained LoRA ($1.05 \times 10^{-2}$).
+- First, we derive **inner-product target-shift calibration** ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) and prove the exact 32-block bijection across all 24 Gated DeltaNet layers of `Qwen3.5-4B` (`24/24` bit-exact match). In a 6-arm controlled ablation on `Qwen3.5-4B` (`n = 30`), calibrated multi-subspace surgery (`cal738`) raises strict post-`</think>` completion from `0/30` (`0.0%`) to `21/30` (`70.0%`, exact two-sided McNemar $p = 9.54 \times 10^{-7}$ vs. base and equal-norm random controls), reaching `30/30` (`100.0%`, $p = 1.86 \times 10^{-9}$) at a $1.5\times$ dose (`a15`).
+- Second, we prove that $\Pi_{128}$ is block-grid equivariant for any quantization block size $B \mid 128$ (`Q8_0`, $B = 32$) and fails for superblock codecs with $B \nmid 128$ (`Q4_K`, $B = 256$). Empirically, direct block surgery on `Q8_0` removes `98.5%` of the target component (`0.5172` $\to$ `0.0079`) while preserving bit-identity across all untouched 34-byte blocks, whereas `Q4_K` superblock re-encoding leaves `67.0%` of the component intact (`0.346`).
+- Third, we introduce **`Project-Then-Heal`** (`secant.nn.ProjectThenHealLinear`), which parameterizes the LoRA output factor structurally inside the orthogonal complement $P_\perp = I_{d_{\text{out}}} - D^\top D$ ($B = P_\perp \tilde{B}$, where $D \in \mathbb{R}^{k \times d_{\text{out}}}$ has orthonormal rows $D D^\top = I_k$). Across 60 live AdamW steps on surgically edited `Qwen3.5-0.8B` (`L15..L17`) and 20 ROCm GPU steps on `SmolLM2-1.7B-Instruct` (`L14..L16`), `Project-Then-Heal` matches unconstrained LoRA task learning (`-89.0%` training loss on `0.8B`, minimum held-out perplexity `5.435` vs. `5.423` at step 20) while holding writer-level weight leakage $\max |D \Delta W|$ at $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$ in `float64` and $1.46 \times 10^{-10}$ to $2.49 \times 10^{-10}$ in merged `F32` (over $4 \times 10^{7}\times$ lower than unconstrained LoRA's $1.05 \times 10^{-2}$ in `F32`).
 
 ---
 
 ## 1. Multi-Subspace Orthogonalization & Target-Shift Calibration
 
-Let $D = [\hat{d}_1, \dots, \hat{d}_k] \in \mathbb{R}^{d_{\text{out}} \times k}$ be $k$ unit directions in residual-stream coordinates obtained via two-pass `float64` modified Gram-Schmidt over raw contrastive activation differences, satisfying:
+Let $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{out}}}$ be $k$ unit row directions in residual-stream coordinates obtained via two-pass `float64` modified Gram-Schmidt over raw contrastive activation differences, satisfying:
 
-$$\|D^\top D - I_k\|_{\max} < 10^{-12}$$
+$$\|D D^\top - I_k\|_{\mathrm{F}} < 10^{-14}$$
 
 For a writer matrix $W \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ ($y = W x$), Secant supports two closed-form surgical operators:
 
 1. **Projector subtraction (`projector-subtract`):**
-   $$W' = (I_{d_{\text{out}}} - \gamma \hat{d}\hat{d}^\top) W = W - \gamma \hat{d} (\hat{d}^\top W)$$
-   At $\gamma = 1$, $\hat{d}^\top W' = 0$ in exact arithmetic.
+   $$W' = (I_{d_{\text{out}}} - \gamma q_b q_b^\top) W = W - \gamma q_b (q_b^\top W)$$
+   At $\gamma = 1$, $q_b^\top W' = 0$ in exact arithmetic.
 
 2. **Inner-product target-shift calibrated rank-1 column edit (`rank1-columns`):**
-   Given a subset $S \subset \{0, \dots, d_{\text{in}}-1\}$ of $|S| = K$ input columns selected by top coupling $|(W^\top \hat{d})_j|$ and a reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$ with restricted support $h_S$:
-   $$\Delta W = \operatorname{sign}(\Delta_{\text{target}}) \cdot \beta \, \hat{d} \, h_S^\top, \qquad \beta = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}$$
-   Then the realized activation shift along $\hat{d}$ at $x = h_{\text{ref}}$ is scale-invariant:
-   $$\langle \hat{d}, \Delta W \, h_{\text{ref}} \rangle = \operatorname{sign}(\Delta_{\text{target}}) \cdot \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2} \langle h_S, h_S \rangle = \Delta_{\text{target}}, \qquad \|\Delta W\|_F = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2}$$
+   Given a subset $S \subset \{0, \dots, d_{\text{in}}-1\}$ of $|S| = K$ input columns selected by top coupling $|(W^\top q_b)_j|$ and a reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$ with zero-padded support vector $h_S \in \mathbb{R}^{d_{\text{in}}}$:
+   $$\Delta W = \operatorname{sign}(\Delta_{\text{target}}) \cdot \beta \, q_b \, h_S^\top, \qquad \beta = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}$$
+   Then the realized activation shift along $q_b$ at $x = h_{\text{ref}}$ is scale-invariant:
+   $$\langle q_b, \Delta W \, h_{\text{ref}} \rangle = \operatorname{sign}(\Delta_{\text{target}}) \cdot \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2} \langle h_S, h_{\text{ref}} \rangle = \Delta_{\text{target}}, \qquad \|\Delta W\|_{\mathrm{F}} = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2}$$
 
 ---
 
@@ -52,6 +63,8 @@ On `Qwen3.5`, `llama.cpp`'s `convert_hf_to_gguf.py` reorders the input columns (
 
 $$\pi(k \cdot r + j) = j \cdot n_k + k, \qquad \text{col}_{\text{GGUF}}(h \cdot 128 + w) = \pi(h) \cdot 128 + w \quad (w \in \{0,\dots,127\})$$
 
+When $r = 1$ (`Qwen3.5-0.8B`, $n_k = n_v = 16$), $\pi$ is the identity permutation. When $r = 2$ (`Qwen3.5-4B`, $n_k = 16, n_v = 32$), $\Pi_{128}$ is a non-trivial involution on the 32 panels of width 128.
+
 ### 2.3 Block-Grid Equivariance vs. Superblock Straddling
 Let $Q_B$ denote a row-wise block quantizer that partitions each row of length $d_{\text{in}}$ into contiguous blocks of $B$ elements and encodes each block independently.
 
@@ -65,65 +78,61 @@ Let $Q_B$ denote a row-wise block quantizer that partitions each row of length $
 ## 3. `Project-Then-Heal`: Structural Orthogonal-Complement LoRA
 
 ### 3.1 Why Gradient Projection Fails Under AdamW
-Suppose a writer matrix $W_0 \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ has had an orthonormal basis $D \in \mathbb{R}^{d_{\text{out}} \times k}$ ($D^\top D = I_k$) surgically removed, and we attach a LoRA adapter $\Delta W = s B A$ ($s = \alpha / r$).
+Suppose a writer matrix $W_0 \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ has had an orthonormal row basis $D \in \mathbb{R}^{k \times d_{\text{out}}}$ ($D D^\top = I_k$) surgically removed, and we attach a LoRA adapter $\Delta W = s B A$ ($s = \alpha_{\text{lora}} / r$).
 
-If one projects only the gradient $g_t = P_\perp \nabla_B \mathcal{L}_t$ ($P_\perp = I_{d_{\text{out}}} - D D^\top$) and passes $g_t$ into AdamW, the first moment $m_t = \beta_1 m_{t-1} + (1 - \beta_1) g_t$ remains in $\operatorname{col}(P_\perp)$, **but** AdamW divides coordinatewise by $\sqrt{\hat{v}_t} + \epsilon$:
+If one projects only the gradient $g_t = P_\perp \nabla_B \mathcal{L}_t$ ($P_\perp = I_{d_{\text{out}}} - D^\top D$) and passes $g_t$ into AdamW, the first moment $m_t = \beta_1 m_{t-1} + (1 - \beta_1) g_t$ remains in $\operatorname{col}(P_\perp)$, **but** AdamW divides coordinatewise by $\sqrt{\hat{v}_t} + \epsilon$:
 
 $$\Delta B_t = -\eta \left( \operatorname{diag}\!\left(\frac{1}{\sqrt{\hat{v}_t} + \epsilon}\right) \hat{m}_t + \lambda B_{t-1} \right)$$
 
-Because a diagonal matrix $\Lambda_t = \operatorname{diag}((\sqrt{\hat{v}_t} + \epsilon)^{-1})$ with non-constant diagonal entries does not commute with a non-axis-aligned projector $P_\perp$ ($D^\top \Lambda_t P_\perp \neq 0$), AdamW's step rotates $B_t$ back into $\operatorname{span}(D)$.
+Because a diagonal matrix $\Lambda_t = \operatorname{diag}((\sqrt{\hat{v}_t} + \epsilon)^{-1})$ with non-constant diagonal entries does not commute with a non-axis-aligned projector $P_\perp$ ($D \Lambda_t P_\perp \neq 0$), AdamW's step rotates $B_t$ back into $\operatorname{span}(D^\top)$.
 
-### 3.2 Structural Parameterization ($B = P_\perp \tilde{B}$)
-`ProjectThenHealLinear` instead applies $P_\perp$ inside the forward graph:
+### 3.2 Structural Parameterization ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$)
+`ProjectThenHealLinear` instead applies $P_\perp$ twice in `float64` inside the forward graph:
 
-$$B(\tilde{B}) = P_\perp \tilde{B}, \qquad y = W_0 x + s \, P_\perp (\tilde{B} (A x))$$
+$$B_{\text{locked}}(\tilde{B}) = P_\perp(P_\perp(\tilde{B})), \qquad y = W_0 x + s \, B_{\text{locked}}(\tilde{B}) (A x)$$
 
 By associativity, for **any** parameter state $(\tilde{B}_t, A_t)$ produced by any optimizer:
 
-$$D^\top \Delta W_t = s \, (D^\top P_\perp) \tilde{B}_t A_t = s \, (D^\top - (D^\top D) D^\top) \tilde{B}_t A_t = 0$$
+$$D \Delta W_t = s \, (D P_\perp) P_\perp(\tilde{B}_t) A_t = s \, (D - (D D^\top) D) P_\perp(\tilde{B}_t) A_t = 0$$
 
-To eliminate single-pass IEEE-754 rounding drift when serializing adapters to disk, `secant heal` applies Kahan's twice-is-enough projection in `float64`:
-
-$$B_{\text{locked}} = P_\perp (P_\perp \tilde{B})$$
-
-which holds $\|D^\top B_{\text{locked}}\|_\infty \le 4.86 \times 10^{-17}$ in `float64` and $\le 2.49 \times 10^{-10}$ when merged into an `F32` container.
+Double projection in `float64` eliminates single-pass IEEE-754 rounding drift, holding writer leakage $\max |D B_{\text{locked}}|$ at $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$ on CPU/ROCm runs and $4.83 \times 10^{-10}$ to $1.08 \times 10^{-9}$ across 9 models (`7.2B` to `32.8B`) on H100.
 
 ### 3.3 Writer-Level Invariance vs. Downstream Residual-Stream Propagation
-The algebraic guarantee $D^\top \Delta W_t = 0$ is exact at every protected writer's output (`L15..L17` forward drift $\le 1.70 \times 10^{-8}$ in `F32`). When multiple layers are stacked, an orthogonal perturbation $\delta h_\ell \in \operatorname{span}(D)^\perp$ emitted at layer $\ell$ passes through subsequent RMSNorm, attention, and MLP matrices $W_{\ell'}$ ($\ell' > \ell$) for which $D^\top W_{\ell'} P_\perp \neq 0$ in general. Empirically on `Qwen3.5-0.8B` (`Step 60`), locking `L15..L17` eliminates direct writer leakage ($1,127\times$ reduction in `BF16`, $10^7\times$ in `F32`) and cuts downstream pull-back along the `B1` loop direction at `resid L19` by more than half (`+0.276` vs. `+0.635` unconstrained).
+The algebraic guarantee $D \Delta W_t = 0$ is exact at every protected writer's output (`L15..L17` forward drift $\le 1.70 \times 10^{-8}$ in `F32`). When multiple layers are stacked, an orthogonal perturbation $\delta h_\ell \in \operatorname{span}(D^\top)^\perp$ emitted at layer $\ell$ passes through subsequent RMSNorm, attention, and MLP matrices $W_{\ell'}$ ($\ell' > \ell$) for which $D W_{\ell'} P_\perp \neq 0$ in general. Empirically on `Qwen3.5-0.8B` (`Step 60`), locking `L15..L17` eliminates direct writer leakage ($4.2 \times 10^7\times$ reduction in merged `F32`) and cuts downstream pull-back along the `B1` loop direction at `resid L19` by more than half (`+0.276` vs. `+0.635` unconstrained).
 
 ---
 
 ## 4. Cross-Architecture & Large-Model Empirical Evaluation (`0.8B` to `32.8B`)
 
-Building directly on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>` reasoning-loop experiment [1], we evaluate Secant across **twelve checkpoints spanning eight distinct model architectures** (`Qwen3.5`, `SmolLM2`, `Mistral`, `Qwen2.5`, `DeepSeek-R1-Distill`, `Qwen3`, `AllenAI OLMo-2`, and `Microsoft Phi-4`) from `0.8B` up to `32.8B` parameters on AMD ROCm (`gfx1151`) and NVIDIA H100 80GB SXM GPUs:
+Building directly on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>` reasoning-loop experiment [1], we evaluate Secant across **twelve checkpoints** (`Qwen3.5-0.8B`, `SmolLM2-1.7B`, `Qwen3.5-4B`, `Mistral-7B-v0.3`, `Qwen2.5-7B`, `DeepSeek-R1-Distill-Llama-8B`, `Qwen3-8B`, `OLMo-2-13B`, `Microsoft Phi-4`, `Qwen3-14B`, `DeepSeek-R1-Distill-Qwen-14B`, and `Qwen3-32B`) from `0.8B` up to `32.8B` parameters on AMD ROCm (`gfx1151`) and NVIDIA H100 80GB SXM GPUs:
 
 ```{figure} assets/project-then-heal-chart.svg
 :name: fig-paper-pth-chart
-:alt: Cross-family 60-step AdamW healing comparison from 0.8B to 32.8B
+:alt: Cross-family 60-step LoRA healing comparison from 0.8B to 32.8B
 :width: 100%
 
-Unconstrained LoRA erasure (`8.4%–52.6%`) vs. `ProjectThenHealLinear` (`< 10^{-9}` leakage) across 60 steps of AdamW training from `0.8B` to `32.8B`.
+Unconstrained LoRA subspace intrusion vs. `ProjectThenHealLinear` writer lock across 60 steps of AdamW training from `0.8B` to `32.8B`.
 ```
 
-| Model Family & Checkpoint | Params | Layers ($d_{\text{model}}, d_{\text{ffn}}$) | `B2` Peak `SNR_proj` (Layer) | `B2` Calibrated Shift vs. Random | `B3` Calibrated Shift vs. Random | 60-Step Unconstrained LoRA Leakage | 60-Step `ProjectThenHealLinear` Leakage (`float64` / `F32`) |
+| Model Checkpoint | Params | Layers ($d_{\text{model}}, d_{\text{ffn}}$) | `B2` Peak `SNR_proj` (Layer) | `B2` Shift Ratio vs. Random (`Shift` Pair) | `B3` Shift Ratio vs. Random (`Shift` Pair) | Unconstrained LoRA Subspace Intrusion | `ProjectThenHealLinear` Leakage (`float64` / `F32`) |
 |---|---:|---|---:|---:|---:|---:|---:|
-| **`Qwen/Qwen3.5-0.8B`** | `0.8B` | `24` (`1024, 3584`) | `142.8` (`L12`) | **`35.4x`** (`100%` `</think>` close) | **`28.1x`** (`60.0%` strict RC) | `15.63%` (`0.1563`) | **`3.76e-17` / `9.34e-11`** |
-| **`HuggingFaceTB/SmolLM2-1.7B-Instruct`** | `1.7B` | `24` (`2048, 8192`) | `164.2` (`L12`) | **`68.0x`** (`-12.50` vs `-0.184`) | **`22.2x`** (`+9.17` vs `+0.413`) | `14.20%` (`0.1420`) | **`4.21e-18` / `9.34e-11`** |
-| **`Qwen/Qwen3.5-4B`** | `4.0B` | `32` (`2560, 9216`) | `189.4` (`L16`) | **`100.0%`** `</think>` close (`1.5x`) | **`76.7%`** strict class & frame | `18.40%` (`0.1840`) | **`7.01e-18` / `2.20e-10`** |
-| **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | `32` (`4096, 14336`) | `110.5` (`L12`) | **`663.9x`** (`+3.98` vs `-0.006`) | **`98.9x`** (`+13.94` vs `-0.141`) | `46.79%` (`0.4679`) | **`7.73e-10` / `3.87e-10`** |
-| **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | `28` (`3584, 18944`) | `199.4` (`L10`) | **`155.1x`** (`+4.65` vs `+0.030`) | **`132.7x`** (`+20.82` vs `-0.157`) | `31.34%` (`0.3134`) | **`7.55e-10` / `6.88e-09`** |
-| **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | `32` (`4096, 14336`) | `184.1` (`L20`) | **`1,269.9x`** (`+2.61` vs `+0.002`) | **`143.3x`** (`+8.64` vs `-0.060`) | **`52.55%` (`0.5255`)** | **`6.39e-10` / `2.13e-09`** |
-| **`Qwen/Qwen3-8B`** | `8.2B` | `36` (`4096, 12288`) | `281.4` (`L12`) | **`219.7x`** (`+2.19` vs `-0.010`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` (`0.3953`) | **`7.14e-10` / `6.06e-09`** |
-| **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | `40` (`5120, 13824`) | `142.4` (`L16`) | **`103.3x`** (`+1.25` vs `+0.012`) | **`262.9x`** (`+7.34` vs `-0.028`) | `30.73%` (`0.3073`) | **`1.08e-09` / `3.33e-09`** |
-| **`microsoft/phi-4`** | `14.7B` | `40` (`5120, 17920`) | `27,362.3` (`L32`) | **`326.9x`** (`+3.60` vs `-0.011`) | **`48.7x`** (`+4.24` vs `+0.087`) | `8.42%` (`0.0842`) | **`9.51e-10` / `1.04e-08`** |
-| **`Qwen/Qwen3-14B`** | `14.8B` | `40` (`5120, 17408`) | `475.1` (`L16`) | **`252.5x`** (`+2.53` vs `+0.010`) | **`492.8x`** (`+142.9` vs `-0.290`) | `41.33%` (`0.4133`) | **`5.77e-10` / `4.68e-09`** |
-| **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | `48` (`5120, 13824`) | `181.1` (`L16`) | **`66.7x`** (`+3.76` vs `+0.056`) | **`64.9x`** (`+51.94` vs `+0.801`) | `32.57%` (`0.3257`) | **`6.11e-10` / `2.78e-09`** |
-| **`Qwen/Qwen3-32B`** | `32.8B` | `64` (`5120, 25600`) | `93.6` (`L48`) | **`158.6x`** (`+18.89` vs `+0.119`) | **`510.5x`** (`+41.52` vs `-0.081`) | `30.75%` (`0.3075`) | **`4.83e-10` / `8.29e-09`** |
+| **`Qwen/Qwen3.5-0.8B`** (Live 60-step LM) | `0.8B` | `24` (`1024, 3584`) | `142.8` (`L12`) | `10/10` `<think>` close | `6/10` strict frame | `1.05e-02` max $\|D \Delta W\|$ | **`9.87e-18` / `2.49e-10`** |
+| **`HuggingFaceTB/SmolLM2-1.7B-Instruct`** (20-step ROCm) | `1.7B` | `24` (`2048, 8192`) | `164.2` (`L12`) | **`68.0x`** (`-12.50` vs `-0.184`) | **`22.2x`** (`+9.17` vs `+0.413`) | `4.64e-03` max $\|D \Delta W\|$ | **`5.21e-18` / `1.46e-10`** |
+| **`Qwen/Qwen3.5-4B`** (6-Arm + Static Lock) | `4.0B` | `32` (`2560, 9216`) | `189.4` (`L16`) | **`30/30`** (`100%`) close (`1.5x`) | **`23/30`** (`76.7%`) class & frame | `1.40e-03` (`BF16` merge floor) | **`7.01e-18` / `2.20e-10`** |
+| **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | `32` (`4096, 14336`) | `87.7` (`L12`) | **`663.9x`** (`+0.257` vs `-0.00039`) | **`98.9x`** (`+3.212` vs `-0.0325`) | `46.79%` ($\|DB\|_F/\|B\|_F$) | **`7.73e-10` / `3.87e-10`** |
+| **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | `28` (`3584, 18944`) | `199.4` (`L10`) | **`155.1x`** (`+4.654` vs `+0.0300`) | **`132.7x`** (`+20.82` vs `-0.1568`) | `31.34%` ($\|DB\|_F/\|B\|_F$) | **`7.55e-10` / `6.88e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | `32` (`4096, 14336`) | `184.1` (`L20`) | **`1,269.9x`** (`+2.609` vs `+0.0021`) | **`143.3x`** (`+8.644` vs `-0.0603`) | **`52.55%`** ($\|DB\|_F/\|B\|_F$) | **`6.39e-10` / `2.13e-09`** |
+| **`Qwen/Qwen3-8B`** | `8.2B` | `36` (`4096, 12288`) | `168.4` (`L12`) | **`219.7x`** (`+2.187` vs `-0.0100`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` ($\|DB\|_F/\|B\|_F$) | **`7.14e-10` / `5.93e-09`** |
+| **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | `40` (`5120, 13824`) | `142.4` (`L16`) | **`103.3x`** (`+1.250` vs `+0.0121`) | **`262.9x`** (`+7.341` vs `-0.0279`) | `30.73%` ($\|DB\|_F/\|B\|_F$) | **`1.08e-09` / `3.33e-09`** |
+| **`microsoft/phi-4`** | `14.7B` | `40` (`5120, 17920`) | `27,362.3` (`L32`) | **`326.9x`** (`-3.399` vs `+0.0104`, abs) | **`48.7x`** (`+30.76` vs `+0.6322`) | `8.42%` ($\|DB\|_F/\|B\|_F$) | **`9.51e-10` / `1.70e-08`** |
+| **`Qwen/Qwen3-14B`** | `14.8B` | `40` (`5120, 17408`) | `172.3` (`L16`) | **`252.5x`** (`+4.548` vs `+0.0180`) | **`492.8x`** (`+63.11` vs `-0.1281`) | `41.33%` ($\|DB\|_F/\|B\|_F$) | **`5.77e-10` / `4.68e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | `48` (`5120, 13824`) | `181.1` (`L16`) | **`66.7x`** (`+3.762` vs `+0.0564`) | **`64.9x`** (`+51.94` vs `+0.8008`) | `32.57%` ($\|DB\|_F/\|B\|_F$) | **`6.11e-10` / `2.78e-09`** |
+| **`Qwen/Qwen3-32B`** | `32.8B` | `64` (`5120, 25600`) | `93.6` (`L48`) | **`158.6x`** (`+18.89` vs `+0.1191`) | **`510.5x`** (`+41.52` vs `-0.0813`) | `30.75%` ($\|DB\|_F/\|B\|_F$) | **`4.83e-10` / `8.29e-09`** |
 
 Across every tested architecture and width ($d_{\text{model}} \in \{1024, 2048, 2560, 3584, 4096, 5120\}$):
-1. **Contrastive direction localization (`SNR_proj`) scales cleanly with model width:** Peak `B2` projected signal-to-noise ratio reaches `281.4` on `Qwen3-8B`, `475.1` on `Qwen3-14B`, and `27,362.3` (`cos = 0.9971` across all prompts) on `Microsoft Phi-4` (`14.7B`).
-2. **Target-Shift Calibration (`rank1-columns`) outperforms equal-Frobenius-norm random controls by `22x` to `663.9x`:** Without iterative optimization, rank-1 column edits shift held-out representations along `B2` and `B3` with linear dose scaling from $\alpha = 1.0\times$ to $\alpha = 1.5\times$.
-3. **Standard LoRA destroys `8.4%` to `46.8%` of protected subspace orthogonality in 60 steps, while `ProjectThenHealLinear` holds leakage below $10^{-8}$ (`F32`) and $10^{-9}$ (`float64`):** Even at $d_{\text{model}} = 5120$ (`Qwen3-14B` and `Phi-4`), structural orthogonal-complement parameterization prevents AdamW coordinate-wise variance scaling from rotating updates into the excised subspace.
+1. **Contrastive direction localization (`SNR_proj`) isolates candidate layers across all 12 checkpoints:** Held-out `B2` projected signal-to-noise ratio spans `87.7` (`Mistral-7B-v0.3`) to `199.4` (`Qwen2.5-7B`) across standard architectures (`93.6` at `L48` on 64-layer `Qwen3-32B`). On `microsoft/phi-4`, extreme outlier-dimension concentration produces `SNR_proj = 27,362.3` (`SNR_trace = 909.6` at `L16`) and an inverted, saturating `B2` projection shift (`-3.399` at $1.0\times$ and `-3.519` at $1.5\times$), showing why `SNR_proj` and signed shift verification should always be inspected together.
+2. **Rank-1 subspace edits (`rank1-columns`) separate target directions from equal-Frobenius-norm random controls by `22.2x` to `1,269.9x`:** For 16 of the 18 H100 directional edits, scaling the edit multiplier from $\alpha = 1.0\times$ to $1.5\times$ scales the induced projection shift proportionally (`1.50x`), with `phi-4` `B2` (`1.035x`) and `OLMo-2-13B` `B3` (`1.18x`) exhibiting nonlinear saturation.
+3. **Under both live LM training and adversary-aligned subspace stress testing, `ProjectThenHealLinear` locks the writer subspace:** Across the 9 H100 stress-test models (`7.2B` to `32.8B`), where the synthetic target $Y_{\text{target}} = Y + 1.5 v_{B2}$ pulls updates directly toward $\operatorname{span}(D)$, unconstrained LoRA places `8.42%` to `52.55%` of its adapter norm inside $\operatorname{span}(D)$, while `ProjectThenHealLinear` holds writer leakage $\max |D B_{\text{locked}}|$ at $4.83 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) and merged `F32` leakage at $3.87 \times 10^{-10}$ to $1.70 \times 10^{-8}$.
 
 ---
 

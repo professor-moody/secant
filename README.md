@@ -22,13 +22,22 @@
 
 ## Why Secant?
 
-In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*](https://rikiyat.github.io/blog/weight-space-programming/) (MIT CSAIL, Nov 2026), Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab demonstrated that frontier models can inspect raw transformer weights and edit behavioral circuits directly—such as suppressing `<think>` reasoning loops in `Qwen3.5-0.8B` by modifying `0.016%` of its parameters. In their **"What Comes Next?"** section, they called for:
+In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*](https://rikiyat.github.io/blog/weight-space-programming/) (MIT CSAIL, Nov 2026), Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab demonstrated that frontier models can inspect raw transformer weights and edit behavioral circuits directly, such as suppressing `<think>` reasoning loops in `Qwen3.5-0.8B` by modifying `0.016%` of its parameters. In their **"What Comes Next?"** section, they called for:
 
 > *"Turning what currently seems like black magic into a rigorous, reproducible engineering discipline"* and *"auditing without evaluation (e.g., backdoors directly from weights)."*
 
 **We took this on and decided to see what we could do.**
 
-**Secant** is a standalone Rust workspace (`secant-core`, `secant-cli`, `secant-ffi`) and Python library (`secant.nn.ProjectThenHealLinear`) for deterministic weight-space reading, scale-calibrated multi-subspace surgery (`0.8B` to `14.8B+`), direct in-place `Q8_0` / `Q4_K` GGUF block editing, static tensor payload security auditing, and subspace-locked LoRA fine-tuning.
+**Secant** is a standalone Rust workspace (`secant-core`, `secant-cli`, `secant-ffi`) and Python library (`secant.nn.ProjectThenHealLinear`) for deterministic weight-space reading, scale-calibrated multi-subspace surgery (`0.8B` to `32.8B`), direct in-place `Q8_0` / `Q4_K` GGUF block editing, static tensor payload security auditing, and subspace-locked LoRA fine-tuning.
+
+---
+
+## Key Takeaways in Plain Words
+
+1. **You can inspect and audit model behavior directly from disk:** `secant read` extracts the dominant singular vectors of any MLP or attention matrix and projects them against the vocabulary table so you can see which concepts a layer amplifies without loading the model onto a GPU. `secant sanitize` audits `.safetensors` and `.gguf` files for non-finite floats (`NaN`, `Inf`) and out-of-range index tables that trigger C++ kernel crashes after header parsers pass.
+2. **Weight edits must be calibrated to a layer's activation scale:** A fixed Frobenius-norm edit ratio ($\gamma = 0.30$) that fixes `<think>` loops on `Qwen3.5-0.8B` fails (`0/30` closed) on `Qwen3.5-4B` because wider layers have different activation norms. Solving for the step size that delivers a specific inner-product shift ($\Delta_{\text{target}}$) restores a sharp transition (`0/30` $\to$ `21/30` at $1.0\times$ $\to$ `30/30` at $1.5\times$).
+3. **`Q8_0` quantized GGUF files can be edited in place, while `Q4_K` superblocks straddle head boundaries:** Each `Qwen3.5` `ssm_out` value head spans 128 columns. That divides evenly into four 32-weight `Q8_0` blocks ($128 = 4 \times 32$), allowing direct 34-byte block surgery (`98.5%` refusal direction removed). A 256-weight `Q4_K` superblock spans two neighboring heads with a shared scale factor, leaving `67%` of the unwanted direction intact when re-encoded in place.
+4. **Standard LoRA fine-tuning overwrites surgical edits unless locked inside the forward pass:** When you fine-tune an edited model with AdamW, per-coordinate second-moment scaling rotates updates back into the removed directions. `ProjectThenHealLinear` applies an orthogonal projector ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$) inside the forward graph, holding writer-level subspace leakage at $9.87 \times 10^{-18}$ (`float64` on `0.8B`) and $4.83 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64` across `7B` to `32.8B` H100 stress tests).
 
 ---
 
@@ -37,9 +46,9 @@ In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural 
 | Capability | CLI / Python | What It Solves |
 |---|---|---|
 | **Weight-Space Reading** | `secant inspect`<br>`secant read` | Deterministic non-FMA `float64` SVD over `.safetensors` and `.gguf` tensors with direct vocabulary unembedding projection (`--vocab-tensor`). |
-| **Calibrated Multi-Subspace Surgery** | `secant compose`<br>`secant patch`<br>`secant verify-patch` | Two-pass `float64` Gram-Schmidt orthogonalization + **Target-Shift Calibration** ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) across model widths, with zero-copy `mmap` patching and bit-exact verification of all untouched bytes. |
-| **Direct Quantized Surgery** | `secant quant patch`<br>`secant quant witness` | Edits 34-byte `Q8_0` blocks directly inside compressed `.gguf` files (`untouched_blocks_bit_identical: true`, `0.365%` Frobenius residual vs. `BF16` edit-then-quantize) and proves $\Pi_{128}$ block-grid equivariance. |
-| **Subspace-Locked LoRA (`Project-Then-Heal`)** | `secant.nn.ProjectThenHealLinear`<br>`secant heal`<br>`secant verify-subspace` | Prevents post-surgical LoRA + AdamW fine-tuning from erasing weight-space edits (`8.4%–46.8%` unconstrained leakage $\to$ **`< 10^{-9}`** in `float64` / **`< 10^{-8}`** in `F32`). |
+| **Calibrated Multi-Subspace Surgery** | `secant compose`<br>`secant patch`<br>`secant verify-patch` | Two-pass `float64` Gram-Schmidt orthogonalization + **Target-Shift Calibration** (`beta = |Delta_target| / ||h_S||_2^2`) across model widths, with zero-copy `mmap` patching and bit-exact verification of all untouched bytes. |
+| **Direct Quantized Surgery** | `secant quant patch`<br>`secant quant witness` | Edits 34-byte `Q8_0` blocks directly inside compressed `.gguf` files (`untouched_blocks_bit_identical: true`, `0.18%` to `0.92%` per-tensor Frobenius residual vs. `BF16` edit-then-quantize) and proves $\Pi_{128}$ block-grid equivariance. |
+| **Subspace-Locked LoRA (`Project-Then-Heal`)** | `secant.nn.ProjectThenHealLinear`<br>`secant heal`<br>`secant verify-subspace` | Prevents post-surgical LoRA + AdamW fine-tuning from intruding into excised weight subspaces, holding writer leakage at $9.87 \times 10^{-18}$ to $1.08 \times 10^{-9}$ in `float64` and $1.46 \times 10^{-10}$ to $1.70 \times 10^{-8}$ in merged `F32`. |
 | **Payload Security Auditing** | `secant sanitize`<br>`secant probe` | Audits and sanitizes structurally valid `.safetensors` and `.gguf` checkpoints for `NaN`/`Inf`/subnormal floats, out-of-bounds MoE router IDs, and alignment-gap data smuggling without running a forward pass. |
 
 ---
@@ -70,28 +79,28 @@ secant heal --adapter lora_adapter.safetensors --basis basis.json --out lora_loc
 
 ---
 
-## Headline Empirical Results (`0.8B` to `32.8B` Across 12 Models & 8 Architectures)
+## Headline Empirical Results (`0.8B` to `32.8B` Across 12 Checkpoints)
 
 Full derivations, visual charts, SHA-256 artifact manifests, and reproduction scripts are in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**:
 
 <p align="center">
-  <img src="docs/assets/project-then-heal-chart.svg" alt="Cross-family 60-step AdamW healing benchmark from 0.8B to 32.8B" width="100%" />
+  <img src="docs/assets/project-then-heal-chart.svg" alt="Cross-family 60-step LoRA healing benchmark from 0.8B to 32.8B" width="100%" />
 </p>
 
-| Model Family & Checkpoint | Params | Calibrated `B2` Shift vs. Random | Calibrated `B3` Shift vs. Random | Standard LoRA Erasure (60 steps) | `ProjectThenHealLinear` Leakage (`float64`) |
+| Model Checkpoint | Params | `B2` Shift Ratio vs. Random (`Shift` Pair) | `B3` Shift Ratio vs. Random (`Shift` Pair) | Unconstrained LoRA Subspace Intrusion | `ProjectThenHealLinear` Leakage (`float64` / `F32`) |
 |---|---:|---:|---:|---:|---:|
-| **`Qwen/Qwen3.5-0.8B`** | `0.8B` | **`35.4x`** (`100%` `</think>` close) | **`28.1x`** (`60.0%` strict RC) | `15.63%` | **`3.76e-17`** |
-| **`HuggingFaceTB/SmolLM2-1.7B-Instruct`** | `1.7B` | **`68.0x`** | **`22.2x`** | `14.20%` | **`4.21e-18`** |
-| **`Qwen/Qwen3.5-4B`** | `4.0B` | **`100.0%`** `</think>` close (`1.5x` dose) | **`76.7%`** strict class & frame | `18.40%` | **`7.01e-18`** |
-| **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | **`663.9x`** | **`98.9x`** | `46.79%` | **`7.73e-10`** |
-| **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | **`155.1x`** | **`132.7x`** | `31.34%` | **`7.55e-10`** |
-| **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | **`1,269.9x`** | **`143.3x`** | **`52.55%`** | **`6.39e-10`** |
-| **`Qwen/Qwen3-8B`** | `8.2B` | **`219.7x`** | **`29.1x`** | `39.53%` | **`7.14e-10`** |
-| **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | **`103.3x`** | **`262.9x`** | `30.73%` | **`1.08e-09`** |
-| **`microsoft/phi-4`** | `14.7B` | **`326.9x`** (`cos = 0.9971`) | **`48.7x`** | `8.42%` | **`9.51e-10`** |
-| **`Qwen/Qwen3-14B`** | `14.8B` | **`252.5x`** | **`492.8x`** | `41.33%` | **`5.77e-10`** |
-| **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | **`66.7x`** | **`64.9x`** | `32.57%` | **`6.11e-10`** |
-| **`Qwen/Qwen3-32B`** | `32.8B` | **`158.6x`** | **`510.5x`** | `30.75%` | **`4.83e-10`** |
+| **`Qwen/Qwen3.5-0.8B`** (Live 60-step LM) | `0.8B` | `10/10` `<think>` close | `6/10` strict frame | `1.05e-02` max $\|D \Delta W\|$ | **`9.87e-18` / `2.49e-10`** |
+| **`HuggingFaceTB/SmolLM2-1.7B-Instruct`** (20-step ROCm) | `1.7B` | **`68.0x`** (`-12.50` vs `-0.184`) | **`22.2x`** (`+9.17` vs `+0.413`) | `4.64e-03` max $\|D \Delta W\|$ | **`5.21e-18` / `1.46e-10`** |
+| **`Qwen/Qwen3.5-4B`** (6-Arm Calibrated + Static Lock) | `4.0B` | **`30/30`** (`100%`) close at `1.5x` | **`23/30`** (`76.7%`) class & frame | `1.40e-03` (`BF16` merge floor) | **`7.01e-18` / `2.20e-10`** |
+| **`mistralai/Mistral-7B-Instruct-v0.3`** | `7.2B` | **`663.9x`** (`+0.257` vs `-0.00039`) | **`98.9x`** (`+3.212` vs `-0.0325`) | `46.79%` ($\|DB\|_F/\|B\|_F$) | **`7.73e-10` / `3.87e-10`** |
+| **`Qwen/Qwen2.5-7B-Instruct`** | `7.6B` | **`155.1x`** (`+4.654` vs `+0.0300`) | **`132.7x`** (`+20.82` vs `-0.1568`) | `31.34%` ($\|DB\|_F/\|B\|_F$) | **`7.55e-10` / `6.88e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Llama-8B`** | `8.0B` | **`1,269.9x`** (`+2.609` vs `+0.0021`) | **`143.3x`** (`+8.644` vs `-0.0603`) | **`52.55%`** ($\|DB\|_F/\|B\|_F$) | **`6.39e-10` / `2.13e-09`** |
+| **`Qwen/Qwen3-8B`** | `8.2B` | **`219.7x`** (`+2.187` vs `-0.0100`) | **`29.1x`** (`+120.8` vs `+4.146`) | `39.53%` ($\|DB\|_F/\|B\|_F$) | **`7.14e-10` / `5.93e-09`** |
+| **`allenai/OLMo-2-1124-13B-Instruct`** | `13.7B` | **`103.3x`** (`+1.250` vs `+0.0121`) | **`262.9x`** (`+7.341` vs `-0.0279`) | `30.73%` ($\|DB\|_F/\|B\|_F$) | **`1.08e-09` / `3.33e-09`** |
+| **`microsoft/phi-4`** | `14.7B` | **`326.9x`** (`-3.399` vs `+0.0104`, abs) | **`48.7x`** (`+30.76` vs `+0.6322`) | `8.42%` ($\|DB\|_F/\|B\|_F$) | **`9.51e-10` / `1.70e-08`** |
+| **`Qwen/Qwen3-14B`** | `14.8B` | **`252.5x`** (`+4.548` vs `+0.0180`) | **`492.8x`** (`+63.11` vs `-0.1281`) | `41.33%` ($\|DB\|_F/\|B\|_F$) | **`5.77e-10` / `4.68e-09`** |
+| **`deepseek-ai/DeepSeek-R1-Distill-Qwen-14B`** | `14.8B` | **`66.7x`** (`+3.762` vs `+0.0564`) | **`64.9x`** (`+51.94` vs `+0.8008`) | `32.57%` ($\|DB\|_F/\|B\|_F$) | **`6.11e-10` / `2.78e-09`** |
+| **`Qwen/Qwen3-32B`** | `32.8B` | **`158.6x`** (`+18.89` vs `+0.1191`) | **`510.5x`** (`+41.52` vs `-0.0813`) | `30.75%` ($\|DB\|_F/\|B\|_F$) | **`4.83e-10` / `8.29e-09`** |
 
 ---
 
@@ -99,14 +108,14 @@ Full derivations, visual charts, SHA-256 artifact manifests, and reproduction sc
 
 The full scientific documentation is hosted at **[https://professor-moody.github.io/secant/](https://professor-moody.github.io/secant/)**:
 
-1. **[Overview & Empirical Summary](https://professor-moody.github.io/secant/)** — Capabilities, $\alpha$-dose-response phase transition (`0% -> 70% -> 100%`), and cross-family table.
-2. **[Quickstart & Live CLI Receipts](https://professor-moody.github.io/secant/quickstart)** — End-to-end CLI and Python examples with SHA-256 bracketed JSON receipts.
-3. **[Mathematical Theory & Scale Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** — Contrastive capture, `SNR_proj`, Gram-Schmidt orthogonalization, and Target-Shift Calibration.
-4. **[Quantized Block Surgery (`Q8_0` & `Q4_K`)](https://professor-moody.github.io/secant/quantized-surgery)** — The $\Pi_{128}$ Quantization Commutation Theorem and direct 34-byte `Q8_0` block editing.
-5. **[Project-Then-Heal Subspace-Locked LoRA](https://professor-moody.github.io/secant/project-then-heal)** — Why AdamW rotates gradients back into excised subspaces and how $B = P_\perp \tilde{B}$ locks leakage to $< 10^{-9}$.
-6. **[CLI, Python & C-ABI Reference](https://professor-moody.github.io/secant/cli-and-python-reference)** — Flags, exit codes, JSON schemas, `secant.nn`, and `secant.h` FFI symbols.
-7. **[Container Geometry & Payload Security](https://professor-moody.github.io/secant/payload-security)** — Boundary-3 static auditing (`sanitize`, `probe`) for `.safetensors` and `.gguf` files.
-8. **[Technical Paper](https://professor-moody.github.io/secant/PAPER)** — Complete self-contained paper with formal propositions and proofs.
+1. **[Overview & Empirical Summary](https://professor-moody.github.io/secant/)**: Capabilities, $\alpha$-dose-response phase transition (`0% -> 70% -> 100%`), and cross-family table.
+2. **[Quickstart & Live CLI Receipts](https://professor-moody.github.io/secant/quickstart)**: End-to-end CLI and Python examples with SHA-256 bracketed JSON receipts.
+3. **[Mathematical Theory & Scale Calibration](https://professor-moody.github.io/secant/theory-and-calibration)**: Contrastive capture, `SNR_proj`, Gram-Schmidt orthogonalization, and Target-Shift Calibration.
+4. **[Quantized Block Surgery (`Q8_0` & `Q4_K`)](https://professor-moody.github.io/secant/quantized-surgery)**: The $\Pi_{128}$ Quantization Commutation Theorem and direct 34-byte `Q8_0` block editing.
+5. **[Project-Then-Heal Subspace-Locked LoRA](https://professor-moody.github.io/secant/project-then-heal)**: Why AdamW rotates gradients back into excised subspaces and how $B = P_\perp \tilde{B}$ locks writer leakage.
+6. **[CLI, Python & C-ABI Reference](https://professor-moody.github.io/secant/cli-and-python-reference)**: Flags, exit codes, JSON schemas, `secant.nn`, and `secant.h` FFI symbols.
+7. **[Container Geometry & Payload Security](https://professor-moody.github.io/secant/payload-security)**: Boundary-3 static auditing (`sanitize`, `probe`) for `.safetensors` and `.gguf` files.
+8. **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**: Complete self-contained paper with formal propositions and proofs.
 
 ---
 

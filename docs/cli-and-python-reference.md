@@ -1,9 +1,9 @@
 # CLI, Python & C-ABI Reference
 
 Secant exposes three synchronized interfaces backed by `secant-core`:
-1. **`secant` CLI** (`crates/secant-cli`) — Deterministic command-line tool with structured `--json` receipts.
-2. **`secant` Python Package** (`python/secant`) — PyTorch `ProjectThenHealLinear`, contrastive capture, and CLI/FFI bridges.
-3. **`libsecant` C ABI** (`crates/secant-ffi/include/secant.h`) — Stable `extern "C"` shared/static library (`*_v1` symbols).
+1. **`secant` CLI** (`crates/secant-cli`): Deterministic command-line tool with structured `--json` receipts.
+2. **`secant` Python Package** (`python/secant`): PyTorch `ProjectThenHealLinear`, contrastive capture, and CLI/FFI bridges.
+3. **`libsecant` C ABI** (`crates/secant-ffi/include/secant.h`): Stable `extern "C"` shared/static library (`*_v1` symbols).
 
 ---
 
@@ -13,9 +13,9 @@ Every `secant` CLI command and C-ABI entry point obeys a strict three-state exit
 
 | Exit Code | Meaning | Example |
 |---:|---|---|
-| **`0`** | **PASS** — Operation or verification gate succeeded. | `verify-patch` confirmed zero out-of-plan bytes changed; `verify-subspace` confirmed leakage $\le \tau$. |
-| **`1`** | **GATE FAILED** — Deterministic check ran to completion and found a violation. | `verify-subspace` measured leakage $0.156 > 10^{-6}$; `probe` detected non-zero GGUF alignment padding. |
-| **`2`** | **USAGE / IO ERROR** — Invalid arguments, missing file, or malformed container. | Missing `--model` flag or truncated GGUF header. |
+| **`0`** | **PASS**: Operation or verification gate succeeded. | `verify-patch` confirmed zero out-of-plan bytes changed; `verify-subspace` confirmed leakage $\le \tau$. |
+| **`1`** | **GATE FAILED**: Deterministic check ran to completion and found a violation. | `verify-subspace` measured leakage $0.156 > 10^{-6}$; `probe` detected non-zero GGUF alignment padding. |
+| **`2`** | **USAGE / IO ERROR**: Invalid arguments, missing file, or malformed container. | Missing `--model` flag or truncated GGUF header. |
 
 ---
 

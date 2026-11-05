@@ -1,63 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-  <rect width="960" height="280" rx="16" fill="#0b1120" stroke="#1e293b" stroke-width="2"/>
-  
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 290" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <rect width="960" height="290" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
+
   <!-- Header -->
-  <text x="32" y="38" fill="#94a3b8" font-size="11" font-weight="700" letter-spacing="1.5" font-family="ui-monospace, SFMono-Regular, monospace">SECANT END-TO-END WEIGHT-SPACE ENGINE</text>
-  <text x="32" y="62" fill="#f8fafc" font-size="18" font-weight="700">From Static Weight Auditing to Subspace-Locked LoRA Healing</text>
+  <text x="32" y="36" fill="#a8a29e" font-size="11" font-weight="700" letter-spacing="1.4" font-family="ui-monospace, SFMono-Regular, monospace">SECANT FOUR-STAGE WEIGHT-SPACE ARCHITECTURE</text>
+  <text x="32" y="60" fill="#fafaf9" font-size="18" font-weight="700">From Static Weight Auditing to Subspace-Locked LoRA Healing</text>
+  <line x1="32" y1="74" x2="928" y2="74" stroke="#2e2d2b" stroke-width="1"/>
 
   <!-- Stage 1 -->
-  <rect x="28" y="86" width="205" height="164" rx="12" fill="#111827" stroke="#38bdf8" stroke-width="1.5"/>
-  <rect x="42" y="100" width="70" height="20" rx="4" fill="#0c4a6e"/>
-  <text x="77" y="114" fill="#38bdf8" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 1</text>
-  <text x="42" y="140" fill="#f8fafc" font-size="14" font-weight="700">Read &amp; Sanitize</text>
-  <text x="42" y="160" fill="#94a3b8" font-size="11.5">Zero-eval SVD spectrum &amp;</text>
-  <text x="42" y="176" fill="#94a3b8" font-size="11.5">Boundary-3 kernel defense</text>
-  <rect x="42" y="194" width="177" height="42" rx="6" fill="#090d16" stroke="#1e293b"/>
-  <text x="50" y="211" fill="#38bdf8" font-size="10.5" font-family="ui-monospace, monospace">secant inspect / read</text>
-  <text x="50" y="227" fill="#38bdf8" font-size="10.5" font-family="ui-monospace, monospace">secant sanitize / probe</text>
+  <rect x="28" y="92" width="206" height="172" rx="10" fill="#1c1b1a" stroke="#44403c" stroke-width="1.5"/>
+  <rect x="42" y="106" width="76" height="20" rx="4" fill="#292524"/>
+  <text x="80" y="120" fill="#d6d3d1" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 1</text>
+  <text x="42" y="146" fill="#fafaf9" font-size="14" font-weight="700">Read &amp; Sanitize</text>
+  <text x="42" y="166" fill="#a8a29e" font-size="11.5">Zero-eval SVD spectrum &amp;</text>
+  <text x="42" y="182" fill="#a8a29e" font-size="11.5">Boundary-3 kernel checks</text>
+  <rect x="42" y="200" width="178" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
+  <text x="50" y="218" fill="#e7e5e4" font-size="10.5" font-family="ui-monospace, monospace">secant inspect / read</text>
+  <text x="50" y="236" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">secant sanitize / probe</text>
 
   <!-- Arrow 1->2 -->
-  <path d="M 237 168 L 255 168" stroke="#475569" stroke-width="2" fill="none"/>
-  <polygon points="255,163 263,168 255,173" fill="#475569"/>
+  <path d="M 238 178 L 256 178" stroke="#78716c" stroke-width="1.8" fill="none"/>
+  <polygon points="256,173.5 264,178 256,182.5" fill="#78716c"/>
 
   <!-- Stage 2 -->
-  <rect x="266" y="86" width="205" height="164" rx="12" fill="#111827" stroke="#a855f7" stroke-width="1.5"/>
-  <rect x="280" y="100" width="70" height="20" rx="4" fill="#3b0764"/>
-  <text x="315" y="114" fill="#c084fc" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 2</text>
-  <text x="280" y="140" fill="#f8fafc" font-size="14" font-weight="700">Capture &amp; Compose</text>
-  <text x="280" y="160" fill="#94a3b8" font-size="11.5">Gram-Schmidt basis D +</text>
-  <text x="280" y="176" fill="#94a3b8" font-size="11.5">Target-Shift Calibration</text>
-  <rect x="280" y="194" width="177" height="42" rx="6" fill="#090d16" stroke="#1e293b"/>
-  <text x="288" y="211" fill="#c084fc" font-size="10.5" font-family="ui-monospace, monospace">secant.capture (SNR)</text>
-  <text x="288" y="227" fill="#c084fc" font-size="10.5" font-family="ui-monospace, monospace">secant compose</text>
+  <rect x="268" y="92" width="206" height="172" rx="10" fill="#1c1b1a" stroke="#44403c" stroke-width="1.5"/>
+  <rect x="282" y="106" width="76" height="20" rx="4" fill="#292524"/>
+  <text x="320" y="120" fill="#d6d3d1" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 2</text>
+  <text x="282" y="146" fill="#fafaf9" font-size="14" font-weight="700">Capture &amp; Compose</text>
+  <text x="282" y="166" fill="#a8a29e" font-size="11.5">Orthonormal basis D D^T = I</text>
+  <text x="282" y="182" fill="#a8a29e" font-size="11.5">&amp; Target-Shift Calibration</text>
+  <rect x="282" y="200" width="178" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
+  <text x="290" y="218" fill="#e7e5e4" font-size="10.5" font-family="ui-monospace, monospace">secant.capture (SNR)</text>
+  <text x="290" y="236" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">secant compose</text>
 
   <!-- Arrow 2->3 -->
-  <path d="M 475 168 L 493 168" stroke="#475569" stroke-width="2" fill="none"/>
-  <polygon points="493,163 501,168 493,173" fill="#475569"/>
+  <path d="M 478 178 L 496 178" stroke="#78716c" stroke-width="1.8" fill="none"/>
+  <polygon points="496,173.5 504,178 496,182.5" fill="#78716c"/>
 
   <!-- Stage 3 -->
-  <rect x="504" y="86" width="205" height="164" rx="12" fill="#111827" stroke="#f59e0b" stroke-width="1.5"/>
-  <rect x="518" y="100" width="70" height="20" rx="4" fill="#451a03"/>
-  <text x="553" y="114" fill="#fbbf24" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 3</text>
-  <text x="518" y="140" fill="#f8fafc" font-size="14" font-weight="700">Zero-Copy Patch</text>
-  <text x="518" y="160" fill="#94a3b8" font-size="11.5">mmap SafeTensors/GGUF &amp;</text>
-  <text x="518" y="176" fill="#94a3b8" font-size="11.5">34B Q8_0 block surgery</text>
-  <rect x="518" y="194" width="177" height="42" rx="6" fill="#090d16" stroke="#1e293b"/>
-  <text x="526" y="211" fill="#fbbf24" font-size="10.5" font-family="ui-monospace, monospace">secant patch / verify</text>
-  <text x="526" y="227" fill="#fbbf24" font-size="10.5" font-family="ui-monospace, monospace">secant quant patch</text>
+  <rect x="508" y="92" width="206" height="172" rx="10" fill="#1c1b1a" stroke="#d97706" stroke-width="1.5"/>
+  <rect x="522" y="106" width="76" height="20" rx="4" fill="#451a03"/>
+  <text x="560" y="120" fill="#fbbf24" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 3</text>
+  <text x="522" y="146" fill="#fafaf9" font-size="14" font-weight="700">Zero-Copy Patch</text>
+  <text x="522" y="166" fill="#a8a29e" font-size="11.5">mmap SafeTensors/GGUF &amp;</text>
+  <text x="522" y="182" fill="#a8a29e" font-size="11.5">34B Q8_0 block surgery</text>
+  <rect x="522" y="200" width="178" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
+  <text x="530" y="218" fill="#fbbf24" font-size="10.5" font-family="ui-monospace, monospace">secant patch / verify</text>
+  <text x="530" y="236" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant quant patch</text>
 
   <!-- Arrow 3->4 -->
-  <path d="M 713 168 L 731 168" stroke="#475569" stroke-width="2" fill="none"/>
-  <polygon points="731,163 739,168 731,173" fill="#475569"/>
+  <path d="M 718 178 L 736 178" stroke="#78716c" stroke-width="1.8" fill="none"/>
+  <polygon points="736,173.5 744,178 736,182.5" fill="#78716c"/>
 
   <!-- Stage 4 -->
-  <rect x="742" y="86" width="190" height="164" rx="12" fill="#111827" stroke="#10b981" stroke-width="1.5"/>
-  <rect x="756" y="100" width="70" height="20" rx="4" fill="#064e3b"/>
-  <text x="791" y="114" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 4</text>
-  <text x="756" y="140" fill="#f8fafc" font-size="14" font-weight="700">Project-Then-Heal</text>
-  <text x="756" y="160" fill="#94a3b8" font-size="11.5">Lock LoRA inside P_perp</text>
-  <text x="756" y="176" fill="#94a3b8" font-size="11.5">(&lt; 10⁻¹⁵ f64 leakage)</text>
-  <rect x="756" y="194" width="162" height="42" rx="6" fill="#090d16" stroke="#1e293b"/>
-  <text x="764" y="211" fill="#34d399" font-size="10.5" font-family="ui-monospace, monospace">ProjectThenHealLinear</text>
-  <text x="764" y="227" fill="#34d399" font-size="10.5" font-family="ui-monospace, monospace">secant heal / verify</text>
+  <rect x="748" y="92" width="184" height="172" rx="10" fill="#1c1b1a" stroke="#10b981" stroke-width="1.5"/>
+  <rect x="762" y="106" width="76" height="20" rx="4" fill="#064e3b"/>
+  <text x="800" y="120" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 4</text>
+  <text x="762" y="146" fill="#fafaf9" font-size="14" font-weight="700">Project-Then-Heal</text>
+  <text x="762" y="166" fill="#a8a29e" font-size="11.5">Lock LoRA inside P_perp</text>
+  <text x="762" y="182" fill="#a8a29e" font-size="11.5">(9.9e-18 to 1.1e-9 f64)</text>
+  <rect x="762" y="200" width="156" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
+  <text x="770" y="218" fill="#34d399" font-size="10.5" font-family="ui-monospace, monospace">ProjectThenHealLinear</text>
+  <text x="770" y="236" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant heal / verify</text>
 </svg>

@@ -16,12 +16,12 @@ Why `Q8_0` commutes with 128-column `ssm_out` value-head panels while `Q4_K` str
 
 ## 1. Why `Q8_0` Commutes with Head Permutations and `Q4_K` Does Not
 
-When `llama.cpp` converts hybrid `Qwen3.5` models to GGUF, it permutes the input columns of `blk.N.ssm_out.weight` in **128-column value-head panels** ($\Pi_{128}$). Whether a quantized format can be edited or permuted cleanly depends on how its block size divides `128`:
+When `llama.cpp` converts hybrid `Qwen3.5` models with $r = n_v / n_k > 1$ (such as `Qwen3.5-4B`, where $n_k = 16, n_v = 32, r = 2$) to GGUF, it permutes the input columns of `blk.N.ssm_out.weight` in **128-column value-head panels** ($\Pi_{128}$). (On `Qwen3.5-0.8B`, $n_k = n_v = 16$ so $r = 1$ and the deployed column order is the identity; we evaluate $\Pi_{128}$ on `blk.16.ssm_out.weight` as a structural 128-tile permutation test alongside the real identity layout.) Whether a quantized format commutes with $\Pi_{128}$ depends on how its block size divides `128`:
 
 | Property | `Q8_0` (GGML Type `8`) | `Q4_K` (GGML Type `12`) |
 |---|---|---|
 | **Block size & byte footprint** | **32 weights** (`34` bytes: `2B` `f16` scale + `32B` `int8` codes) | **256 weights** (`144` bytes: shared `f16` `d, dmin` + `8` sub-blocks) |
-| **Alignment with 128-col `ssm_out` panels** | **Exact ($128 = 4 \times 32$)**: `0` straddling blocks | **Fails ($256 = 2 \times 128$)**: straddles 2 value heads (`8` per row) |
+| **Alignment with 128-col `ssm_out` panels** | **Exact ($128 = 4 \times 32$)**: `0` straddling blocks | **Fails ($256 = 2 \times 128$)**: straddles 2 value heads (`8` per 2048-col row, `16` per 4096-col row) |
 | **Refusal (`B2`) removed by direct block surgery** | **`98.5%` removed** (`0.5172` $\to$ `0.0079`) | **Fails: `67%` of refusal survives** (`0.5172` $\to$ `0.346`) |
 | **Secant default behavior** | Supported in-place (`secant quant patch`) | Refused by default (`superblockStraddleError`) |
 
@@ -32,27 +32,27 @@ When `llama.cpp` converts hybrid `Qwen3.5` models to GGUF, it permutes the input
 
 ## 2. The Quantization Commutation Bound
 
-Let $\PiB : \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}} \to \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ denote the block-quantize-then-dequantize operator for block size $B$. Suppose we apply a column-sparse behavioral edit $\dW$ supported on $K$ columns ($K \le d_{\text{in}}$), touching at most $M_{\text{blocks}}$ blocks per row.
+Let $Q_B : \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}} \to \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ denote the block-quantize-then-dequantize operator for block size $B$. Suppose we apply a column-sparse behavioral edit $\Delta W$ supported on $K$ columns ($K \le d_{\text{in}}$), touching a subset of blocks $\mathcal{T}$.
 
 ```{prf:theorem} Quantization Commutation Bound
 :label: thm-commutation
 
-For any weight matrix $W \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ and sparse edit $\dW$ supported on $N_{\text{elem}} = d_{\text{out}} \cdot M_{\text{blocks}} \cdot B$ elements inside touched blocks $b \in \mathcal{T}$, let $s_b'$ denote the post-edit block scale of block $b$. Then the Frobenius commutation residual between **Path 1** (editing in floating point and quantizing: $\PiB(W + \dW)$) and the ideal edited quantized tensor ($\PiB(W) + \dW$) satisfies:
+For any weight matrix $W \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ and sparse edit $\Delta W$ supported inside touched blocks $b \in \mathcal{T}$, let $s_b'$ denote the post-edit quantization step size of block $b$. By the triangle inequality on the touched support $\mathcal{T}$ (since untouched blocks $b \notin \mathcal{T}$ cancel identically), the Frobenius commutation residual between **Path 1** (editing in floating point and quantizing: $Q_B(W + \Delta W)$) and the ideal edited quantized tensor ($Q_B(W) + \Delta W$) satisfies:
 
 $$
-\mathcal{E}_{\text{comm}}(W, \dW) \;\equiv\; \big\|\PiB(W + \dW) - (\PiB(W) + \dW)\big\|_F \;\le\; \sqrt{\sum_{b \in \mathcal{T}} B \cdot \left(\frac{s_b'}{2}\right)^2 + \big\|\PiB(W)\big|_{\mathcal{T}} - W\big|_{\mathcal{T}}\big\|_F^2}
+\mathcal{E}_{\text{comm}}(W, \Delta W) \;\equiv\; \big\|Q_B(W + \Delta W) - (Q_B(W) + \Delta W)\big\|_{\mathrm{F}} \;\le\; \sqrt{\sum_{b \in \mathcal{T}} B \cdot \left(\frac{s_b'}{2}\right)^2} \;+\; \big\|Q_B(W)\big|_{\mathcal{T}} - W\big|_{\mathcal{T}}\big\|_{\mathrm{F}}
 $$
 
-Moreover, for **Path 2** (direct quantized surgery $\PiB(\PiB(W) + \dW)$ via `secant quant patch`), every block $b \notin \mathcal{T}$ is **bit-for-bit identical** between $\PiB(W)$ and $\PiB(\PiB(W) + \dW)$, and on touched blocks $b \in \mathcal{T}$, the dequantized difference between Path 1 and Path 2 is bounded by one half-step of the `Q8_0` quantizer (`max_abs_diff` $\le s_b + s_b' \approx 1.4 \times 10^{-3}$).
+Moreover, for **Path 2** (direct quantized surgery $Q_B(Q_B(W) + \Delta W)$ via `secant quant patch`), every block $b \notin \mathcal{T}$ is **bit-for-bit identical** between $Q_B(W)$ and $Q_B(Q_B(W) + \Delta W)$, and on touched blocks $b \in \mathcal{T}$, the elementwise difference between Path 1 and Path 2 is bounded by the sum of the pre-edit and post-edit half-steps ($(s_b + s_b')/2$, observed `max_abs_diff` $= 2.16 \times 10^{-3}$ on `Q8_0` vs. $2.38 \times 10^{-2}$ on `Q4_K`).
 ```
 
 ---
 
-## 3. Empirical Commutation Witness: `Q8_0` vs. `Q4_K`
+## 3. Empirical Quantization Error: `Q8_0` vs. `Q4_K`
 
-Evaluating $\Pi_{128}(\Delta W)$ across all four edited `ffn_down` layers (`12, 13, 15, 19`) of `Qwen3.5-0.8B` (`secant quant witness`) confirms that `Q8_0` achieves **`11.5x` lower quantization error** than `Q4_K`:
+Comparing `Q8_0` vs. `Q4_K` quantization error across all four edited `ffn_down` layers (`12, 13, 15, 19`) of `Qwen3.5-0.8B` (`secant quant witness`) confirms that `Q8_0` achieves **`11.5x` lower relative quantization error** than `Q4_K`:
 
-| Layer (`Qwen3.5-0.8B`) | Edit Stream | $\|\Delta W\|_F$ | `Q8_0` Relative Error | `Q4_K` Relative Error | `Q8_0` Advantage |
+| Layer (`Qwen3.5-0.8B`) | Edit Stream | $\|\Delta W\|_{\mathrm{F}}$ | `Q8_0` Relative Error | `Q4_K` Relative Error | `Q8_0` Advantage |
 |---|---|---:|---:|---:|---:|
 | `blk.12.ffn_down.weight` | `B2` (dense) | `0.8500` | **`0.61%`** | `7.06%` | **`11.5x` lower error** |
 | `blk.13.ffn_down.weight` | `B3` (`K=128`) | `0.8500` | **`0.59%`** | `6.84%` | **`11.6x` lower error** |
@@ -63,12 +63,12 @@ Evaluating $\Pi_{128}(\Delta W)$ across all four edited `ffn_down` layers (`12, 
 
 ## 4. Path 1 (`Edit-Then-Quantize`) vs. Path 2 (`secant quant patch` In-Place)
 
-Comparing **Path 1** (`secant patch` on `BF16` $\to$ `llama-quantize --pure Q8_0`) against **Path 2** (`secant quant patch` directly on `Qwen3.5-0.8B.Q8_0.gguf`) shows that direct 34-byte block surgery leaves all untouched blocks 100% bit-identical, matches Path 1 within **`0.18%–0.92%` relative Frobenius error**, and lifts `<think>` loop closure from **`10.0%` (`3/30`) to `96.7%` (`29/30`) at $\alpha = 1.0\times$ and `100.0%` (`30/30`) at $\alpha = 1.5\times$**:
+Comparing **Path 1** (`secant patch` on `BF16` $\to$ `llama-quantize --pure Q8_0`) against **Path 2** (`secant quant patch` directly on `Qwen3.5-0.8B.Q8_0.gguf`) shows that direct 34-byte block surgery leaves all untouched blocks 100% bit-identical and matches Path 1 within **`0.179%` to `0.923%` per-tensor relative Frobenius error** (note that blocks where the float delta rounds to the same `int8` code remain byte-identical even when inside the touched column support):
 
-| Tensor (`Qwen3.5-0.8B` `Q8_0`) | Total `Q8_0` Blocks | Rewritten Blocks (Path 2) | Untouched Blocks (`Bit-Identical = true`) | Relative Frobenius Diff (Path 1 vs Path 2) |
-|---|---:|---:|---:|---:|
-| `blk.12.ffn_down.weight` (`B2`) | `114,688` | `108,949` | `5,739` (`100%` identical) | `0.923%` |
-| `blk.13.ffn_down.weight` (`B3`) | `114,688` | `48,703` | `65,536` (`100%` identical) | **`0.251%`** |
-| `blk.15.ffn_down.weight` (`B1a`) | `114,688` | `31,104` | `82,944` (`100%` identical) | **`0.225%`** |
-| `blk.19.ffn_down.weight` (`B1b`) | `114,688` | `21,842` | `92,160` (`100%` identical) | **`0.179%`** |
-| **All other 316 tensors in file** | — | **`0`** | **`100%` (`0` bytes differing)** | **`0.000%`** |
+| Tensor (`Qwen3.5-0.8B` `Q8_0`) | Total `Q8_0` Blocks | Modified Blocks (Path 2) | Touched but Byte-Unchanged | Untouched Support Blocks (`Bit-Identical = true`) | Relative Frobenius Diff (Path 1 vs Path 2) |
+|---|---:|---:|---:|---:|---:|
+| `blk.12.ffn_down.weight` (`B2`) | `114,688` | `108,949` | `5,739` | `0` (dense row projector) | `0.923%` |
+| `blk.13.ffn_down.weight` (`B3`) | `114,688` | `48,703` | `449` | `65,536` (`100%` identical) | **`0.251%`** |
+| `blk.15.ffn_down.weight` (`B1a`) | `114,688` | `31,104` | `640` | `82,944` (`100%` identical) | **`0.225%`** |
+| `blk.19.ffn_down.weight` (`B1b`) | `114,688` | `21,842` | `686` | `92,160` (`100%` identical) | **`0.179%`** |
+| **All other 316 tensors in file** | `n/a` | **`0`** | **`0`** | **`100%` (`0` bytes differing)** | **`0.000%`** |

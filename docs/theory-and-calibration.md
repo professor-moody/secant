@@ -2,8 +2,8 @@
 
 Before diving into the equations, here is the core intuition behind Secant's mathematical pipeline:
 
-1. **Finding where a behavior lives (`SNR_proj`):** A transformer layer writes into a shared residual stream of width $d_{\text{model}}$ (`1,024` to `5,120` dimensions). If you measure variance across all `5,120` dimensions at once (`SNR_trace`), background language noise drowns out a single behavioral direction. Measuring signal-to-noise ratio **projected onto the candidate direction (`SNR_proj`)** on held-out prompts isolates the exact layer and writer (`attn_out` vs. `mlp_out`) where the behavior is sharpest.
-2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors often overlap (e.g., cosine `0.7475` between layers 15 and 19). Two-pass modified Gram-Schmidt orthogonalization in `float64` removes all pairwise overlap ($< 10^{-14}$) before compiling the weight patch.
+1. **Finding where a behavior lives (`SNR_proj`):** A transformer layer writes into a shared residual stream of width $d_{\text{model}}$ (`1,024` to `5,120` dimensions). If you measure variance across all `5,120` dimensions at once (`SNR_trace`), background language variance across the other $d_{\text{model}} - 1$ axes dilutes a single behavioral direction (`snr_trace` typically sits around `0.4` to `1.8`). Measuring signal-to-noise ratio **projected onto the candidate direction (`SNR_proj`)** on held-out prompts isolates the exact layer and writer (`attn_out` vs. `mlp_out`) where the behavior is sharpest (`21.9` to `199.4` across standard models).
+2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors can overlap when they share residual coordinates. Two-pass modified Gram-Schmidt orthogonalization in `float64` removes all pairwise overlap ($\|D D^\top - I_k\|_{\mathrm{F}} < 10^{-14}$) before compiling the weight patch.
 3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model produces a `-0.90` activation shift instead of the `-7.38` shift needed to exit `<think>`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
 
 ```{figure} assets/qwen4b-phase-transition.svg
@@ -34,7 +34,7 @@ $$
 
 ### Why `SNR_proj` Replaces Full-Trace `SNR_trace`
 
-In high-dimensional residual streams ($d_{\text{model}} \in [1024, 5120]$), total within-class variance sums noise across all $d_{\text{model}} - 1$ orthogonal directions, making raw trace SNR artificially small ($\approx 0.05\text{–}0.35$) even when a 1D concept direction cleanly separates the two prompt classes. Secant therefore evaluates three held-out diagnostics on $\mathcal{I}_{\text{eval}}$:
+In high-dimensional residual streams ($d_{\text{model}} \in [1024, 5120]$), total within-class variance sums variation across all $d_{\text{model}} - 1$ orthogonal directions, keeping raw trace SNR modest (`0.43` to `1.83` across our `7B` to `32B` runs, with outlier-dimension concentration on `microsoft/phi-4`) even when a 1D concept direction cleanly separates the two prompt classes. Secant therefore evaluates three held-out diagnostics on $\mathcal{I}_{\text{eval}}$:
 
 1. **Projected Signal-to-Noise Ratio (`snr_proj`)**:
    $$
@@ -70,7 +70,7 @@ $$
 A rank-1 column-sparse update with step size $\gamma_b \in \mathbb{R}$ takes the form:
 
 $$
-\Delta W_{\ell, b} = \gamma_b \, v_b \, u_b^\top, \qquad \|\Delta W_{\ell, b}\|_F = |\gamma_b| \cdot \|v_b\|_2 \cdot \|u_b\|_2 = |\gamma_b|
+\Delta W_{\ell, b} = \gamma_b \, v_b \, u_b^\top, \qquad \|\Delta W_{\ell, b}\|_{\mathrm{F}} = |\gamma_b| \cdot \|v_b\|_2 \cdot \|u_b\|_2 = |\gamma_b|
 $$
 
 Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.5-4B`), over **99% of the matrix entries remain completely untouched**.
@@ -81,10 +81,10 @@ Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.
 
 When $k$ behavioral edits $b \in \{1, \dots, k\}$ share the coordinate basis $\mathbb{R}^{d_{\text{model}}}$, non-orthogonal directions $\langle v_b, v_{b'} \rangle \ne 0$ can interfere constructively or destructively.
 
-Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce an orthonormal basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$ satisfying:
+Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce an orthonormal row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$ satisfying:
 
 $$
-\|D D^\top - I_k\|_F < 10^{-14}
+\|D D^\top - I_k\|_{\mathrm{F}} < 10^{-14}
 $$
 
 The multi-subspace update is then synthesized over the orthogonalized directions $q_b$:
@@ -95,9 +95,9 @@ $$
 
 ---
 
-## 4. Target-Shift Calibration Across Model Scales (`0.8B` to `32.8B`)
+## 4. Target-Shift Calibration & Fixed-Ratio Subspace Projection
 
-Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_S$ restricted to the selected columns $S$:
+Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$, where $h_S \in \mathbb{R}^{d_{\text{in}}}$ denotes $h_{\text{ref}}$ zeroed outside the selected column support $S$:
 
 $$
 \Delta W = \mathrm{sign}(\Delta_{\text{target}}) \cdot \beta \, q_b \, h_S^\top, \qquad \beta = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}
@@ -112,13 +112,13 @@ $$
 and the Frobenius norm of the update adapts automatically to the layer's activation scale:
 
 $$
-\|\Delta W\|_F = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2}
+\|\Delta W\|_{\mathrm{F}} = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2}
 $$
 
-Equivalently, in dimensionless relative-perturbation form (`secant compose --calibration target-shift`), scaling by a global dose multiplier $\alpha > 0$ gives:
+When reference activation norms $\|h_S\|_2$ are not pre-captured, `secant compose` also supports a relative Frobenius perturbation mode scaled by a dose multiplier $\alpha > 0$:
 
 $$
-\gamma_b(\alpha) = \alpha \cdot \frac{\tau_b \, \|W_\ell\|_F}{\|q_b\|_2 \, \|u_b\|_2}
+\gamma_b(\alpha) = \alpha \cdot \frac{\tau_b \, \|W_\ell\|_{\mathrm{F}}}{\|q_b\|_2 \, \|u_b\|_2}
 $$
 
-Across **11 models from `0.8B` to `32.8B`**, Target-Shift Calibration separates target behavioral shifts from equal-norm random controls by **`29x` to `1,269.9x`** on the first pass without hyperparameter grid searches.
+On `Qwen3.5-0.8B`, `SmolLM2-1.7B`, and `Qwen3.5-4B`, full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) triggers the `0%` $\to$ `70%` $\to$ `100%` `<think>` closure transition. On our 9-model H100 architecture sweep (`7.2B` to `32.8B`), fixed-ratio rank-1 subspace projection ($\tau_b = 0.045$) separates aligned directional shifts from matched-norm random directions by **`29.1x` to `1,269.9x`** as a geometric alignment check across architectures.

@@ -34,7 +34,7 @@ secant inspect --model Qwen3.5-4B-BF16.gguf --json
 
 ```json
 {
-  "schema": "crucible.wsp.inspect.v1",
+  "schema": "secant.wsp.inspect.v1",
   "format": "gguf",
   "version": 3,
   "alignment": 32,
@@ -62,7 +62,7 @@ secant read \
 
 ```json
 {
-  "schema": "crucible.wsp.read.v1",
+  "schema": "secant.wsp.read.v1",
   "model": "models/SmolLM2-1.7B-Instruct/model.safetensors",
   "format": "safetensors",
   "file_bytes": 3422777952,
@@ -159,12 +159,12 @@ secant quant patch \
 
 ```json
 {
-  "schema": "crucible.wsp.quant-patch.v1",
+  "schema": "secant.wsp.quant-patch.v1",
   "base_sha256": "d9dd2c0bb0f54bb062ba008e855b29639afa47d18f7e0789551419d601806250",
   "patched_sha256": "8bcfdaede2ed8d67060cd2adb240f6d3b3836e063544cbb32c6c5f9f13046eab",
   "tensors_modified": 4,
   "blocks_rewritten": 210598,
-  "untouched_blocks": 240640,
+  "untouched_blocks": 246379,
   "unmodified_blocks_bit_identical": true,
   "bytes_differing_outside_edited_tensors": 0
 }

@@ -3,7 +3,7 @@ project:
   id: secant-docs
   title: "Secant: Weight-Space Programming & Subspace-Locked LoRA Healing"
   short_title: "Secant"
-  description: "Scientific documentation, mathematical derivations, and API reference for Secant — deterministic weight-space programming, direct Q8_0/Q4_K quantized block surgery, and Project-Then-Heal subspace-locked LoRA adaptation."
+  description: "Scientific documentation, mathematical derivations, and API reference for Secant: deterministic weight-space programming, direct Q8_0 and Q4_K quantized block surgery, and Project-Then-Heal subspace-locked LoRA adaptation."
   keywords:
     - weight-space-programming
     - mechanistic-interpretability
@@ -43,9 +43,10 @@ project:
       title: Technical Paper
 site:
   template: book-theme
-  title: "Secant Documentation"
+  title: "Secant"
   options:
     folders: true
+    logo_text: "Secant"
   nav:
     - title: GitHub
       url: https://github.com/professor-moody/secant
