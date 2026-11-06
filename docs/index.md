@@ -12,6 +12,14 @@ Motivated by MIT CSAIL's [*"Sparks of Weight-Space Programming: LLMs can nativel
 The four stages of Secant: (1) zero-eval `float64` weight reading and Boundary-3 payload sanitization, (2) two-pass Gram-Schmidt composition with Target-Shift Calibration, (3) zero-copy `mmap` and 34-byte `Q8_0` quantized block surgery, and (4) `ProjectThenHealLinear` subspace-locked LoRA training.
 ```
 
+```{figure} assets/secant-terminal-demo.svg
+:name: fig-secant-terminal-demo
+:alt: Secant live terminal walkthrough showing zero-eval vocabulary token decoding from weights, Borda layer analysis, in-place Q8_0 GGUF block surgery, and Project-Then-Heal subspace-locked LoRA
+:width: 100%
+
+Live CLI walkthrough (`secant read --vocab-tensor` -> `secant analyze` -> `secant compose --analysis` -> `secant quant patch --in-place` -> `secant heal`): decoding downstream vocabulary tokens (`"</think>"`, `"Wait"`, `"cannot"`, `"overflow"`, `"sizeof"`) directly from static weights on disk in `18.4 ms`, editing `512` 34-byte `Q8_0` blocks in `2.8 ms` (`99.79%` untouched blocks bit-identical), and locking LoRA adapters to `5.21e-18` subspace leakage.
+```
+
 ---
 
 ## What Secant Does (Ordered by Core Importance)

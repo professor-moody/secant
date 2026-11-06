@@ -45,7 +45,10 @@ In high-dimensional residual streams ($d \in [1024, 5120]$), the trace denominat
    Both directional values are also recorded (`snr_proj_a_to_b`, `snr_proj_b_to_a`).
 2. **Trace (full-space) Signal-to-Noise Ratio (`snr_trace`)**. This uses no fitted direction; "fit on $A$" only selects which half is scored:
    $$
-   \mathrm{SNR}_{\text{trace}}^{\to B}(\ell) = \frac{\|\mu_+^B - \mu_-^B\|_2^2}{\mathrm{tr}\hat{\Sigma}_+^B + \mathrm{tr}\hat{\Sigma}_-^B}, \qquad \mathrm{SNR}_{\text{trace}}(\ell) = \tfrac{1}{2}\left(\mathrm{SNR}_{\text{trace}}^{\to B}(\ell) + \mathrm{SNR}_{\text{trace}}^{\to A}(\ell)\right)
+   \begin{aligned}
+   \mathrm{SNR}_{\text{trace}}^{\to B}(\ell) &= \frac{\|\mu_+^B - \mu_-^B\|_2^2}{\mathrm{tr}\hat{\Sigma}_+^B + \mathrm{tr}\hat{\Sigma}_-^B}, \\
+   \mathrm{SNR}_{\text{trace}}(\ell) &= \tfrac{1}{2}\left(\mathrm{SNR}_{\text{trace}}^{\to B}(\ell) + \mathrm{SNR}_{\text{trace}}^{\to A}(\ell)\right)
+   \end{aligned}
    $$
    With finite samples the numerator also contains noise, so under independent isotropic class noise with variance $\sigma^2$, the numerator's noise contribution is $d\,\sigma^2 (1/n_+ + 1/n_-)$. This is not a bias formula for the SNR ratio itself; neither statistic is null-corrected.
 3. **Split-Half Cosine Stability (`split_half_cosine`)**. The cosine between the directions fitted independently on each half:
@@ -79,7 +82,10 @@ $$
 A rank-1 column-sparse update with step size $\gamma_b \in \mathbb{R}$ takes the form:
 
 $$
-\Delta W_{\ell, b} = \gamma_b \, v_b \, u_b^\top, \qquad \|\Delta W_{\ell, b}\|_{\mathrm{F}} = |\gamma_b| \cdot \|v_b\|_2 \cdot \|u_b\|_2 = |\gamma_b|
+\begin{aligned}
+\Delta W_{\ell, b} &= \gamma_b \, v_b \, u_b^\top, \\
+\|\Delta W_{\ell, b}\|_{\mathrm{F}} &= |\gamma_b| \cdot \|v_b\|_2 \cdot \|u_b\|_2 = |\gamma_b|
+\end{aligned}
 $$
 
 Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.5-4B`), over **99% of the matrix entries remain completely untouched**.
@@ -111,7 +117,10 @@ $$
 Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$, where $h_S \in \mathbb{R}^{d_{\text{in}}}$ denotes $h_{\text{ref}}$ zeroed outside the selected column support $S$ and satisfies the non-degeneracy precondition $\|h_S\|_2 > 0$:
 
 $$
-\Delta W = \mathrm{sign}(\Delta_{\text{target}}) \cdot \beta \, q_b \, h_S^\top, \qquad \beta = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}
+\begin{aligned}
+\Delta W &= \mathrm{sign}(\Delta_{\text{target}}) \cdot \beta \, q_b \, h_S^\top, \\
+\beta &= \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}
+\end{aligned}
 $$
 
 Then the induced output shift along $q_b$ at $h_{\text{ref}}$ is exact by construction:

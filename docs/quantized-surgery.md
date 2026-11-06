@@ -45,7 +45,11 @@ The permutation argument assumes a deterministic, position-independent encoder, 
 Let $Q_B : \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}} \to \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ denote the block-quantize-then-dequantize operator for block size $B$. We assume only that $Q_B$ is **deterministic and block-local**: the dequantized values of block $b$ depend only on the input values of block $b$. Suppose we apply a column-sparse behavioral edit $\Delta W$ that touches a subset of blocks $\mathcal{T}$. Define the three quantization errors
 
 $$
-e_0 = Q_B(W) - W, \qquad e_1 = Q_B(W + \Delta W) - (W + \Delta W), \qquad e_2 = Q_B\big(Q_B(W) + \Delta W\big) - \big(Q_B(W) + \Delta W\big).
+\begin{aligned}
+e_0 &= Q_B(W) - W, \\
+e_1 &= Q_B(W + \Delta W) - (W + \Delta W), \\
+e_2 &= Q_B\big(Q_B(W) + \Delta W\big) - \big(Q_B(W) + \Delta W\big).
+\end{aligned}
 $$
 
 ```{prf:theorem} Path 1 vs. Path 2 Error Decomposition
@@ -71,7 +75,10 @@ The decomposition fixes the **same additive $\Delta W$** in both paths. It is ex
 The `Q8_0` encoder (`crates/secant-core/src/quant.rs`, `quantize_row_q8_0`) computes, for each 32-element block $x_b$, the scale $d_b = \|x_b\|_\infty / 127$, the codes $q_i = \mathrm{round}(x_i / d_b) \in [-127, 127]$, and stores $\mathrm{fp16}(d_b)$. Dequantization returns $\mathrm{fp16}(d_b)\, q_i$. Assume $d_b$ lies in the `FP16` normal range ($127 \cdot 2^{-14} \le \|x_b\|_\infty \le 127 \cdot 65504$), so that $|\mathrm{fp16}(d_b) - d_b| \le 2^{-11} d_b$. Then each element obeys
 
 $$
-|Q_{32}(x)_i - x_i| \;\le\; |d_b q_i - x_i| + |\mathrm{fp16}(d_b) - d_b|\,|q_i| \;\le\; \frac{d_b}{2} + 2^{-11} d_b \cdot 127 \;=\; \kappa\, \|x_b\|_\infty, \qquad \kappa = \frac{1}{254} + 2^{-11} \approx 4.43 \times 10^{-3},
+\begin{aligned}
+|Q_{32}(x)_i - x_i| &\;\le\; |d_b q_i - x_i| + |\mathrm{fp16}(d_b) - d_b|\,|q_i| \\
+&\;\le\; \frac{d_b}{2} + 2^{-11} d_b \cdot 127 \;=\; \kappa\, \|x_b\|_\infty, \quad \text{where } \kappa = \frac{1}{254} + 2^{-11} \approx 4.43 \times 10^{-3},
+\end{aligned}
 $$
 
 up to `float32` rounding in the encoder arithmetic. (For a subnormal scale, add $127 \cdot 2^{-25}$ per element.) Write $a_b = \|W_b\|_\infty$ and $\delta_b = \|\Delta W_b\|_\infty$ on a touched block $b$. Because $\big|\,\|W_b + \Delta W_b\|_\infty - \|W_b\|_\infty\big| \le \delta_b$, the post-edit scale drifts by at most
@@ -83,7 +90,7 @@ $$
 before `FP16` rounding. Applying the per-element bound to each term, with $\|Q_{32}(W)_b\|_\infty \le (1 + \kappa)\, a_b$:
 
 $$
-|e_0| \le \kappa\, a_b, \qquad |e_1| \le \kappa\,(a_b + \delta_b), \qquad |e_2| \le \kappa\,\big((1 + \kappa)\, a_b + \delta_b\big),
+|e_0| \le \kappa\, a_b, \quad |e_1| \le \kappa\,(a_b + \delta_b), \quad |e_2| \le \kappa\,\big((1 + \kappa)\, a_b + \delta_b\big),
 $$
 
 so every element of a touched `Q8_0` block satisfies

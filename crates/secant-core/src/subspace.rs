@@ -434,6 +434,7 @@ pub struct ComposeOptions {
     pub gamma: f64,
     pub has_gamma: bool,
     pub base_model: String,
+    pub analysis_path: String,
 }
 
 struct ResolvedSlot<'a> {
@@ -484,6 +485,21 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
 
     let mut plan = Plan { schema: PLAN_SCHEMA.into(), profile: profile.name.clone(), ..Default::default() };
 
+    let analysis = if !opts.analysis_path.is_empty() {
+        let rep = crate::analyze::load_analyze_report(&opts.analysis_path)?;
+        Some(rep)
+    } else {
+        None
+    };
+    let mut analysis_binding = analysis.as_ref().map(|rep| crate::analyze::AnalysisBinding {
+        path: opts.analysis_path.clone(),
+        schema: rep.schema.clone(),
+        method: rep.assignments.method.clone(),
+        assignments: Some(rep.assignments.clone()),
+        bound_layers: BTreeMap::new(),
+        notes: Vec::new(),
+    });
+
     // 1. Bind direction slots to layers and vector files.
     let mut dirs: Vec<ResolvedSlot> = Vec::new();
     let mut cursor: BTreeMap<String, usize> = BTreeMap::new();
@@ -502,17 +518,47 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
         }
         let mut layer = slot.layer;
         if layer < 0 {
+            let mut ordered = layers.clone();
+            let mut how = "sorted vector-file enumeration".to_string();
+            if let Some(ref rep) = analysis {
+                let rfam = crate::analyze::role_family(&slot.role);
+                if let Some(f) = crate::analyze::analysis_family(&rep.families, rfam) {
+                    let mut ranked = Vec::new();
+                    for bs in &f.borda_scores {
+                        if layers.contains(&bs.layer) {
+                            ranked.push(bs.layer);
+                        }
+                    }
+                    if !ranked.is_empty() {
+                        ordered = ranked;
+                        let star = match crate::analyze::star_of(&rep.assignments, rfam) {
+                            Some(s) => format!("L_{}_star={}", rfam, s),
+                            None => "n/a".to_string(),
+                        };
+                        how = format!("secant analyze {} Borda order ({})", opts.analysis_path, star);
+                    } else {
+                        how = "analysis family has no layer with a matching vector file; fell back to sorted vector-file enumeration".to_string();
+                    }
+                }
+            }
             let idx = *cursor.get(&slot.direction_token).unwrap_or(&0);
-            if idx >= layers.len() {
+            if idx >= ordered.len() {
                 return Err(Error::msg(format!(
                     "slot {}: {} d_{}_L* layer(s) available but this slot has none left to bind; set an explicit layer via a custom profile file",
                     slot.id,
-                    layers.len(),
+                    ordered.len(),
                     slot.direction_token
                 )));
             }
-            layer = layers[idx];
+            layer = ordered[idx];
             cursor.insert(slot.direction_token.clone(), idx + 1);
+            if let Some(ref mut binding) = analysis_binding {
+                binding.bound_layers.insert(slot.id.clone(), layer);
+                binding.notes.push(format!(
+                    "slot {} (d_{}) bound to L{} via {}",
+                    slot.id, slot.direction_token, layer, how
+                ));
+            }
         }
         let stem = format!("d_{}_L{}", slot.direction_token, layer);
         if !vs.by_name.contains_key(&stem) {
@@ -727,6 +773,7 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
     if plan.edits.is_empty() {
         return Err(Error::msg(format!("profile {} produced no edits", profile.name)));
     }
+    plan.analysis = analysis_binding.and_then(|b| serde_json::to_value(b).ok());
     Ok(plan)
 }
 

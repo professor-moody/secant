@@ -1,6 +1,14 @@
 # Quickstart & Live CLI Walkthrough
 
-This guide walks through building `secant` and running its **5 core workflows** (covering all 12 CLI subcommands and the Python `secant.nn` / `secant.capture` APIs), from reading weight concepts directly into vocabulary tokens without a GPU to in-place 34-byte `Q8_0` GGUF block surgery and `ProjectThenHealLinear` subspace-locked LoRA training.
+This guide walks through building `secant` and running its **5 core workflows** (covering all 14 CLI subcommands and the Python `secant.nn` / `secant.capture` APIs), from reading weight concepts directly into vocabulary tokens without a GPU to in-place 34-byte `Q8_0` GGUF block surgery and `ProjectThenHealLinear` subspace-locked LoRA training.
+
+```{figure} assets/secant-terminal-demo.svg
+:name: fig-quickstart-terminal-demo
+:alt: Secant live terminal session capture
+:width: 100%
+
+End-to-end `secant` terminal session: (1) decoding downstream vocabulary tokens directly from static weight singular vectors (`secant read --vocab-tensor`), (2) Borda layer ranking and `Q8_0` in-place block surgery (`secant analyze`, `secant compose --analysis`, `secant quant patch`), and (3) `Project-Then-Heal` subspace-locked LoRA (`secant heal`).
+```
 
 ---
 
@@ -10,30 +18,32 @@ This guide walks through building `secant` and running its **5 core workflows** 
 # 1. Build the Rust CLI (secant) and C-ABI library (libsecant) in release mode
 cargo build --release --workspace
 
-# 2. Verify all 12 subcommands
+# 2. Verify all 14 subcommands
 ./target/release/secant --help
 
 # 3. Install the Python package (PyTorch ProjectThenHealLinear + contrastive capture)
 pip install -e "./python[torch,test]"
 
-# 4. Optional: run the Rust (38 tests) and Python (29 tests) suites
+# 4. Optional: run the Rust and Python test suites
 cargo test --workspace
 pytest python/tests
 ```
 
-### All 12 CLI Subcommands at a Glance
+### All 14 CLI Subcommands at a Glance
 
 | Stage | Subcommand | What It Does |
 | :--- | :--- | :--- |
-| **01 · Audit & Read** | `secant inspect` | Zero-copy `mmap` header and tensor offset/shape inventory (`.safetensors` & `.gguf`). |
+| **01 · Audit & Read** | `secant profiles` | Lists built-in architecture profiles (`qwen35-9b`, `llama3-8b`, `security-auditor-b1b2b3`) and tensor templates. |
+| | `secant inspect` | Zero-copy `mmap` header and tensor offset/shape inventory (`.safetensors` & `.gguf`). |
 | | `secant read` | Deterministic `float64` SVD spectrum, top active columns, and `--vocab-tensor` token projection on disk. |
 | | `secant sanitize` | Static Boundary-3 tensor payload scanner and `--clamp-nonfinite` remediator (`NaN`/`Inf`/subnormals/router IDs). |
 | | `secant probe` | Deterministic generator for boundary-value test fixtures (`class1`..`class4`). |
-| **02 · Compose** | `secant compose` | Two-pass `float64` Gram-Schmidt orthogonalization ($D D^\top = I_k$) + Target-Shift Calibration ($\beta = \text{shift} / \|h_S\|_2^2$). |
+| **02 · Analyze & Compose** | `secant analyze` | Ranks layers via Borda aggregation over empirical `SNR_proj` (`resid`/`attn`/`mlp`/`h`) and emits `L_loop*`/`L_ref*`/`L_root*`. |
+| | `secant compose` | Two-pass `float64` Gram-Schmidt orthogonalization ($D D^\top = I_k$), `--analysis` slot binding, and Target-Shift Calibration ($\beta = \text{shift} / \|h_S\|_2^2$). |
 | **03 · Patch** | `secant patch` | Zero-copy `mmap` sparse rank-1 or projector surgery on `BF16` / `F16` / `F32` `.safetensors` and `.gguf` files. |
 | | `secant verify-patch` | Cryptographic pre/post SHA-256 and byte-range verifier proving all unedited tensors are bit-identical. |
 | | `secant quant patch` | Direct in-place surgery on 34-byte `Q8_0` `.gguf` blocks without full-model dequantization or re-export. |
-| | `secant quant witness` | Measures $\Pi_{128}$ head-grid alignment and quantization commutation error (`Q8_0` vs. `Q4_K`). |
+| | `secant quant witness` (`verify`) | Measures $\Pi_{128}$ head-grid alignment and quantization commutation error (`Q8_0` vs. `Q4_K`). |
 | | `secant quant roundtrip` | Block-level encode/decode error microbenchmark for `Q8_0` and `Q4_K` codecs. |
 | **04 · Lock & Heal** | `secant heal` | Projects an existing `.safetensors` LoRA adapter into $\ker(D)$ ($B_{\text{locked}} = P_\perp(P_\perp(B))$) and optionally merges it. |
 | | `secant verify-subspace` | Audits any `.safetensors` adapter or merged checkpoint for subspace leakage against `--tol`. |
@@ -84,12 +94,21 @@ for (stream, layer), r in sorted(results.items(), key=lambda kv: -kv[1].snr_proj
 write_vectors("./vectors", results)
 ```
 
-Now run `secant compose` to orthogonalize the directions in `float64` (`max |D D^T - I_k| < 1e-12`, measured `< 1e-15`) and solve analytically for the scale-calibrated step size $\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$ over the top-$K$ sparse columns:
+Now run `secant analyze` to rank empirical layer `SNR_proj` via Borda aggregation (`L_loop*`, `L_ref*`, `L_root*`), and `secant compose` to orthogonalize the directions in `float64` (`max |D D^T - I_k| < 1e-12`, measured `< 1e-15`) and solve analytically for the scale-calibrated step size $\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$ over the top-$K$ sparse columns:
 
 ```bash
+# 1. Rank layers by empirical SNR_proj across resid / attn / mlp / h streams
+secant analyze \
+  --in layer_snr.json \
+  --profile security-auditor-b1b2b3 \
+  --out analysis.json \
+  --json
+
+# 2. Orthogonalize directions in float64, bind auto slots from analysis.json, and solve target-shift step
 secant compose \
   --profile security-auditor-b1b2b3 \
   --vectors ./vectors \
+  --analysis analysis.json \
   --target-shift -7.382 \
   --out plan-b1b2b3.json \
   --json

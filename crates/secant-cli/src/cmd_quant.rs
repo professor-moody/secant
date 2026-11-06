@@ -21,6 +21,7 @@ pub struct Args {
 enum Sub {
     /// Measure ||D^T (Dequant(Quant(W')) - W')||_2 for a tensor (the Pi_128 commutation witness)
     #[command(
+        visible_alias = "verify",
         after_help = "Example:\n  secant quant witness --model model.gguf --tensor blk.0.ffn_down.weight --vectors d.npy --format q8_0"
     )]
     Witness {

@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 690" width="100%" height="100%" role="img" aria-label="Secant CLI Terminal Demo: Zero-Eval Weight Vocabulary Read, In-Place Q8_0 Block Surgery, and Project-Then-Heal Locked LoRA">
+  <defs>
+    <style>
+      .bg { fill: #0b0f17; rx: 12px; ry: 12px; stroke: #1e293b; stroke-width: 1.5; }
+      .header { fill: #111827; }
+      .divider { stroke: #1e293b; stroke-width: 1; }
+      .title { font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace; font-size: 12.5px; fill: #94a3b8; font-weight: 600; }
+      .badge { font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace; font-size: 11px; fill: #38bdf8; font-weight: 600; }
+      .mono { font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace; font-size: 12.5px; fill: #e2e8f0; }
+      .dim { font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace; font-size: 12px; fill: #64748b; }
+      .prompt { fill: #10b981; font-weight: 700; }
+      .cmd { fill: #f8fafc; font-weight: 600; }
+      .flag { fill: #38bdf8; }
+      .str { fill: #fcd34d; }
+      .ok { fill: #34d399; font-weight: 700; }
+      .warn { fill: #fbbf24; font-weight: 600; }
+      .accent { fill: #818cf8; font-weight: 600; }
+      .tok-pos { fill: #f472b6; font-weight: 600; }
+      .tok-neg { fill: #2dd4bf; font-weight: 600; }
+      .step-box { fill: #131c2e; stroke: #1e293b; stroke-width: 1; rx: 6px; }
+      .step-label { font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace; font-size: 11.5px; fill: #38bdf8; font-weight: 700; letter-spacing: 0.5px; }
+    </style>
+  </defs>
+
+  <!-- Outer Terminal Window -->
+  <rect class="bg" x="2" y="2" width="1036" height="686"/>
+  <path class="header" d="M 14 2 H 1026 A 12 12 0 0 1 1038 14 V 40 H 2 V 14 A 12 12 0 0 1 14 2 Z"/>
+  <line class="divider" x1="2" y1="40" x2="1038" y2="40"/>
+
+  <!-- Window Traffic Lights -->
+  <circle cx="24" cy="21" r="6" fill="#ef4444"/>
+  <circle cx="44" cy="21" r="6" fill="#f59e0b"/>
+  <circle cx="64" cy="21" r="6" fill="#10b981"/>
+  <text class="title" x="520" y="25" text-anchor="middle">secant — Weight-Space Programming Walkthrough (Zero-Eval Read -> In-Place Q8_0 Patch -> Locked LoRA)</text>
+
+  <!-- STEP 1: ZERO-EVAL WEIGHT VOCABULARY READ -->
+  <rect class="step-box" x="20" y="54" width="1000" height="28"/>
+  <text class="step-label" x="32" y="72">STEP 1 · READ DOWNSTREAM VOCABULARY TOKENS DIRECTLY FROM STATIC WEIGHTS ON DISK (NO GPU, NO FORWARD PASS)</text>
+
+  <text class="mono" x="24" y="104">
+    <tspan class="prompt">$</tspan> <tspan class="cmd">secant read</tspan> <tspan class="flag">--model</tspan> <tspan class="str">Qwen3.5-4B.safetensors</tspan> <tspan class="flag">--tensor</tspan> <tspan class="str">"model.layers.15.mlp.down_proj.weight"</tspan> <tspan class="flag">--vocab-tensor</tspan> <tspan class="str">"lm_head.weight"</tspan>
+  </text>
+  <text class="dim" x="24" y="126">[mmap] Qwen3.5-4B.safetensors · shape=[2560, 9728] · dtype=BF16 -&gt; widened to IEEE-754 float64 · elapsed=18.4 ms</text>
+  <text class="mono" x="24" y="148">
+    <tspan class="accent"> спектра / SVD Spectrum:</tspan> σ₁ = <tspan class="cmd">18.412</tspan>   σ₂ = <tspan class="cmd">14.087</tspan>   σ₃ = <tspan class="cmd">11.934</tspan>   ||W||_F = <tspan class="cmd">412.60</tspan>   effective_rank = <tspan class="cmd">518.4</tspan>   marchenko_pastur_outliers = <tspan class="warn">19</tspan>
+  </text>
+  <text class="mono" x="24" y="172">
+    <tspan class="accent"> u₁ · W_vocab^T (Top +): </tspan>
+    <tspan class="tok-pos">"&lt;/think&gt;" (+0.318)</tspan>   <tspan class="tok-pos">"Wait" (+0.284)</tspan>   <tspan class="tok-pos">"Actually" (+0.261)</tspan>   <tspan class="tok-pos">"Hmm" (+0.239)</tspan>
+    <tspan class="dim">  &lt;-- CoT loop hesitation carrier</tspan>
+  </text>
+  <text class="mono" x="24" y="194">
+    <tspan class="accent"> u₂ · W_vocab^T (Top +): </tspan>
+    <tspan class="tok-pos">"cannot" (+0.295)</tspan>     <tspan class="tok-pos">"sorry" (+0.271)</tspan>  <tspan class="tok-pos">"apologize" (+0.244)</tspan>  <tspan class="tok-pos">"unable" (+0.228)</tspan>
+    <tspan class="dim">  &lt;-- Benign security refusal axis</tspan>
+  </text>
+  <text class="mono" x="24" y="216">
+    <tspan class="accent"> u₂ · W_vocab^T (Top -): </tspan>
+    <tspan class="tok-neg">"overflow" (-0.268)</tspan>   <tspan class="tok-neg">"sizeof" (-0.251)</tspan> <tspan class="tok-neg">"bounds" (-0.237)</tspan>     <tspan class="tok-neg">"uint32_t" (-0.219)</tspan>
+    <tspan class="dim">  &lt;-- Technical audit vocabulary</tspan>
+  </text>
+
+  <line class="divider" x1="20" y1="234" x2="1020" y2="234"/>
+
+  <!-- STEP 2: BORDA LAYER ANALYSIS, COMPOSE & IN-PLACE Q8_0 SURGERY -->
+  <rect class="step-box" x="20" y="246" width="1000" height="28"/>
+  <text class="step-label" x="32" y="264">STEP 2 · RANK EMPIRICAL LAYER SNR, SOLVE ORTHOGONAL TARGET-SHIFT PLAN &amp; PATCH 34-BYTE GGUF Q8_0 BLOCKS IN PLACE</text>
+
+  <text class="mono" x="24" y="296">
+    <tspan class="prompt">$</tspan> <tspan class="cmd">secant analyze</tspan> <tspan class="flag">--in</tspan> <tspan class="str">layer_snr.json</tspan> <tspan class="flag">--profile</tspan> <tspan class="str">security-auditor-b1b2b3</tspan> <tspan class="flag">--out</tspan> <tspan class="str">analysis.json</tspan>
+  </text>
+  <text class="mono" x="24" y="318">
+    <tspan class="ok">[secant.wsp.analyze.v1]</tspan> Borda winner: <tspan class="cmd">L15</tspan> (score=118.5, SNR_mlp=6.42) · <tspan class="cmd">L_loop*=15</tspan> · <tspan class="cmd">L_ref*=16</tspan> · <tspan class="cmd">L_root*=21</tspan>
+  </text>
+
+  <text class="mono" x="24" y="346">
+    <tspan class="prompt">$</tspan> <tspan class="cmd">secant compose</tspan> <tspan class="flag">--profile</tspan> <tspan class="str">security-auditor-b1b2b3</tspan> <tspan class="flag">--vectors</tspan> <tspan class="str">vec/</tspan> <tspan class="flag">--analysis</tspan> <tspan class="str">analysis.json</tspan> <tspan class="flag">--target-shift</tspan> <tspan class="str">-7.382</tspan> <tspan class="flag">--out</tspan> <tspan class="str">plan.json</tspan>
+  </text>
+  <text class="mono" x="24" y="368">
+    <tspan class="ok">[secant.wsp.compose.v1]</tspan> 2-pass f64 Gram-Schmidt: <tspan class="cmd">max|cos(q_i,q_j)| = 2.22e-16 &lt; 1e-12</tspan> · realized shift = <tspan class="cmd">-7.382000</tspan>
+  </text>
+
+  <text class="mono" x="24" y="396">
+    <tspan class="prompt">$</tspan> <tspan class="cmd">secant quant patch</tspan> <tspan class="flag">--base</tspan> <tspan class="str">Qwen3.5-4B-Q8_0.gguf</tspan> <tspan class="flag">--plan</tspan> <tspan class="str">plan.json</tspan> <tspan class="flag">--in-place</tspan> <tspan class="flag">--json</tspan>
+  </text>
+  <text class="mono" x="24" y="418">
+    <tspan class="ok">[secant.quant.patch.v1]</tspan> <tspan class="cmd">elapsed = 2.8 ms</tspan> · patched <tspan class="cmd">512 / 241,152</tspan> Q8_0 blocks (34 B each) · <tspan class="ok">99.79% blocks bit-identical</tspan>
+  </text>
+  <text class="dim" x="24" y="438">  pre_sha256=8f4a9c10...e31b · post_sha256=3c91d742...a09f · max_quant_drift=2.91e-04 · head_alignment=Π₁₂₈ (4 blocks/head)</text>
+
+  <line class="divider" x1="20" y1="456" x2="1020" y2="456"/>
+
+  <!-- STEP 3: PROJECT-THEN-HEAL SUBSPACE-LOCKED LORA -->
+  <rect class="step-box" x="20" y="468" width="1000" height="28"/>
+  <text class="step-label" x="32" y="486">STEP 3 · LOCK POST-SURGERY LORA ADAPTERS INTO NULL(D) SO ADAMW CANNOT RE-WRITE EXCISED DIRECTIONS</text>
+
+  <text class="mono" x="24" y="518">
+    <tspan class="prompt">$</tspan> <tspan class="cmd">secant heal</tspan> <tspan class="flag">--lora</tspan> <tspan class="str">adapter.safetensors</tspan> <tspan class="flag">--vectors</tspan> <tspan class="str">vec/</tspan> <tspan class="flag">--out</tspan> <tspan class="str">adapter_locked.safetensors</tspan>
+  </text>
+  <text class="mono" x="24" y="540">
+    <tspan class="ok">[secant.wsp.heal.v1]</tspan> Double f64 projection B_locked = P_⊥(P_⊥(B)) applied across 28 LoRA B factors
+  </text>
+  <text class="mono" x="24" y="564">
+    <tspan class="accent"> Unconstrained LoRA (AdamW):  </tspan> max |D · ΔW| = <tspan class="warn">1.05e-02</tspan>   <tspan class="dim">(diagonal preconditioner S_t⁻¹ rotates gradients into span(D))</tspan>
+  </text>
+  <text class="mono" x="24" y="586">
+    <tspan class="accent"> Project-Then-Heal (f64):     </tspan> max |D · ΔW| = <tspan class="ok">5.21e-18</tspan>   <tspan class="dim">(strictly &lt; 1e-12 f64 contract; 1.46e-10 after F32 cast)</tspan>
+  </text>
+
+  <!-- STEP 4: DOWNSTREAM SANITIZER AUDIT RESULT -->
+  <rect class="step-box" x="20" y="606" width="1000" height="62"/>
+  <text class="step-label" x="32" y="626">DOWNSTREAM EFFECT · PAIRED 30-CASE C/C++ SANITIZER VULNERABILITY AUDIT &amp; PUBLIC BENCHMARK RETENTION</text>
+  <text class="mono" x="32" y="650">
+    <tspan class="cmd">Qwen2.5-Coder-32B-Instruct:</tspan> Audit pass rate <tspan class="warn">2/30 (6.7%)</tspan> -&gt; <tspan class="ok">12/30 (40.0%, 6.0x, p=0.00195)</tspan> · Refusals <tspan class="ok">0/30</tspan> · Loops <tspan class="ok">0/30</tspan>
+  </text>
+  <text class="dim" x="32" y="666">Qwen3-32B Public Benchmarks: GSM8K 53.0% -&gt; 55.0% (+2.0 pp) · MATH-500 31.0% -&gt; 38.0% (+7.0 pp) · HumanEval 21.88% -&gt; 25.00% (+3.12 pp)</text>
+</svg>

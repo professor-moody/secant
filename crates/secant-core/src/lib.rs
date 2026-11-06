@@ -3,6 +3,7 @@
 //! Modules mirror the Go reference implementation (`internal/wsp`) that serves
 //! as the byte-exact differential conformance oracle.
 
+pub mod analyze;
 pub mod builder;
 pub mod container;
 pub mod dtype;

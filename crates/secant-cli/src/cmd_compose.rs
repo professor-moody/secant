@@ -16,7 +16,7 @@ pub struct Args {
     /// Directory holding d_*/h_* vectors as .npy or .json
     #[arg(long, default_value = "")]
     vectors: String,
-    /// Not supported: `wsp analyze` is not ported; layers bind from sorted vector filenames
+    /// secant.wsp.analyze.v1 report from `secant analyze`; its L_loop_star/L_ref_star/L_root_star assignments bind auto slots (Borda order) instead of sorted vector filenames
     #[arg(long)]
     analysis: Option<String>,
     /// Scale-invariant calibration: shift <h_ref, delta_W^T d_hat> by this amount
@@ -40,9 +40,6 @@ pub fn run(a: &Args) -> i32 {
         return usage(&format!("--profile is required (built-in name or a {} file)", plan::PROFILE_SCHEMA));
     };
     let Some(out) = &a.out else { return usage("--out is required (the plan path)") };
-    if a.analysis.is_some() {
-        return usage("--analysis is not supported: `wsp analyze` is not ported to Secant (see tool-gaps.json)");
-    }
     let mut o = ComposeOptions {
         profile_name: profile.clone(),
         vectors_dir: a.vectors.clone(),
@@ -51,6 +48,7 @@ pub fn run(a: &Args) -> i32 {
         gamma: a.gamma.unwrap_or(0.0),
         has_gamma: a.gamma.is_some(),
         base_model: a.base.clone(),
+        analysis_path: a.analysis.clone().unwrap_or_default(),
         ..Default::default()
     };
     if profile.ends_with(".json") {

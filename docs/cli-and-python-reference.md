@@ -25,7 +25,13 @@ The C ABI uses a separate five-value return code (Section 4).
 
 ## 2. `secant` CLI Subcommands
 
-The binary has twelve functional root subcommands: `inspect`, `read`, `compose`, `patch`, `verify-patch`, `sanitize`, `probe`, `heal`, `verify-subspace`, `quant`, `rotation-test` and `fetch-tensor`, plus Clap's `help`. `quant` contains `witness`, `patch` and `roundtrip`. The last two root commands are described in [Native WSP Extensions](native-wsp-extensions.md). There is no `profiles`, `analyze`, or `quant verify` subcommand. The global `--go-arm64-fma` flag selects the arm64 Go oracle's fused multiply-adds; the default is unfused `float64`.
+The binary has fourteen functional root subcommands: `profiles`, `inspect`, `read`, `analyze`, `compose`, `patch`, `verify-patch`, `sanitize`, `probe`, `heal`, `verify-subspace`, `quant`, `rotation-test` and `fetch-tensor`, plus Clap's `help`. `quant` contains `witness` (alias `verify`), `patch` and `roundtrip`. `rotation-test` and `fetch-tensor` are described in [Native WSP Extensions](native-wsp-extensions.md). The global `--go-arm64-fma` flag selects the arm64 Go oracle's fused multiply-adds; the default is unfused `float64`.
+
+### `secant profiles`
+Lists the five built-in Weight-Space Programming research profiles (`think-loop-fix`, `security-auditor-b1b2b3`, `refusal-ablate`, `adversarial-nan-probe`, `adversarial-moe-router-probe`), their subspace definitions, default target activation shifts, and layer-selection rules.
+```bash
+secant profiles [--json]
+```
 
 ### `secant inspect`
 Parses SafeTensors or GGUF headers, tensor descriptors, payload offsets, dtype layout, and the Qwen3.5 `ssm_out` interleave without mutating the file.
@@ -47,12 +53,23 @@ secant read \
   [--json]
 ```
 
+### `secant analyze`
+Ranks layers per subspace (`resid`, `attn`, `mlp`, `h`) by precomputed or externally captured per-layer SNR cells (`layer_snr.json` or `sweep_summary.json`), aggregates with Borda rank voting across subspaces to select $L_{\text{loop}}^*$, $L_{\text{ref}}^*$, and $L_{\text{root}}^*$, and diagnoses why hardcoded mid-layer defaults (`L15`/`L19`) miss the bottleneck at other model scales.
+```bash
+secant analyze \
+  --in <layer_snr.json|sweep_summary.json> \
+  [--profile <name>] \
+  [--out <analysis.json>] \
+  [--json]
+```
+
 ### `secant compose`
-Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes. `--profile` takes a built-in name (`adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`) or a `.json` path to a `secant.wsp.profile.v1` file. If neither `--target-shift` nor `--gamma` is given, the profile's `default_target_shift` (or else `default_gamma`) applies. `--analysis` is accepted by the parser but always exits `2`: `wsp analyze` is not ported, and layers bind from the sorted vector filenames.
+Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes. `--profile` takes a built-in name (`adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`) or a `.json` path to a `secant.wsp.profile.v1` file. If neither `--target-shift` nor `--gamma` is given, the profile's `default_target_shift` (or else `default_gamma`) applies. When `--analysis <analysis.json>` (`secant.wsp.analyze.v1` or `crucible.wsp.analyze.v1`) is provided, automatic layer slots (`layer: -1`) bind in the analysis family's Borda order ($L_{\text{loop}}^*$, $L_{\text{ref}}^*$, $L_{\text{root}}^*$) instead of sorted vector filenames.
 ```bash
 secant compose \
   --profile <name-or-json> \
   --vectors <dir> \
+  [--analysis <analysis.json>] \
   [--target-shift <value> | --gamma <value> [--base <model>]] \
   --out <plan.json> \
   [--json]
@@ -65,8 +82,8 @@ secant patch --base <base> --plan <plan.json> --out <patched> [--in-place] [--js
 secant verify-patch --base <base> --patched <patched> --expect-changed <tensor1,tensor2,...> [--json]
 ```
 
-### `secant quant witness`, `secant quant patch` & `secant quant roundtrip`
-`quant patch` performs block-aligned surgery on **`Q8_0` tensors only**: only the 34-byte blocks holding an edited element are re-quantized. A tensor of any other dtype (including `Q4_K`) is refused with the error `tensor <name> is <dtype>, block-aligned surgery needs Q8_0` (`crates/secant-core/src/quant.rs`). `--out` is required unless `--in-place` is given. There is no `quant verify`; use `secant verify-patch` for the byte-difference check. `quant witness` measures $\lVert D(\mathrm{Dequant}(\mathrm{Quant}(W')) - W')\rVert_F$ for `q8_0` or `q4_k`, optionally under the $\Pi_{128}$ panel permutation.
+### `secant quant witness` (`verify`), `secant quant patch` & `secant quant roundtrip`
+`quant patch` performs block-aligned surgery on **`Q8_0` tensors only**: only the 34-byte blocks holding an edited element are re-quantized. A tensor of any other dtype (including `Q4_K`) is refused with the error `tensor <name> is <dtype>, block-aligned surgery needs Q8_0` (`crates/secant-core/src/quant.rs`). `--out` is required unless `--in-place` is given. Use `secant verify-patch` for whole-file byte-difference verification, and `secant quant witness` (or `secant quant verify`) to measure $\lVert D(\mathrm{Dequant}(\mathrm{Quant}(W')) - W')\rVert_F$ for `q8_0` or `q4_k`, optionally under the $\Pi_{128}$ panel permutation.
 ```bash
 secant quant patch --base <base-q8_0.gguf> --plan <plan.json> --out <patched-q8_0.gguf> [--in-place] [--json]
 secant quant witness --model <model> --tensor <name> --vectors <dir-or-npy> [--format q8_0|q4_k] [--pi128] [--json]
@@ -112,7 +129,7 @@ secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
 
 ### Receipt scope and field meanings
 
-Rust emits `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1` and `secant.wsp.probe.v1` for the corresponding commands. `quant witness` uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Older banked receipts and the Go interface may use a `crucible` prefix; retain the producer identity instead of relabeling those receipts.
+Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.analyze.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1` and `secant.wsp.probe.v1` for the corresponding commands. `quant witness` (`verify`) uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Older banked receipts and the Go interface may use a `crucible` prefix; retain the producer identity instead of relabeling those receipts.
 
 - `read`: `pre_sha256`, `post_sha256` and `input_unchanged` bracket the model read; a successful command can still contain `status: "nonfinite"` tensors.
 - `verify-patch`: `header_bytes_identical`, `other_tensors_byte_identical` and `ok` test byte invariants. The allowlist permits changes; it does not establish that the intended numerical edit occurred.
@@ -208,6 +225,24 @@ Notes that follow from the source:
 - `merge_into()` returns a **tensor** (the merged weight), not an `nn.Linear`. With `inplace=True` it writes into `base_weight` and returns it.
 - `export_lora()` writes one `.safetensors` file holding `<module>.lora_A.weight` $[r, d_{\text{in}}]$ and `<module>.lora_B.weight` $[d_{\text{out}}, r]$ as `F32` (`F64` for `float64` modules). `alpha` is not stored in the tensor file; pass the returned `scale` to `secant heal --scale`.
 - `directions` with dependent, zero, NaN/Inf rows, or $k > d_{\text{out}}$ raises `DirectionError` (fail closed). `lora_bias=True` raises `ValueError`.
+
+### `secant` CLI Bridge Functions (`python/secant/_bridge.py`)
+
+Every CLI subcommand is also callable from Python, returning a `CliResult` (`exit_code`, `stdout`, `stderr`, `data` parsed from `--json`):
+
+```python
+import secant
+
+profs = secant.profiles()
+info  = secant.inspect("model.safetensors")
+spec  = secant.read("model.safetensors", tensor="model.layers.12.mlp.down_proj.weight", vocab_tensor="lm_head.weight")
+rank  = secant.analyze("layer_snr.json", profile="security-auditor-b1b2b3", out="analysis.json")
+plan  = secant.compose("security-auditor-b1b2b3", "plan.json", vectors="directions/", analysis="analysis.json", target_shift=-4.0)
+patch = secant.patch("model.safetensors", "plan.json", out="edited.safetensors")
+ver   = secant.verify_patch("model.safetensors", "edited.safetensors", expect_changed="model.language_model.layers.12.mlp.down_proj.weight")
+heal  = secant.heal("adapter.safetensors", "directions/", "healed_adapter.safetensors")
+vsub  = secant.verify_subspace("model.safetensors", "merged.safetensors", "directions/", "model.layers.12.mlp.down_proj.weight")
+```
 
 ---
 

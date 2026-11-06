@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 
 pub const PLAN_SCHEMA: &str = "secant.wsp.plan.v1";
 pub const PROFILE_SCHEMA: &str = "secant.wsp.profile.v1";
+pub const PROFILES_SCHEMA: &str = "secant.wsp.profiles.v1";
 /// `secant compose --json` report.
 pub const COMPOSE_SCHEMA: &str = "secant.wsp.compose.v1";
 

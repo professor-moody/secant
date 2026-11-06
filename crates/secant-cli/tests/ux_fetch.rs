@@ -93,6 +93,7 @@ impl Server {
                         continue;
                     }
                 };
+                stream.set_nonblocking(false).unwrap();
                 stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
                 let mut req = Vec::new();
                 let mut b = [0; 1];

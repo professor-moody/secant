@@ -2,12 +2,14 @@
 //! Project-Then-Heal. Exit codes follow the reference oracle: 0 = passed,
 //! 1 = a gate ran and failed, 2 = usage / I-O / undeterminable.
 
+mod cmd_analyze;
 mod cmd_compose;
 mod cmd_fetch_tensor;
 mod cmd_heal;
 mod cmd_inspect;
 mod cmd_patch;
 mod cmd_probe;
+mod cmd_profiles;
 mod cmd_quant;
 mod cmd_read;
 mod cmd_rotation_test;
@@ -36,10 +38,14 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Cmd {
+    /// List the built-in WSP research profiles
+    Profiles(cmd_profiles::Args),
     /// Inspect architecture, dtype layout, payload offsets and the Qwen3.5 ssm_out interleave
     Inspect(cmd_inspect::Args),
     /// Static weight-space reader: Frobenius norm, top singular triplets, top columns, anomalies, vocab projection
     Read(cmd_read::Args),
+    /// Rank layers by precomputed per-layer SNR and emit optimal layer assignments
+    Analyze(cmd_analyze::Args),
     /// Orthogonalize directions and calibrate a patch plan
     Compose(cmd_compose::Args),
     /// Apply a plan's weight edits directly to payload bytes
@@ -66,8 +72,10 @@ fn main() {
     let cli = Cli::parse();
     secant_core::numeric::set_go_arm64_fma(cli.go_arm64_fma);
     let code = match &cli.cmd {
+        Cmd::Profiles(a) => cmd_profiles::run(a),
         Cmd::Inspect(a) => cmd_inspect::run(a),
         Cmd::Read(a) => cmd_read::run(a),
+        Cmd::Analyze(a) => cmd_analyze::run(a),
         Cmd::Compose(a) => cmd_compose::run(a),
         Cmd::Patch(a) => cmd_patch::run(a),
         Cmd::VerifyPatch(a) => cmd_verify_patch::run(a),

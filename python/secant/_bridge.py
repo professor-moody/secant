@@ -278,6 +278,37 @@ def read(
     return _need(run(argv, **kw), "read", strict)
 
 
+def profiles(
+    *,
+    json: bool = True,
+    strict: bool = True,
+    **kw: Any,
+) -> CliResult:
+    """`secant profiles` (flags as the oracle's `wsp profiles`)."""
+    argv: List[str] = ["profiles"]
+    if json:
+        argv.append("--json")
+    return _need(run(argv, **kw), "profiles", strict)
+
+
+def analyze(
+    in_path: PathLike,
+    *,
+    profile: Optional[str] = None,
+    out: Optional[PathLike] = None,
+    json: bool = True,
+    strict: bool = True,
+    **kw: Any,
+) -> CliResult:
+    """`secant analyze --in ... [--profile ...] [--out ...]` (flags as the oracle's `wsp analyze`)."""
+    argv: List[str] = ["analyze", "--in", os.fspath(in_path)]
+    _opt(argv, "--profile", profile)
+    _opt(argv, "--out", out)
+    if json:
+        argv.append("--json")
+    return _need(run(argv, **kw), "analyze", strict)
+
+
 def compose(
     profile: str,
     out: PathLike,

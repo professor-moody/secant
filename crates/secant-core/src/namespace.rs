@@ -28,9 +28,10 @@ pub fn accepts(canonical: &str, found: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::analyze::ANALYZE_SCHEMA;
     use crate::container::{INSPECT_SCHEMA, PATCH_SCHEMA, VERIFY_SCHEMA};
     use crate::heal::{HEAL_META_KEY, HEAL_META_PROTECTED_DIM, HEAL_META_PROTECTED_K, HEAL_SCHEMA, VERIFY_SUBSPACE_SCHEMA};
-    use crate::plan::{COMPOSE_SCHEMA, PLAN_SCHEMA, PROFILE_SCHEMA};
+    use crate::plan::{COMPOSE_SCHEMA, PLAN_SCHEMA, PROFILES_SCHEMA, PROFILE_SCHEMA};
     use crate::read::READ_SCHEMA;
     use crate::security::{PROBE_ARCHITECTURE, PROBE_META_CLASS, PROBE_META_NUM_EXPERTS, PROBE_SCHEMA, SANITIZE_SCHEMA};
 
@@ -38,6 +39,8 @@ mod tests {
         vec![
             PLAN_SCHEMA,
             PROFILE_SCHEMA,
+            PROFILES_SCHEMA,
+            ANALYZE_SCHEMA,
             COMPOSE_SCHEMA,
             READ_SCHEMA,
             INSPECT_SCHEMA,
