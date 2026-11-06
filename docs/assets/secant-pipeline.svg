@@ -11,25 +11,25 @@
   <!-- Top Header Bar -->
   <rect x="0" y="0" width="1200" height="46" rx="10" fill="#0f172a"/>
   <rect x="0" y="36" width="1200" height="10" fill="#0f172a"/>
-  <text x="28" y="29" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" letter-spacing="0.6">SECANT ARCHITECTURE: SUBSPACE EXTRACTION, IN-PLACE MMAP SURGERY, AND LOCKED LORA</text>
-  <text x="1172" y="29" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12" font-weight="600" fill="#94a3b8">R^d = span(D) (+) ker(D)</text>
+  <text x="28" y="29" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" letter-spacing="0.6">SECANT WORKFLOW: INSPECT, PLAN, PATCH, AND CONSTRAIN ADAPTERS</text>
+  <text x="1172" y="29" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12" font-weight="600" fill="#94a3b8">Read / Edit / Verify</text>
 
   <!-- Stage 1 -->
   <g transform="translate(24, 66)">
     <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
     <rect width="264" height="5" rx="2.5" fill="#2563eb"/>
     <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#2563eb" letter-spacing="0.8">STAGE 01 · AUDIT &amp; CAPTURE</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Subspace Extraction</text>
+    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Inspect and Measure</text>
 
     <rect x="18" y="70" width="228" height="54" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#1e3a8a">d_b = E[h+] - E[h-]</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#1d4ed8">Top-K sparse support S</text>
+    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#1e3a8a">Compare prompt groups</text>
+    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#1d4ed8">Measure candidate directions</text>
 
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Zero-eval float64 SVD</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Held-out SNR layer rank</text>
+    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Read stored weight structure</text>
+    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Rank layers on held-out data</text>
 
     <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
-    <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#93c5fd">secant read | sanitize</text>
+    <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#93c5fd">CLI + Python capture</text>
   </g>
 
   <line x1="292" y1="176" x2="312" y2="176" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
@@ -38,15 +38,15 @@
   <g transform="translate(320, 66)">
     <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
     <rect width="264" height="5" rx="2.5" fill="#4f46e5"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#4f46e5" letter-spacing="0.8">STAGE 02 · ORTHOGONALIZE</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Scale Calibration</text>
+    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#4f46e5" letter-spacing="0.8">STAGE 02 · PLAN EDITS</text>
+    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Size the Change</text>
 
     <rect x="18" y="70" width="228" height="54" rx="6" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#312e81">D D^T = I_k  (float64)</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#4338ca">beta = shift / ||h_S||^2</text>
+    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#312e81">Remove direction overlap</text>
+    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#4338ca">Set a reference-input shift</text>
 
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• 2-pass Gram-Schmidt</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Max ortho err &lt; 1e-12</text>
+    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Two projection passes</text>
+    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Check numerical error</text>
 
     <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
     <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#a5b4fc">secant compose</text>
@@ -58,15 +58,15 @@
   <g transform="translate(616, 66)">
     <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
     <rect width="264" height="5" rx="2.5" fill="#0891b2"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#0891b2" letter-spacing="0.8">STAGE 03 · IN-PLACE SURGERY</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">mmap &amp; Q8_0 Patching</text>
+    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#0891b2" letter-spacing="0.8">STAGE 03 · PATCH AND VERIFY</text>
+    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Edit Selected Blocks</text>
 
     <rect x="18" y="70" width="228" height="54" rx="6" fill="#ecfeff" stroke="#a5f3fc" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#164e63">W[:,S] += beta * q * h_S^T</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#0e7490">34-byte Q8_0 block edit</text>
+    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#164e63">Change planned weights</text>
+    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#0e7490">Keep other blocks identical</text>
 
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Zero full-file rewrite</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• SHA-256 byte-range proof</text>
+    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Copy output by default</text>
+    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Verify non-target tensors</text>
 
     <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
     <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#67e8f9">secant patch | quant patch</text>
@@ -78,15 +78,15 @@
   <g transform="translate(912, 66)">
     <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
     <rect width="264" height="5" rx="2.5" fill="#059669"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#059669" letter-spacing="0.8">STAGE 04 · SUBSPACE LOCK</text>
+    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#059669" letter-spacing="0.8">STAGE 04 · CONSTRAIN LORA</text>
     <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Project-Then-Heal</text>
 
     <rect x="18" y="70" width="228" height="54" rx="6" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#064e3b">B_lock = P_perp(P_perp B)</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#047857">P_perp = I - D^T D (f64)</text>
+    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#064e3b">Project adapter outputs</text>
+    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#047857">Remove protected components</text>
 
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Blocks AdamW rotation</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Leakage &lt;= 1e-17 (f64)</text>
+    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Constrain each forward pass</text>
+    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Check leakage after storage</text>
 
     <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
     <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#6ee7b7">ProjectThenHealLinear</text>

@@ -1,24 +1,26 @@
 # Project-Then-Heal: Subspace-Locked LoRA
 
-Suppose you have removed an unwanted behavior, such as `<think>` looping (`B1`) or false-positive refusals (`B2`), via closed-form weight surgery ($\tilde{W}_\ell = W_\ell + \Delta W_\ell$), and now you want to fine-tune the model with LoRA.
+After editing a model, you may want to fine-tune it for fluency or a new task. **LoRA** does this by learning a small adapter while keeping the original weight matrix fixed. An ordinary adapter can add back a component along a direction that the edit removed.
 
-In standard LoRA (`unconstrained_lora`), the optimizer has no awareness of the orthonormal row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{out}}}$ ($D D^\top = I_k$) you just carved out. Nothing prevents the adapter from writing along $D$: any task gradient with a component along $D$ moves the adapter there, and (Section 1) even a projected gradient can be rotated back into $D$ by AdamW's coordinatewise scaling.
+**Project-Then-Heal** removes specified output directions from the adapter whenever it runs. The remaining directions form the *orthogonal complement*: the set perpendicular to all protected directions. We call any remaining protected component **leakage**. It is a local numerical measure, not a measure of how often the model shows a behavior.
 
-**Project-Then-Heal** parameterizes the LoRA output matrix $B$ inside the **orthogonal complement** $P_\perp = I_{d_{\text{out}}} - D^\top D$. `secant.nn.ProjectThenHealLinear` applies this during each forward pass; `secant heal` projects an existing adapter once offline. Further unconstrained training of that exported adapter does not retain the structural lock. The exact-arithmetic guarantee is local to the selected writer and supplied directions, not all downstream behavior (measurements in Section 2 and [](#fig-pth-leakage-comparison)).
+`secant.nn.ProjectThenHealLinear` applies this constraint on every forward pass. `secant heal` applies it once to an existing adapter; further unconstrained training does not retain the lock. The guarantee is exact in real arithmetic at the selected writer, a matrix that contributes to a layer's output. Rounding and later model layers can change the result.
 
-**Prior art.** [OPLoRA](https://arxiv.org/abs/2510.13003) constrains updates against weight-SVD subspaces on both sides; Secant uses a supplied output basis. [Safe LoRA](https://arxiv.org/abs/2405.16833) derives a safety-aligned projection from checkpoint differences. [OGPSA](https://arxiv.org/abs/2602.07892) operates on capability and safety gradients. The AdamW experiment below tests a generic gradient hook, not OGPSA. [Heretic](https://github.com/p-e-w/heretic), [Obliteratus](https://github.com/elder-plinius/OBLITERATUS), and [model-unfetter](https://github.com/josepha-mayo/model-unfetter) overlap in directional editing; their recovery behavior was not benchmarked here. See [the paper's related-work discussion](PAPER.md) for the citation correction and limits of novelty.
+**Prior art.** [OPLoRA](https://arxiv.org/abs/2510.13003) constrains updates against weight-SVD subspaces on both sides; Secant uses a supplied output basis. [Safe LoRA](https://arxiv.org/abs/2405.16833) derives a safety-aligned projection from checkpoint differences. [OGPSA](https://arxiv.org/abs/2602.07892) operates on capability and safety gradients. The AdamW experiment below tests a generic gradient hook, not OGPSA. [Heretic](https://github.com/p-e-w/heretic), [Obliteratus](https://github.com/elder-plinius/OBLITERATUS), and [model-unfetter](https://github.com/josepha-mayo/model-unfetter) overlap in directional editing; their recovery behavior was not benchmarked here. See [the paper's related-work discussion](PAPER.md) for related work and limits of novelty.
 
 ```{figure} assets/project-then-heal-chart.svg
 :name: fig-pth-leakage-comparison
 :alt: Regime C H100 stress test on 14 checkpoints, unconstrained adapter fraction in span(D) vs ProjectThenHealLinear absolute leakage
 :width: 100%
 
-H100 stress test (14 checkpoints, `7.2B` to `72.7B`) at step 60. The training target lies inside $\mathrm{span}(D)$, so the unconstrained bars ($\|DB\|_{\mathrm{F}}/\|B\|_{\mathrm{F}}$, `8.42%` to `52.55%`) measure that task's pull, not erasure in real training, and the locked arm cannot fit the target (its loss sits at the floor $2.25/d_{\text{model}}$). `ProjectThenHealLinear` absolute leakage $\max|D B_{\text{locked}}|$ is $4.82 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) and $3.87 \times 10^{-10}$ to $3.98 \times 10^{-8}$ (merged `F32`). The two columns are different metrics. Live fine-tuning results are in Section 2.
+H100 stress test (14 checkpoints, `7.2B` to `72.7B`) at step 60. The training target lies inside $\mathrm{span}(D^\top)$, so the unconstrained bars ($\|DB\|_{\mathrm{F}}/\|B\|_{\mathrm{F}}$, `8.42%` to `52.55%`) measure that task's pull, not erasure in real training, and the locked arm cannot fit the target (its loss sits at the floor $2.25/d_{\text{model}}$). `ProjectThenHealLinear` absolute leakage $\max|D B_{\text{locked}}|$ is $4.82 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) and $3.87 \times 10^{-10}$ to $3.98 \times 10^{-8}$ (merged `F32`). The two columns are different metrics. Live fine-tuning results are in Section 2.
 ```
 
 ---
 
-## 1. Why Structural Parameterization Beats Gradient Hooks
+## 1. Constrain the Adapter Used by the Forward Pass
+
+A gradient hook changes the proposed training direction. The optimizer still transforms that proposal before updating the parameters. Constraining the adapter used to compute each output avoids depending on how the optimizer transforms gradients.
 
 A standard LoRA adapter on a writer matrix has the form $\Delta W = s \, B \, A$, where $A \in \mathbb{R}^{r \times d_{\text{in}}}$ and $B \in \mathbb{R}^{d_{\text{out}} \times r}$. To guarantee zero leakage into the surgical basis $D \in \mathbb{R}^{k \times d_{\text{out}}}$ ($D D^\top = I_k$), we require:
 
@@ -28,7 +30,7 @@ $$
 
 Why not simply multiply the backward gradient $\nabla_B \mathcal{L}$ by $P_\perp = I_{d_{\text{out}}} - D^\top D$?
 1. **Unprojected initialization leaks immediately:** If $B_0$ has any component in $\mathrm{span}(D^\top)$, projecting gradients never removes it.
-2. **AdamW coordinatewise scaling can rotate steps out of $\mathcal{S}^\perp$:** Even if $\nabla_B \mathcal{L}$ lies inside $\mathcal{S}^\perp$, its adaptive diagonal rescaling need not preserve that subspace. Axis-aligned projectors and compatible scalings are exceptions. Section 3 tests a gradient-projected arm; it does not prove every AdamW step leaks.
+2. **AdamW coordinatewise scaling can rotate steps out of $\ker(D)$:** Even if $\nabla_B \mathcal{L}$ lies inside $\ker(D)$, its adaptive diagonal rescaling need not preserve that subspace. Axis-aligned projectors and compatible scalings are exceptions. Section 3 tests a gradient-projected arm; it does not prove every AdamW step leaks.
 
 Instead, `ProjectThenHealLinear` defines the effective output matrix $B_{\text{locked}}(\tilde{B})$ **structurally inside the forward pass** via double orthogonal projection:
 
@@ -42,7 +44,9 @@ $$
 y = x \tilde{W}^\top + \frac{\alpha_{\text{lora}}}{r} (x A^\top) B_{\text{locked}}(\tilde{B})^\top
 $$
 
-### Three Algorithmic Advantages
+### Cost and Numerical Limits
+
+The implementation avoids allocating a full square projector. The remaining limits come from floating-point arithmetic and the precision used to store or merge the adapter.
 
 1. **Zero $O(d_{\text{out}}^2)$ Matrix Allocation:** `ProjectThenHealLinear` never materializes the dense $d_{\text{out}} \times d_{\text{out}}$ matrix $I - D^\top D$. Each projection executes two skinny matrix multiplications $D \tilde{B} \in \mathbb{R}^{k \times r}$ and $D^\top (D \tilde{B}) \in \mathbb{R}^{d_{\text{out}} \times r}$ in $O(k \cdot d_{\text{out}} \cdot r)$ time. Device timing is workload-dependent; no general CPU/GPU speedup follows from this complexity bound.
 2. **Why Double Projection ("Twice Is Enough"):** In exact arithmetic $P_\perp^2 = P_\perp$, so a second projection changes nothing. In `float64` the second pass is an **observed numerical refinement**, not a proved error bound: we do not claim a $\kappa(\tilde{B}) \cdot \varepsilon_{\text{mach}}$ theorem. Measured with the shipped `secant._linalg.project_out` on 120 seeded Gaussian cases ($d_{\text{out}} \in \{1024, 2560, 3584, 4096, 5120, 8192\}$, $k \in \{3, 4\}$, $r \in \{8, 16\}$, 5 seeds), the second pass lowered $\max_{i,j} |(D B_{\text{locked}})_{i,j}|$ by $1.8\times$ to $17.7\times$ (median $5.6\times$), from at most $2.25 \times 10^{-14}$ to at most $2.24 \times 10^{-15}$. After 60 steps of live training on `Qwen3.5-0.8B` we measured $9.87 \times 10^{-18}$ in `float64` and $2.49 \times 10^{-10}$ in the merged `F32` delta (Section 2).
@@ -52,7 +56,9 @@ $$
 
 Precision note: Regime C's `leakage_f64` evaluates the F32 working factor in float64; its merged metric measures $D\Delta W$. The live-run `leak_inf_float64_math` values below instead recompute an unrounded projected delta. These labels do not describe identical computations or an all-float64 LM forward pass.
 
-## 2. Step-by-Step Trajectory on `Qwen3.5-0.8B` (`Step 0` to `Step 60`)
+## 2. Follow a Short Fine-Tuning Run on Real Text
+
+Both adapters start from the same edited model and initial parameters. Training loss measures fit to the training batch; held-out perplexity measures prediction quality on other text, with lower values better. Watching both reveals when a model begins to overfit.
 
 Attaching `ProjectThenHealLinear` ($r=8, \alpha_{\text{lora}}=16, k=4$ protected directions, AdamW $\text{lr} = 5 \times 10^{-4}$) to layers `15, 16, 17` of surgically edited `Qwen3.5-0.8B` alongside a bit-identically initialized `unconstrained_lora` control over 60 steps of real causal LM fine-tuning gives near-identical training loss (`0.3120` vs. `0.3096` at step 60) and a factor of about $4.2 \times 10^{7}$ lower merged `F32` writer leakage ($2.49 \times 10^{-10}$ vs. $1.05 \times 10^{-2}$), measured with the same metric in both arms. Note that on this 24-example batch, held-out perplexity reaches its minimum at Step 20 (`5.435` vs. `5.423`) before both arms overfit the small training batch by Step 60 (`12.106` vs. `12.357`):
 
@@ -62,17 +68,17 @@ Attaching `ProjectThenHealLinear` ($r=8, \alpha_{\text{lora}}=16, k=4$ protected
 | **Train Loss (`unconstrained_lora`)** | `2.8242` | `2.0599` | `1.6180` | `0.9459` | **`0.3096` (`-89.0%`)** |
 | **Held-Out Perplexity (`project_then_heal`)** | `17.568` | `7.334` | **`5.435`** | `5.845` | `12.106` |
 | **Held-Out Perplexity (`unconstrained_lora`)** | `17.568` | `7.315` | **`5.423`** | `5.884` | `12.357` |
-| **`float64` Max $\Vert D \Delta W\Vert $ (`project_then_heal`)** | `0.00e+00` | `3.63e-18` | `5.53e-18` | `7.97e-18` | **`9.87e-18`** |
-| **Merged `F32` Max $\Vert D \Delta W\Vert $ (`project_then_heal`)** | `0.00e+00` | `6.54e-11` | `1.22e-10` | `1.96e-10` | **`2.49e-10` (`PASS`)** |
-| **Merged `F32` Max $\Vert D \Delta W\Vert $ (`unconstrained_lora`)** | `0.00e+00` | `2.60e-03` | `4.46e-03` | `7.98e-03` | **`1.05e-02` (`FAIL`)** |
+| **`float64` $\max\lvert D \Delta W\rvert$ (`project_then_heal`)** | `0.00e+00` | `3.63e-18` | `5.53e-18` | `7.97e-18` | **`9.87e-18`** |
+| **Merged `F32` $\max\lvert D \Delta W\rvert$ (`project_then_heal`)** | `0.00e+00` | `6.54e-11` | `1.22e-10` | `1.96e-10` | **`2.49e-10` (`PASS`)** |
+| **Merged `F32` $\max\lvert D \Delta W\rvert$ (`unconstrained_lora`)** | `0.00e+00` | `2.60e-03` | `4.46e-03` | `7.98e-03` | **`1.05e-02` (`FAIL`)** |
 
 ---
 
-## 3. Three-Arm Post-Surgical LoRA + AdamW Rotation Test
+## 3. Compare Three Adapter Methods Under AdamW
 
 Section 1 argues that projecting only the gradient is not enough under AdamW. This section tests that argument with an arm that does exactly that.
 
-**Setup.** Writer: the real layer-16 `mlp.down_proj` weight of `Qwen3.5-0.8B` ($d_{\text{out}} = 1024$), `Qwen3.5-4B` ($2560$) and `Qwen2.5-7B` ($3584$), surgically edited as $W_e = P_\perp W_0$ so that $D W_e = 0$. $D$ has $k = 3$ seeded random orthonormal `float64` rows. The task is **synthetic regression**, not language-model fine-tuning: $T = 256$ Gaussian inputs, an *orthogonal* target $Y = W_e X + R_\perp$ with $D R_\perp = 0$, and a *mixed* target that adds $R_D \in \mathrm{span}(D)$ with energy `0.25` of $R_\perp$ (so `0.25` is the analytic loss floor of any arm that cannot write into $\mathrm{span}(D)$). LoRA rank `16`, scale `1`, AdamW betas `(0.9, 0.999)`, eps `1e-8`, 60 full-batch steps, seeds `0, 1, 2`, identical $A_0$ and $B_0 = 0$ in every arm.
+**Setup.** Writer: the real layer-16 `mlp.down_proj` weight of `Qwen3.5-0.8B` ($d_{\text{out}} = 1024$), `Qwen3.5-4B` ($2560$) and `Qwen2.5-7B` ($3584$), surgically edited as $W_e = P_\perp W_0$ so that $D W_e = 0$. $D$ has $k = 3$ seeded random orthonormal `float64` rows. The task fits numerical target outputs (**synthetic regression**) rather than fine-tuning on language: $T = 256$ Gaussian inputs, an *orthogonal* target $Y = W_e X + R_\perp$ with $D R_\perp = 0$, and a *mixed* target that adds $R_D \in \mathrm{span}(D)$ with energy `0.25` of $R_\perp$ (so `0.25` is the analytic loss floor of any arm that cannot write into $\mathrm{span}(D^\top)$). The settings are LoRA rank `16`, scale `1`, AdamW betas `(0.9, 0.999)`, eps `1e-8`, 60 full-batch steps, seeds `0, 1, 2`, identical $A_0$ and $B_0 = 0$ in every arm.
 
 The Python projection accumulates in float64 and casts back to the working dtype before the forward pass (`python/secant/nn.py:205`). Numerical leakage is therefore a measured quantity, not a dtype-independent zero guarantee.
 
@@ -80,7 +86,7 @@ The Python projection accumulates in float64 and casts back to the working dtype
 - **Arm B:** gradient-projected LoRA, $\nabla_B \leftarrow P_\perp \nabla_B$ in `float64` immediately before each AdamW step.
 - **Arm C:** `secant.nn.ProjectThenHealLinear`, $B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$ in the forward pass, same AdamW.
 
-Every arm is scored with the **same** metric: $\mathrm{lk}_W = \|D\,\Delta W\|_{\mathrm{F}} / \|\Delta W\|_{\mathrm{F}}$ (relative leakage of the LoRA delta into $\mathrm{span}(D)$), plus the output-energy fraction in $\mathrm{span}(D)$ and the largest $|D\,\Delta W|$ of the `float32`-stored merged delta. Weight decay is run at both `0.01` and `0.0`: decoupled decay multiplies $B$ by a scalar and commutes with $P_\perp$, so it should not matter.
+Every arm is scored with the **same** metric: $\mathrm{lk}_W = \|D\,\Delta W\|_{\mathrm{F}} / \|\Delta W\|_{\mathrm{F}}$ (relative leakage of the LoRA delta into $\mathrm{span}(D^\top)$), plus the output-energy fraction in $\mathrm{span}(D^\top)$ and the largest $|D\,\Delta W|$ of the `float32`-stored merged delta. Weight decay is run at both `0.01` and `0.0`: decoupled decay multiplies $B$ by a scalar and commutes with $P_\perp$, so it should not matter.
 
 **Learning rate: this table is post-hoc.** The preregistered learning rate (`1e-2`, chosen once on Arm A) failed the preregistered loss-parity prediction for Arm C on `Qwen2.5-7B`. The `3e-3` run below was added **after** seeing that result and is reported beside, not instead of, the preregistered run. The preregistered `1e-2` run gives the same ordering: on the orthogonal target, Arm B leaks `1.24%` to `2.58%` at step 60 and Arm C $6.40 \times 10^{-10}$ to $1.12 \times 10^{-9}$.
 
@@ -89,10 +95,10 @@ Every arm is scored with the **same** metric: $\mathrm{lk}_W = \|D\,\Delta W\|_{
 :alt: Log-scale leakage over 60 AdamW steps for unconstrained, gradient-projected and ProjectThenHealLinear LoRA on Qwen3.5-0.8B, Qwen3.5-4B and Qwen2.5-7B, a step-60 dot plot across targets and weight decays, and a step-60 dot plot of all three arms on the 15-model H100 Stage-1 run
 :width: 100%
 
-Top: $\mathrm{lk}_W$ per AdamW step on the orthogonal target at weight decay `0.0` (line = 3-seed mean, band = seed min to max). Arms A and B coincide at step 1 because the gradient already lies outside $\mathrm{span}(D)$; Arm B then settles at `1.56%` to `2.98%` while Arm C stays at $6.05 \times 10^{-10}$ to $1.02 \times 10^{-9}$. Bottom left: step-60 means for both targets and both weight decays (filled = `0.0`, ring = `0.01`; the two coincide, so weight decay is not the source). Bottom right: all three arms at step 60 on the 15-model H100 Stage-1 run (one seed per model, one metric for every arm; see the subsection below). Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
+Top: $\mathrm{lk}_W$ per AdamW step on the orthogonal target at weight decay `0.0` (line = 3-seed mean, band = seed min to max). Arms A and B coincide at step 1 because the gradient already lies outside $\mathrm{span}(D^\top)$; Arm B then settles at `1.56%` to `2.98%` while Arm C stays at $6.05 \times 10^{-10}$ to $1.02 \times 10^{-9}$. Bottom left: step-60 means for both targets and both weight decays (filled = `0.0`, ring = `0.01`; the two coincide, so weight decay is not the source). Bottom right: all three arms at step 60 on the 15-model H100 Stage-1 run (one seed per model, one metric for every arm; see the subsection below). Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
 ```
 
-| Model ($d_{\text{out}}$) | Target | Arm | wd | Final loss (min..max, 3 seeds) | Final loss minus floor (mean) | $\mathrm{lk}_W$ step 1 (mean) | $\mathrm{lk}_W$ step 60 (mean) | $\max_t \mathrm{lk}_W$ | Output energy in $\mathrm{span}(D)$ at step 60 (mean) | Merged `F32` $\max \lvert D\,\Delta W\rvert$ (max) |
+| Model ($d_{\text{out}}$) | Target | Arm | wd | Final loss (min..max, 3 seeds) | Final loss minus floor (mean) | $\mathrm{lk}_W$ step 1 (mean) | $\mathrm{lk}_W$ step 60 (mean) | $\max_t \mathrm{lk}_W$ | Output energy in $\mathrm{span}(D^\top)$ at step 60 (mean) | Merged `F32` $\max \lvert D\,\Delta W\rvert$ (max) |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `Qwen3.5-0.8B` (1024) | orth | A | 0.01 | 0.00122..0.00128 | +0.00125 | 3.29e-02 | 8.18e-03 | 3.47e-02 | 2.86e-06 | 3.95e-03 |
 | `Qwen3.5-0.8B` (1024) | orth | B | 0.01 | 0.00190..0.00219 | +0.00208 | 3.29e-02 | **2.98e-02** | 3.50e-02 | 8.22e-04 | 1.08e-02 |
@@ -133,14 +139,16 @@ Top: $\mathrm{lk}_W$ per AdamW step on the orthogonal target at weight decay `0.
 
 **What the table shows.**
 
-1. **Gradient projection alone does not keep the adapter out of $\mathrm{span}(D)$.** On the orthogonal target, Arm B puts `1.56%` to `2.98%` of $\|\Delta W\|_{\mathrm{F}}$ into $\mathrm{span}(D)$ at step 60 (`1.84%` to `3.06%` on the mixed target), and the value is the same at weight decay `0.0` as at `0.01`. Weight decay is therefore not the source.
+1. **Gradient projection alone does not keep the adapter out of $\mathrm{span}(D^\top)$.** On the orthogonal target, Arm B puts `1.56%` to `2.98%` of $\|\Delta W\|_{\mathrm{F}}$ into $\mathrm{span}(D^\top)$ at step 60 (`1.84%` to `3.06%` on the mixed target), and the value is the same at weight decay `0.0` as at `0.01`. Weight decay is therefore not the source.
 2. **The step-1 mechanism check points at the second-moment preconditioner.** At $B_0 = 0$ on the orthogonal target, the loss gradient already lies in $\mathrm{col}(P_\perp)$ ($\|D g\| / \|g\| = 5.1 \times 10^{-9}$ to $1.3 \times 10^{-8}$), so Arm B's projection is a no-op there. AdamW's first update is $u = g / (|g| + \epsilon)$, an elementwise sign-like map, and $\|D u\| / \|u\|$ is `1.76%` to `3.48%` across the 9 model-seed pairs, matching Arm B's recorded step-1 leakage to within $2 \times 10^{-7}$ relative. The leak is created by the coordinatewise division, not by the gradient.
 3. **`ProjectThenHealLinear` holds leakage at rounding level with the same final loss as unconstrained LoRA on the orthogonal target.** Arm C stays at $5.42 \times 10^{-10}$ to $1.05 \times 10^{-9}$ at step 60 on the orthogonal target ($5.98 \times 10^{-10}$ to $1.11 \times 10^{-9}$ on the mixed target), and its final-loss range equals Arm A's to the precision shown in every orthogonal row. Arm B, by contrast, ends with a **higher** loss than A and C on the orthogonal target.
-4. **On the mixed target, Arm C stops exactly at the floor.** It cannot fit $R_D$ by construction, so its final loss sits at `0.25` plus the same excess it shows on the orthogonal task. Arm A goes below the floor by writing about `45%` of its delta norm into $\mathrm{span}(D)$; that is the behavior the lock exists to prevent.
+4. **On the mixed target, Arm C stops exactly at the floor.** It cannot fit $R_D$ by construction, so its final loss sits at `0.25` plus the same excess it shows on the orthogonal task. Arm A goes below the floor by writing about `45%` of its delta norm into $\mathrm{span}(D^\top)$; that is the behavior the lock exists to prevent.
 
-**Limits.** This is a single-layer synthetic regression with random protected directions, not a measurement on real edit directions or on LM fine-tuning quality; Regimes A and C (Section 2 and the [overview](index.md)) cover those. The learning rate in the table is post-hoc, as stated above. Raw per-seed trajectories, the runner (`adamw3arm.py`) and the mechanism check (`signcheck.py`) are retained with SHA-256 receipts in the lab evidence bank and are not yet published in this repository.
+**Limits.** This is a single-layer synthetic regression with random protected directions, not a measurement of language-model fine-tuning quality. Regime A (Section 2) tests live text training; Regime C in the [paper](PAPER.md) is a separate synthetic stress test. The learning rate in the table is post-hoc, as stated above. Raw per-seed trajectories, the runner (`adamw3arm.py`) and the mechanism check (`signcheck.py`) are retained with SHA-256 receipts in the lab evidence bank and are not yet published in this repository.
 
-### H100 Stage-1: the three-arm test on 15 models (`0.8B` to `32.8B`)
+### H100 Stage-1: Repeat the Comparison Across 15 Models
+
+This sweep uses the same three methods on one writer per model, with one seed each. It tests whether the local constraint holds at different sizes. It does not measure public benchmark quality after healing.
 
 The same three arms were run on the H100 on 15 models (receipt `irrefutable-15models-stage1-receipt.json`, SHA-256 `00f4fe2afc4ff630c7c9ac55b5b2c0a85342477a5b32a0b0c455abd5b4c5056f`). Each starts from the **surgically edited** writer $W_{\text{surg}}$ at the layer below, from a common initialization (initial relative leakage below $10^{-16}$), and trains for 60 AdamW steps on a synthetic target $Y_{\text{target}}$ with $Y_{\text{target}} - W_{\text{surg}} X \in \mathrm{span}(D)^\perp$ plus a real-token cross-entropy term (weight `0.1`).
 

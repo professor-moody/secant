@@ -1,0 +1,740 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Rank layers by captured per-layer SNR (Borda across 4 subspaces)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Rank layers by captured per-layer SNR (Borda across 4 subspaces)
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Rank layers by captured per-layer SNR (Borda across 4 subspaces)
+> secant analyze --in layer_snr.json --out analysis.json
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Rank layers by captured per-layer SNR (Borda across 4 subspaces)
+> secant analyze --in layer_snr.json --out analysis.json
+layer analysis of layer_snr.json (layout family-major)
+
+family b2: Borda winner L11
+  resid peak L03 snr 2.5221 next: L14 2.3612
+  attn  peak L11 snr 3.9876 next: L10 3.3534
+  mlp   peak L11 snr 3.3446 next: L15 2.6344
+  h     peak L11 snr 2.7742 next: L12 2.5279
+
+family b3: Borda winner L12
+  resid peak L20 snr 31.0436 next: L22 26.4355
+  attn  peak L12 snr 40.4809 next: L20 32.8692
+  mlp   peak L12 snr 26.6315 next: L04 21.0288
+  h     peak L12 snr 35.7844 next: L15 26.4122
+
+L_ref_star  = 11
+L_root_star = 12
+
+why hardcoded mid-layers fail:
+  b2.resid: hardcoded L15 snr=2.2337 rank 5/24 vs peak L3 snr=2.5221 (1.13x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.resid: hardcoded L19 snr=1.4519 rank 13/24 vs peak L3 snr=2.5221 (1.74x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.attn: hardcoded L15 snr=2.1204 rank 11/24 vs peak L11 snr=3.9876 (1.88x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.attn: hardcoded L19 snr=0.6941 rank 24/24 vs peak L11 snr=3.9876 (5.74x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.mlp: hardcoded L15 snr=2.6344 rank 2/24 vs peak L11 snr=3.3446 (1.27x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.mlp: hardcoded L19 snr=2.2529 rank 5/24 vs peak L11 snr=3.3446 (1.48x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.h: hardcoded L15 snr=2.4956 rank 4/24 vs peak L11 snr=2.7742 (1.11x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.h: hardcoded L19 snr=1.8023 rank 6/24 vs peak L11 snr=2.7742 (1.54x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.resid: hardcoded L15 snr=24.6682 rank 4/24 vs peak L20 snr=31.0436 (1.26x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.resid: hardcoded L19 snr=22.5075 rank 6/24 vs peak L20 snr=31.0436 (1.38x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.attn: hardcoded L15 snr=26.4300 rank 5/24 vs peak L12 snr=40.4809 (1.53x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.attn: hardcoded L19 snr=12.7502 rank 10/24 vs peak L12 snr=40.4809 (3.17x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.mlp: hardcoded L15 snr=17.5954 rank 6/24 vs peak L12 snr=26.6315 (1.51x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.mlp: hardcoded L19 snr=14.5642 rank 10/24 vs peak L12 snr=26.6315 (1.83x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.h: hardcoded L15 snr=26.4122 rank 2/24 vs peak L12 snr=35.7844 (1.35x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.h: hardcoded L19 snr=13.8193 rank 10/24 vs peak L12 snr=35.7844 (2.59x lower): the banked mid-layer default misses the bottleneck at this scale
+  L_ref_star=11 by Borda across subspaces
+  L_root_star=12 by Borda across subspaces
+>
+
+────────────────────────────────────────────────────────────────────────────────
+> # Rank layers by captured per-layer SNR (Borda across 4 subspaces)
+> secant analyze --in layer_snr.json --out analysis.json
+layer analysis of layer_snr.json (layout family-major)
+
+family b2: Borda winner L11
+  resid peak L03 snr 2.5221 next: L14 2.3612
+  attn  peak L11 snr 3.9876 next: L10 3.3534
+  mlp   peak L11 snr 3.3446 next: L15 2.6344
+  h     peak L11 snr 2.7742 next: L12 2.5279
+
+family b3: Borda winner L12
+  resid peak L20 snr 31.0436 next: L22 26.4355
+  attn  peak L12 snr 40.4809 next: L20 32.8692
+  mlp   peak L12 snr 26.6315 next: L04 21.0288
+  h     peak L12 snr 35.7844 next: L15 26.4122
+
+L_ref_star  = 11
+L_root_star = 12
+
+why hardcoded mid-layers fail:
+  b2.resid: hardcoded L15 snr=2.2337 rank 5/24 vs peak L3 snr=2.5221 (1.13x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.resid: hardcoded L19 snr=1.4519 rank 13/24 vs peak L3 snr=2.5221 (1.74x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.attn: hardcoded L15 snr=2.1204 rank 11/24 vs peak L11 snr=3.9876 (1.88x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.attn: hardcoded L19 snr=0.6941 rank 24/24 vs peak L11 snr=3.9876 (5.74x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.mlp: hardcoded L15 snr=2.6344 rank 2/24 vs peak L11 snr=3.3446 (1.27x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.mlp: hardcoded L19 snr=2.2529 rank 5/24 vs peak L11 snr=3.3446 (1.48x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.h: hardcoded L15 snr=2.4956 rank 4/24 vs peak L11 snr=2.7742 (1.11x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.h: hardcoded L19 snr=1.8023 rank 6/24 vs peak L11 snr=2.7742 (1.54x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.resid: hardcoded L15 snr=24.6682 rank 4/24 vs peak L20 snr=31.0436 (1.26x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.resid: hardcoded L19 snr=22.5075 rank 6/24 vs peak L20 snr=31.0436 (1.38x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.attn: hardcoded L15 snr=26.4300 rank 5/24 vs peak L12 snr=40.4809 (1.53x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.attn: hardcoded L19 snr=12.7502 rank 10/24 vs peak L12 snr=40.4809 (3.17x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.mlp: hardcoded L15 snr=17.5954 rank 6/24 vs peak L12 snr=26.6315 (1.51x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.mlp: hardcoded L19 snr=14.5642 rank 10/24 vs peak L12 snr=26.6315 (1.83x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.h: hardcoded L15 snr=26.4122 rank 2/24 vs peak L12 snr=35.7844 (1.35x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.h: hardcoded L19 snr=13.8193 rank 10/24 vs peak L12 snr=35.7844 (2.59x lower): the banked mid-layer default misses the bottleneck at this scale
+  L_ref_star=11 by Borda across subspaces
+  L_root_star=12 by Borda across subspaces
+>
+
+────────────────────────────────────────────────────────────────────────────────
+> # Rank layers by captured per-layer SNR (Borda across 4 subspaces)
+> secant analyze --in layer_snr.json --out analysis.json
+layer analysis of layer_snr.json (layout family-major)
+
+family b2: Borda winner L11
+  resid peak L03 snr 2.5221 next: L14 2.3612
+  attn  peak L11 snr 3.9876 next: L10 3.3534
+  mlp   peak L11 snr 3.3446 next: L15 2.6344
+  h     peak L11 snr 2.7742 next: L12 2.5279
+
+family b3: Borda winner L12
+  resid peak L20 snr 31.0436 next: L22 26.4355
+  attn  peak L12 snr 40.4809 next: L20 32.8692
+  mlp   peak L12 snr 26.6315 next: L04 21.0288
+  h     peak L12 snr 35.7844 next: L15 26.4122
+
+L_ref_star  = 11
+L_root_star = 12
+
+why hardcoded mid-layers fail:
+  b2.resid: hardcoded L15 snr=2.2337 rank 5/24 vs peak L3 snr=2.5221 (1.13x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.resid: hardcoded L19 snr=1.4519 rank 13/24 vs peak L3 snr=2.5221 (1.74x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.attn: hardcoded L15 snr=2.1204 rank 11/24 vs peak L11 snr=3.9876 (1.88x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.attn: hardcoded L19 snr=0.6941 rank 24/24 vs peak L11 snr=3.9876 (5.74x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.mlp: hardcoded L15 snr=2.6344 rank 2/24 vs peak L11 snr=3.3446 (1.27x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.mlp: hardcoded L19 snr=2.2529 rank 5/24 vs peak L11 snr=3.3446 (1.48x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.h: hardcoded L15 snr=2.4956 rank 4/24 vs peak L11 snr=2.7742 (1.11x lower): the banked mid-layer default misses the bottleneck at this scale
+  b2.h: hardcoded L19 snr=1.8023 rank 6/24 vs peak L11 snr=2.7742 (1.54x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.resid: hardcoded L15 snr=24.6682 rank 4/24 vs peak L20 snr=31.0436 (1.26x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.resid: hardcoded L19 snr=22.5075 rank 6/24 vs peak L20 snr=31.0436 (1.38x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.attn: hardcoded L15 snr=26.4300 rank 5/24 vs peak L12 snr=40.4809 (1.53x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.attn: hardcoded L19 snr=12.7502 rank 10/24 vs peak L12 snr=40.4809 (3.17x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.mlp: hardcoded L15 snr=17.5954 rank 6/24 vs peak L12 snr=26.6315 (1.51x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.mlp: hardcoded L19 snr=14.5642 rank 10/24 vs peak L12 snr=26.6315 (1.83x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.h: hardcoded L15 snr=26.4122 rank 2/24 vs peak L12 snr=35.7844 (1.35x lower): the banked mid-layer default misses the bottleneck at this scale
+  b3.h: hardcoded L19 snr=13.8193 rank 10/24 vs peak L12 snr=35.7844 (2.59x lower): the banked mid-layer default misses the bottleneck at this scale
+  L_ref_star=11 by Borda across subspaces
+  L_root_star=12 by Borda across subspaces
+>
+
+────────────────────────────────────────────────────────────────────────────────

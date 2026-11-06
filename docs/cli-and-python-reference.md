@@ -1,9 +1,12 @@
-# CLI, Python & C-ABI Reference
+# CLI, Python, and C Reference
 
-Secant exposes three interfaces backed by `secant-core`:
+Choose the interface that matches your workflow: shell commands, Python training code, or a C-compatible library call. The Rust CLI and C library use `secant-core`; the Python package also implements capture and the trainable layer.
+
 1. **`secant` CLI** (`crates/secant-cli`): Deterministic command-line tool with structured `--json` receipts.
 2. **`secant` Python Package** (`python/secant`): PyTorch `ProjectThenHealLinear`, contrastive capture, and CLI/FFI bridges.
 3. **`libsecant` C ABI** (`crates/secant-ffi/include/secant.h`): Stable `extern "C"` shared/static library (`*_v1` symbols).
+
+A **receipt** is a structured record of a command's inputs, measurements, and checks. A successful exit applies to the command's stated scope; it does not certify the model's behavior.
 
 Command shapes were checked against the installed binary's `--help` and Rust argument definitions on 2026-11-06. Python signatures come from `python/secant/nn.py`. Pin the binary and source revision together: installed help describes that executable, not necessarily an unbuilt checkout. Examples with angle-bracket placeholders are templates, not shell-ready commands.
 
@@ -40,6 +43,8 @@ secant inspect --model <path.gguf|path.safetensors> [--json]
 ```
 
 ### `secant read`
+Reads matrix structure without running the model. A singular triplet describes a leading input direction, output direction, and their scale; the Frobenius norm measures overall matrix size.
+
 Computes deterministic FMA-free `float64` leading singular triplets, Frobenius norms, top input columns, optional anomalies, and an optional vocabulary projection. Read-only.
 ```bash
 secant read \
@@ -54,6 +59,8 @@ secant read \
 ```
 
 ### `secant analyze`
+Combines layer rankings from measurements you already captured. Borda voting assigns points by rank and combines those points across streams; it does not run the model to gather new measurements.
+
 Ranks layers per subspace (`resid`, `attn`, `mlp`, `h`) by precomputed or externally captured per-layer SNR cells (`layer_snr.json` or `sweep_summary.json`), aggregates with Borda rank voting across subspaces to select $L_{\text{loop}}^*$, $L_{\text{ref}}^*$, and $L_{\text{root}}^*$, and diagnoses why hardcoded mid-layer defaults (`L15`/`L19`) miss the bottleneck at other model scales.
 ```bash
 secant analyze \
@@ -64,6 +71,8 @@ secant analyze \
 ```
 
 ### `secant compose`
+Turns directions, reference activations, and an edit profile into a plan. Orthogonalizing removes overlap between directions. Calibration chooses the edit size for the reference input, not for every possible prompt.
+
 Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes. `--profile` takes a built-in name (`adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`) or a `.json` path to a `secant.wsp.profile.v1` file. If neither `--target-shift` nor `--gamma` is given, the profile's `default_target_shift` (or else `default_gamma`) applies. When `--analysis <analysis.json>` (`secant.wsp.analyze.v1` or `crucible.wsp.analyze.v1`) is provided, automatic layer slots (`layer: -1`) bind in the analysis family's Borda order ($L_{\text{loop}}^*$, $L_{\text{ref}}^*$, $L_{\text{root}}^*$) instead of sorted vector filenames.
 ```bash
 secant compose \
@@ -83,6 +92,8 @@ secant verify-patch --base <base> --patched <patched> --expect-changed <tensor1,
 ```
 
 ### `secant quant witness` (`verify`), `secant quant patch` & `secant quant roundtrip`
+Measure compression error with `witness` or `roundtrip`; use `patch` to change checkpoint weights. A quantized block groups values that share encoding parameters. A witness is a numerical diagnostic, not a behavioral test.
+
 `quant patch` performs block-aligned surgery on **`Q8_0` tensors only**: only the 34-byte blocks holding an edited element are re-quantized. A tensor of any other dtype (including `Q4_K`) is refused with the error `tensor <name> is <dtype>, block-aligned surgery needs Q8_0` (`crates/secant-core/src/quant.rs`). `--out` is required unless `--in-place` is given. Use `secant verify-patch` for whole-file byte-difference verification, and `secant quant witness` (or `secant quant verify`) to measure $\lVert D(\mathrm{Dequant}(\mathrm{Quant}(W')) - W')\rVert_F$ for `q8_0` or `q4_k`, optionally under the $\Pi_{128}$ panel permutation.
 ```bash
 secant quant patch --base <base-q8_0.gguf> --plan <plan.json> --out <patched-q8_0.gguf> [--in-place] [--json]
@@ -91,6 +102,8 @@ secant quant roundtrip --npy <matrix.npy> [--format q8_0|q4_k] [--json]
 ```
 
 ### `secant heal` & `secant verify-subspace`
+`heal` removes protected components from an existing adapter once. `verify-subspace` compares stored base and healed weights at selected tensors. Neither command keeps an exported adapter constrained during later training; use the Python layer for that.
+
 `heal` orthonormalizes the protected directions $D$ (direction `.npy`/`.json` files in a directory, or one `.npy`), replaces every LoRA $B$ in a `lora_A`/`lora_B` `.safetensors` adapter by $B_{\text{locked}} = P_\perp(P_\perp B)$, where $P_\perp = I - D^\top D$, and writes a new healed adapter. With `--base` and `--merge-out` it also adds $\Delta W = \text{scale}\cdot B_{\text{locked}} A$ into a copy of the base and publishes it only if the realized $\max\lvert D \Delta W\rvert \le$ `--tol`. `verify-subspace` recomputes $\Delta W = W_{\text{healed}} - W_{\text{base}}$ from stored bytes for each named tensor.
 ```bash
 secant heal \
@@ -112,7 +125,11 @@ secant verify-subspace \
 ```
 
 ### `secant sanitize`, `secant probe` & `secant read --detect-anomalies`
-`sanitize` scans static weight values (NaN, Inf, extreme finite, subnormal, zero or tiny-norm vectors, out-of-range and duplicate routing ids) and can publish a repaired copy. `--receipt` and `--attempt-id` are required. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`. `probe` generates header-valid boundary-value fixtures and requires `--out-dir`, `--receipt` and `--attempt-id`; it does not scan a model. `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. Rules and exit codes: [Payload Security](payload-security.md). The standalone `secant` CLI has no `scan-sinks` subcommand.
+`sanitize` scans static weight values and can publish a repaired copy. Its checks cover non-finite and extreme values, subnormal floats, tiny-norm vectors, and invalid or duplicate routing ids. `--receipt` and `--attempt-id` are required. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`.
+
+`probe` generates header-valid boundary-value fixtures and requires `--out-dir`, `--receipt` and `--attempt-id`; it does not scan a model.
+
+`read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. Rules and exit codes: [Payload Security](payload-security.md). The standalone `secant` CLI has no `scan-sinks` subcommand.
 ```bash
 secant sanitize --model <in_path> --receipt <new.json> --attempt-id <id> \
   [--num-experts <N>] [--routing-tensor <glob>]... [--norm-tensor <glob>]... \
@@ -127,7 +144,9 @@ secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
 
 ---
 
-### Receipt scope and field meanings
+### Receipt Scope and Field Meanings
+
+Check the schema, producer, and scope before comparing results. Similar field names can measure different objects: the adapter factor, the full weight update, or the error after storage rounding.
 
 Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.analyze.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1` and `secant.wsp.probe.v1` for the corresponding commands. `quant witness` (`verify`) uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Older banked receipts and the Go interface may use a `crucible` prefix; retain the producer identity instead of relabeling those receipts.
 
@@ -140,7 +159,11 @@ Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v
 
 ## 3. Python API Reference (`python/secant`)
 
+Use the trainable layer to enforce the constraint during fine-tuning. Use the bridge functions to call the CLI from Python and inspect both its exit code and structured output.
+
 ### `secant.nn.ProjectThenHealLinear`
+
+This wraps a linear layer with a trainable LoRA adapter. The base weight and bias are copied and frozen. The protected directions are rows of `D`, with one column per output feature. “Leakage” below means a remaining component along those directions.
 
 Signatures copied from `python/secant/nn.py`:
 
@@ -247,6 +270,8 @@ vsub  = secant.verify_subspace("model.safetensors", "merged.safetensors", "direc
 ---
 
 ## 4. C FFI Reference (`crates/secant-ffi/include/secant.h`)
+
+The foreign-function interface (FFI) lets C-compatible callers project an adapter or measure quantization error. Arrays must have the dimensions and memory layout stated in the header. These functions use their own return codes, not the CLI's exit-code contract.
 
 C declarations from the frozen header; the two leakage comments below use the row-basis convention of this page. The header's original $D^\top$ comments have a transpose error for its declared `k x d_out` storage.
 

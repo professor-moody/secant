@@ -1,0 +1,1038 @@
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365  fixtures/class3-nan-sort-arrays.gguf
+22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503  fixtures/class3-nan-sort-arrays.safetensors
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365  fixtures/class3-nan-sort-arrays.gguf
+22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503  fixtures/class3-nan-sort-arrays.safetensors
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365  fixtures/class3-nan-sort-arrays.gguf
+22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503  fixtures/class3-nan-sort-arrays.safetensors
+> secant inspect --model fixtures/class3-nan-sort-arrays.gguf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365  fixtures/class3-nan-sort-arrays.gguf
+22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503  fixtures/class3-nan-sort-arrays.safetensors
+> secant inspect --model fixtures/class3-nan-sort-arrays.gguf
+
+Checkpoint layout
+=================
+  Model                    fixtures/class3-nan-sort-arrays.gguf
+  Format                   gguf
+  Tensors                  3
+  File size                832 B
+  Payload offset           448 B
+  Architecture             secant-probe
+  Blocks                   3
+
+Tensor dtypes
+=============
+  DTYPE  TENSORS
+  -----  -------
+  BF16   1
+  F16    1
+  F32    1
+>
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365  fixtures/class3-nan-sort-arrays.gguf
+22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503  fixtures/class3-nan-sort-arrays.safetensors
+> secant inspect --model fixtures/class3-nan-sort-arrays.gguf
+
+Checkpoint layout
+=================
+  Model                    fixtures/class3-nan-sort-arrays.gguf
+  Format                   gguf
+  Tensors                  3
+  File size                832 B
+  Payload offset           448 B
+  Architecture             secant-probe
+  Blocks                   3
+
+Tensor dtypes
+=============
+  DTYPE  TENSORS
+  -----  -------
+  BF16   1
+  F16    1
+  F32    1
+>
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Generate deterministic NaN/Inf boundary fixtures in both containers
+> secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo
+
+Fixture generation
+==================
+  Status                   generated
+probe: generated; 2 fixture(s) in fixtures; receipt probe-receipt.json
+  FIXTURE                             SCAN STATUS  FINDINGS  SHA-256
+  ----------------------------------  -----------  --------  ----------------------------------------------------------------
+  class3-nan-sort-arrays.safetensors  findings     90        22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+  class3-nan-sort-arrays.gguf         findings     90        28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365
+> shasum -a 256 fixtures/*
+28ce7268590d7dca4a2e67c44097915b476b123842ef7f9c462ab46e33239365  fixtures/class3-nan-sort-arrays.gguf
+22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503  fixtures/class3-nan-sort-arrays.safetensors
+> secant inspect --model fixtures/class3-nan-sort-arrays.gguf
+
+Checkpoint layout
+=================
+  Model                    fixtures/class3-nan-sort-arrays.gguf
+  Format                   gguf
+  Tensors                  3
+  File size                832 B
+  Payload offset           448 B
+  Architecture             secant-probe
+  Blocks                   3
+
+Tensor dtypes
+=============
+  DTYPE  TENSORS
+  -----  -------
+  BF16   1
+  F16    1
+  F32    1
+>
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────

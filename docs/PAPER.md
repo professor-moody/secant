@@ -1,39 +1,49 @@
-# Direct Multi-Subspace Weight Surgery, Quantized Block-Grid Equivariance, and Subspace-Locked LoRA (`Project-Then-Heal`)
+# Secant: Calibrated Weight Edits, Quantized Files, and Constrained LoRA
 
 ## Abstract
 
-Specific failure modes in large language models, such as getting stuck in infinite reasoning (`<think>`) loops, refusing benign security prompts, or stopping at surface-level bug summaries, can often be traced to specific directions in the model's weight matrices. In principle, subtracting or amplifying those directions directly in the weights can fix the behavior without retraining. In practice, moving from small PyTorch experiments to real production model files fails in three ways: (1) an edit strength tuned on a small model (`0.8B`) under- or over-steers a larger model (`4B` to `32B`) because internal activation magnitudes change with width, and format converters such as `llama.cpp` shuffle weight columns inside `.gguf` files; (2) compressed `.gguf` checkpoints pack weights into shared quantized blocks (`Q8_0` and `Q4_K`), where naive edits corrupt neighboring weights or require re-exporting the entire model; and (3) if a surgically edited model is later fine-tuned with LoRA and `AdamW`, the optimizer's per-coordinate variance scaling rotates weight updates right back into the removed direction and undoes the edit.
+Editing a language model's weights can change how it responds without retraining the whole model. Turning that idea into a reliable workflow requires answering three questions: how large should an edit be, which bytes should change in a compressed checkpoint, and how can later fine-tuning respect the edited directions?
 
-Secant is a standalone Rust and PyTorch engine that solves all three problems directly on `.safetensors` and `.gguf` checkpoints. First, **Target-Shift Calibration** measures a layer's reference activation energy and solves for the exact edit step size needed to produce a consistent behavioral shift across model scales (`0.8B` to `32.8B`), while automatically un-shuffling `.gguf` head layouts. In controlled evaluations, calibrated surgery eliminates infinite `<think>` loops on `Qwen3.5-4B` (raising completion from `0/30` to `21/30` at standard dose and `30/30` at `1.5x` dose, `p = 1.86e-9`), lifts paired C/C++ vulnerability root-cause detection on `Qwen2.5-Coder-32B-Instruct` from `6.7%` (`2/30`) to `40.0%` (`12/30`, `p = 0.00195`), and improves `MATH-500` (`+7.0%`) and `HumanEval` (`+3.12%`) on `Qwen3-32B`. Second, we show that 32-weight `Q8_0` blocks align cleanly with 128-column attention heads (`128 = 4 x 32`), allowing Secant to memory-map `.gguf` files and edit only the touched 34-byte `Q8_0` blocks in place (`98.5%` target direction removal while leaving `98%+` of the file byte-for-byte identical), whereas 256-weight `Q4_K` superblocks span across two heads and are safely refused. Third, **`Project-Then-Heal`** (`secant.nn.ProjectThenHealLinear`) prevents fine-tuning from undoing weight surgery by locking the LoRA output matrix inside the forward pass so it can only write perpendicular to the removed directions. Whereas projecting gradients before `AdamW` leaks on `100%` of steps (`108/108` runs and `15/15` models tested on H100), `Project-Then-Heal` matches standard LoRA training loss while holding writer-level leakage at floating-point rounding precision (`5.21e-18` to `9.87e-18` in 64-bit float; `1.78e-10` to `8.67e-10` in 32-bit float across 15 models from `0.8B` to `32.8B`).
+Secant combines Rust checkpoint tools with a PyTorch adapter layer. **Target-Shift Calibration** sizes an edit to produce a requested change at a chosen layer's reference activation. The equality is exact in real arithmetic; reported numerical tests across 15 models have a maximum `float64` error of about `7.99e-15`. **Quantized block editing** updates only the affected groups of 32 weights in `Q8_0` files. Reordering complete 128-column panels preserves those blocks, whereas `Q4_K` groups 256 weights together and does not generally preserve the same boundary. The standalone patch command therefore refuses `Q4_K`. **Project-Then-Heal** constrains a LoRA adapter, a small trainable addition to a frozen model, so its output is perpendicular to supplied directions. It applies the constraint during each forward pass because projecting gradients alone need not survive AdamW's coordinate-wise scaling.
+
+The reported experiments measure both local numerical properties and model responses. On 30 crash-triage prompts, calibrated edits to `Qwen3.5-4B` raised completion within a fixed token limit from `0/30` to `21/30`, then `30/30` at a higher loop-edit dose (reported paired `p = 1.86e-9` against baseline). A separate C/C++ root-cause test on `Qwen2.5-Coder-32B-Instruct` improved from `2/30` to `12/30` correct cases (`p = 0.00195`). In the 15-model adapter comparison, Project-Then-Heal's relative leakage into the protected directions was `1.78e-10` to `8.67e-10`, compared with `0.33%` to `1.67%` for gradient-projected AdamW. These are results for the stated experiments. Calibration at one reference input does not guarantee behavior on other prompts, and a local adapter constraint does not prevent later layers or storage rounding from changing the result.
 
 ---
 
-## Plain-English Summary & Navigation Guide
+## Reading Guide and Terminology
 
-| Section | Core Question | Plain-English Takeaway |
-| :--- | :--- | :--- |
-| **[1. Multi-Subspace Calibration](#multi-subspace-orthogonalization-target-shift-calibration)** | Why do weight edits break when moved from a `0.8B` model to a `4B` or `32B` model? | Wider models have larger internal activations, so a fixed percentage weight edit under- or over-steers. Solving for the step size $\beta$ from the layer's measured activation energy ($\|h_S\|_2^2$) produces the exact intended shift at any width (`<= 7.99e-15` error across 15 models). |
-| **[2. Quantized Block Surgery](#container-geometry-the-pi-128-quantization-commutation-theorem)** | How can we edit a compressed `.gguf` file in milliseconds without PyTorch or a GPU? | Each 128-column attention/SSM head divides into four 32-weight `Q8_0` blocks ($128 = 4 \times 32$). Secant memory-maps the `.gguf` file and edits only the touched 34-byte `Q8_0` blocks in place (`98%+` of the file stays bit-for-bit identical), while refusing 256-weight `Q4_K` superblocks that straddle two heads. |
-| **[3. `Project-Then-Heal` LoRA](#project-then-heal-structural-orthogonal-complement-lora)** | Why does standard LoRA fine-tuning undo weight surgery even if you project gradients? | `AdamW` divides each coordinate by its running variance $\sqrt{\hat{v}_t} + \epsilon$, which rotates projected gradients back into the excised subspace on `100%` of steps (`108/108` runs). Locking the LoRA $B$ matrix inside the forward pass ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$) keeps writer leakage at machine precision (`~10^-18` in `float64`). |
-| **[4. Empirical Evaluation](#cross-architecture-empirical-evaluation-0-8b-to-72-7b)** | Does calibrated surgery hold up across model families, coding benchmarks, and C/C++ auditing? | Validated across 17 checkpoints (`0.6B` to `72.7B`): `30/30` `<think>` loop closure on `Qwen3.5-4B` ($p = 1.86 \times 10^{-9}$), `6.7% -> 40.0%` (`+10` crashes, $p = 0.00195$) on our 30-case C/C++ sanitizer suite on `Qwen2.5-Coder-32B-Instruct`, and `+7.0%` `MATH-500` / `+3.12%` `HumanEval` on `Qwen3-32B`. |
-| **[5. Related Work & Scope Limits](#related-work-and-limits-of-novelty)** | What is prior art vs. new in Secant, and where do the guarantees stop? | Orthogonal projection and subspace-constrained LoRA build on ROME, AlphaEdit, Safe LoRA, SaLoRA, OPLoRA, and OGPSA. Secant's contributions are Target-Shift Calibration, the $\Pi_{128}$ `Q8_0`/`Q4_K` block-grid theorem, the proof of AdamW preconditioner rotation vs. forward-graph double projection, and byte-verified `mmap` tooling. |
+A **writer** is a weight matrix that contributes to a layer's output. A **direction** is a vector in that output space; several directions span a **subspace**. A **projection** removes or retains the component along that subspace. **Leakage** measures how much of an adapter or weight update remains along protected directions. It is a numerical measurement, not a direct measure of model behavior.
+
+Throughout the derivations, `D` stores protected directions as rows, `W` is a weight matrix, and `Delta W` is its change. The equations use column-vector activations unless stated otherwise. “B” in a model size means billion parameters; the experiment labels `B1`, `B2`, and `B3` instead identify loop, refusal, and root-cause directions.
+
+| Section | Question | Main point |
+|---|---|---|
+| [1. Choosing and sizing edits](#multi-subspace-orthogonalization-target-shift-calibration) | How can several edits coexist, and how large should each be? | Make their output directions perpendicular, then size each edit for a measured reference input. |
+| [2. Editing compressed checkpoints](#container-geometry-the-pi-128-quantization-commutation-theorem) | Which stored blocks must change? | Whole 128-column panels contain complete `Q8_0` blocks, but split `Q4_K` superblocks. Editing and quantizing can still give different numerical results. |
+| [3. Constraining LoRA](#project-then-heal-structural-orthogonal-complement-lora) | How can fine-tuning respect protected directions? | Apply the projection inside the adapter's forward pass and measure rounding error after export. |
+| [4. Experiments](#cross-architecture-empirical-evaluation-0-8b-to-72-7b) | What was measured? | Separate reference-input checks, adapter tests, and response benchmarks. They support different claims. |
+| [5. Related work and limits](#related-work-and-limits-of-novelty) | Which ideas come from prior work? | Projection and constrained adapters are established methods; this paper evaluates their use in Secant's file-editing workflow. |
 
 ---
 
 (multi-subspace-orthogonalization-target-shift-calibration)=
-## 1. Multi-Subspace Orthogonalization & Target-Shift Calibration
+## 1. Choose Independent Directions and Size Each Edit
 
-> **Plain-English Intuition:** When you edit a model to fix multiple behaviors at once (for example, stopping infinite `<think>` loops while also boosting root-cause security analysis), the raw steering directions overlap slightly. If you apply them one after another without removing that overlap, the second edit partly overwrites the first. Secant first makes the directions strictly perpendicular in 64-bit floating point (Gram-Schmidt), and then sizes each edit using the layer's actual activation energy so the edit works identically on a `0.8B`, `4B`, or `32B` model.
+Several candidate behavior directions can overlap. Removing that overlap lets the linear edits act independently along the resulting directions, up to numerical error. It does not make the behaviors themselves independent. Secant then sizes each edit using the activation measured at the chosen layer.
 
-### 1.1 Two-Pass `float64` Orthonormalization
+### 1.1 Make the Directions Perpendicular
 
-Let $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{out}}}$ be $k$ unit row directions in residual-stream coordinates obtained via two-pass `float64` modified Gram-Schmidt over contrastive activation differences. Secant enforces the strict orthonormality gate
+Gram-Schmidt subtracts each direction's overlap with the directions already selected, then scales it to unit length. Secant uses two passes in 64-bit floating point to reduce rounding error.
 
-$$\max_{i,j} \big|(D D^\top - I_k)_{ij}\big| < 10^{-12}$$
+Let $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{out}}}$ hold the resulting unit directions as rows. The Python API checks both unit length and perpendicularity through
 
-and fails closed if the input directions are linearly dependent or exceed this tolerance. Across 120 seeded Gaussian test bases ($d_{\text{out}} \in \{1024, \dots, 8192\}$, $k \in \{3, 4\}$), the empirically measured two-pass `float64` residual is at most $9.99 \times 10^{-16}$.
+$$\max_{i,j} \big|(D D^\top - I_k)_{ij}\big| < 10^{-12}.$$
 
-### 1.2 Closed-Form Surgical Operators
+It rejects dependent directions or a failed tolerance check. Rust `compose` uses an absolute residual-norm floor and checks pairwise cosines; its acceptance rule differs for unnormalized inputs. The [theory guide](theory-and-calibration.md) specifies both contracts. Across 120 seeded Gaussian test bases, the reported maximum Gram-matrix error was $9.99 \times 10^{-16}$.
+
+### 1.2 Remove a Component or Add a Measured Shift
+
+The first operation removes part of a writer's output along a chosen direction. The second adds a change along that direction using only selected input columns. Both are direct matrix calculations.
 
 For a linear writer matrix $W \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ mapping input activations $x \in \mathbb{R}^{d_{\text{in}}}$ to output activations $y = W x \in \mathbb{R}^{d_{\text{out}}}$, Secant implements two closed-form operators:
 
@@ -49,28 +59,40 @@ For a linear writer matrix $W \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}
 
 Substituting $x = h_{\text{ref}}$ yields a scale-invariant directional shift along $q_b$ regardless of layer width $d_{\text{in}}$ or activation scale $\|h_S\|_2$:
 
-$$\langle q_b, \Delta W \, h_{\text{ref}} \rangle = \mathrm{sign}(\Delta_{\text{target}}) \cdot \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2} \langle h_S, h_{\text{ref}} \rangle = \Delta_{\text{target}}$$
+$$
+\begin{aligned}
+\langle q_b, \Delta W \, h_{\text{ref}} \rangle
+  &= \mathrm{sign}(\Delta_{\text{target}}) \cdot \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2} \langle h_S, h_{\text{ref}} \rangle \\
+  &= \Delta_{\text{target}}
+\end{aligned}
+$$
 
 And the Frobenius norm of the perturbation is inversely proportional to the active column energy:
 
 $$\|\Delta W\|_{\mathrm{F}} = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2}$$
 
-> **Scope & Implementation Note:** Because $\langle h_S, h_{\text{ref}} \rangle = \|h_S\|_2^2$, the target shift $\Delta_{\text{target}}$ is achieved exactly at $x = h_{\text{ref}}$ in `float64` arithmetic. On general inputs $x \neq h_{\text{ref}}$ and after rounding to `BF16`, `F16`, or `Q8_0`, the realized shift scales with $\langle h_S, x \rangle / \|h_S\|_2^2$ and must be verified empirically on held-out prompts (Section 4).
+> **Scope:** The target equality holds at the reference input in exact arithmetic, with small numerical error in `float64`. For other inputs, the exact-arithmetic shift is multiplied by $\langle h_S,x\rangle / \|h_S\|_2^2$. Storage in `BF16`, `F16`, or `Q8_0` adds rounding error. Neither result guarantees a behavioral change; evaluate held-out prompts separately.
+
+> **Section 1 takeaway:** Make the directions perpendicular first, then size each edit from the measured reference activation. The requested shift is exact at that reference input, up to `float64` rounding. Behavior on other prompts has to be measured separately.
 
 ---
 
 (container-geometry-the-pi-128-quantization-commutation-theorem)=
-## 2. Container Geometry & The $\Pi_{128}$ Quantization Commutation Theorem
+## 2. File Layout and Quantized Block Boundaries
 
-> **Plain-English Intuition:** Model files on disk store weights differently depending on the container format (`.safetensors` vs. `.gguf`) and quantization scheme (`Q8_0` vs. `Q4_K`). Even worse, converters like `llama.cpp` shuffle 128-column blocks inside `Qwen3.5` linear-attention tensors (`ssm_out`). This section proves two practical facts: (1) we can un-shuffle those 128-column panels bit-exactly, and (2) 32-weight `Q8_0` blocks divide 128 columns evenly ($128 = 4 \times 32$) so we can edit `Q8_0` files directly on disk, whereas 256-weight `Q4_K` superblocks straddle two 128-column heads and cannot be edited head-locally.
+A model file has two relevant layouts: the logical rows and columns of a matrix, and the groups of values stored together on disk. Some converters also reorder groups of columns. To edit the intended weights, the plan and checkpoint must agree on that order. To preserve neighboring bytes, the edit must respect the compressed format's block boundaries.
 
-### 2.1 Logical `[d_out, d_in]` Orientation Contract
+### 2.1 Rows and Columns in the Two File Formats
+
+The formats list dimensions in different orders, but the linear matrices considered here store each output row contiguously. The following offset is an element index; compressed formats need an additional mapping to block bytes.
 
 In HuggingFace `.safetensors`, a 2-D linear weight matrix has `shape = [d_out, d_in]` with input axis `shape[1] = d_in` contiguous in memory. In `ggml` / `.gguf`, `ne = [d_in, d_out]` lists the contiguous axis first (`ne[0] = d_in`). Consequently, both formats share the identical row-major element offset for output row $\text{out} \in \{0, \dots, d_{\text{out}}-1\}$ and input column $\text{in} \in \{0, \dots, d_{\text{in}}-1\}$:
 
 $$\mathrm{offset}(\text{out}, \text{in}) = \text{out} \cdot d_{\text{in}} + \text{in}$$
 
-### 2.2 Gated DeltaNet `ssm_out` Panel Bijection ($\Pi_{128}$)
+### 2.2 Track Reordered Groups of 128 Columns
+
+A panel is a group of 128 adjacent columns. The conversion described below moves whole panels and preserves the order within each one. The symbol $\Pi_{128}$ denotes that reordering. Undoing it requires the inverse mapping, not necessarily a second application of the same mapping.
 
 On `Qwen3.5` Gated DeltaNet layers, `llama.cpp`'s `convert_hf_to_gguf.py` reorders the input columns ($d_{\text{in}} = n_v \cdot d_v$, with head width $d_v = 128$ and group ratio $r = n_v / n_k$) of `blk.N.ssm_out.weight` from key-head-major to value-head-major order. Writing a HuggingFace 128-column panel index as $h = k \cdot r + j$ for $k \in \{0,\dots,n_k-1\}$ and $j \in \{0,\dots,r-1\}$, its GGUF panel index is:
 
@@ -84,31 +106,61 @@ When $r = 1$ (`Qwen3.5-0.8B`, $n_k = n_v = 16$), $\pi$ is the identity permutati
 
 $$\pi^{-1}(g) = (g \bmod n_k) \cdot r + \lfloor g / n_k \rfloor$$
 
-### 2.3 Block-Grid Equivariance (`Q8_0`) vs. Superblock Straddling (`Q4_K`)
+### 2.3 When Reordering Preserves Blocks, and When Editing Adds Error
 
-Let $Q_B$ denote a deterministic row-wise block quantizer that partitions each row of length $d_{\text{in}}$ into aligned contiguous blocks of $B$ elements and encodes each block independently.
+There are two different questions here. Reordering complete blocks can preserve their bytes exactly. Changing their weights usually requires encoding them again, which introduces rounding error.
 
-- **Proposition 1 (Block-Grid Equivariance for $B \mid 128$):** Whenever the quantization block size $B$ divides the panel width $128$ (such as `Q8_0` with $B = 32$, since $128 = 4 \times 32$), every 128-element panel is a disjoint union of $128 / B$ complete quantization blocks. Therefore, block quantization commutes byte-for-byte with $\Pi_{128}$:
-  $$Q_{32}(\Pi_{128}(W)) = \Pi_{128}^{\text{block}}(Q_{32}(W))$$
-  And the dequantized reconstruction error between the two paths is identically zero:
-  $$\big\|D_{32}(Q_{32}(\Pi_{128}(W))) - \Pi_{128}(D_{32}(Q_{32}(W)))\big\|_{\max} = 0$$
+**Proposition 1: complete `Q8_0` blocks move without re-encoding.** Let $Q_B$ be a deterministic, position-independent encoder that quantizes aligned blocks of $B$ weights independently, and let $D_B$ decode them. Assume rows contain complete blocks. If $B$ divides 128, every panel contains whole blocks. For `Q8_0`, four 32-weight blocks make one panel, so
 
-- **Proposition 2 (Superblock Straddling for `Q4_K`, $B = 256$):** In `Q4_K`, each 256-weight superblock shares a single FP16 superblock scale $d$ and minimum $d_{\min}$ across two adjacent 128-element panels ($256 = 2 \times 128$). Permuting 128-element panels changes which pairs of panels share a 256-weight superblock whenever $\pi$ is non-trivial, and editing weights inside one 128-column head alters the shared superblock scale for its neighboring head.
+$$Q_{32}(\Pi_{128}(W)) = \Pi_{128}^{\text{block}}(Q_{32}(W)).$$
 
-- **Proposition 3 (Three-Term Requantization Error Bound for Direct `Q8_0` Block Surgery):** Writing $\hat{Q}_B = D_B \circ Q_B$ for the quantize-dequantize operator, compare **Path 1** (edit in floating point, then quantize: $\hat{Q}_B(W + \Delta W)$) against **Path 2** (quantize first, then edit only the touched quantized blocks on disk: $\hat{Q}_B(\hat{Q}_B(W) + \Delta W)$). Defining the three block-wise quantization residuals $e_0 = \hat{Q}_B(W) - W$, $e_1 = \hat{Q}_B(W + \Delta W) - (W + \Delta W)$, and $e_2 = \hat{Q}_B(\hat{Q}_B(W) + \Delta W) - (\hat{Q}_B(W) + \Delta W)$, algebraic cancellation yields the exact identity:
-  $$\hat{Q}_B(W + \Delta W) - \hat{Q}_B\big(\hat{Q}_B(W) + \Delta W\big) = e_1 - e_0 - e_2$$
-  On untouched blocks ($\Delta W_b = 0$), $\hat{Q}_B$ is idempotent so $e_1 = e_0$, $e_2 = 0$, and the Path 1 vs. Path 2 discrepancy is identically zero. On touched `Q8_0` blocks ($B = 32$), each element's discrepancy is bounded by:
-  $$|e_1 - e_0 - e_2| \le \kappa\big((3 + \kappa)\|W_b\|_\infty + 2\|\Delta W_b\|_\infty\big), \quad \text{where } \kappa = \frac{1}{254} + 2^{-11}$$
-  Empirically on `Qwen3.5-0.8B` (`blk.12.ffn_down.weight`), direct `Q8_0` block surgery (`Path 2`) removes `98.5%` of the target component (`0.5172 -> 0.0079`, vs. `99.4%` for `Path 1`) while leaving all untouched 34-byte blocks 100% bit-identical.
+Here the right-hand permutation moves encoded blocks as units. The corresponding decoded arrays are identical. This equality concerns panel reordering, not an arbitrary weight edit.
+
+**Proposition 2: `Q4_K` can couple neighboring panels.** A 256-weight superblock shares top-level scale and minimum parameters across two 128-column panels. A permutation that splits those pairs need not preserve the encoded result. Pair-preserving permutations, including the identity, are exceptions. Editing one panel can also change its neighbor's reconstructed values. The standalone `secant quant patch` therefore accepts `Q8_0` only.
+
+**Proposition 3: editing before and after quantization can differ.** Fix the same additive update $\Delta W$ in both paths and write $\hat Q_B = D_B \circ Q_B$. Path 1 edits the original float weights, then quantizes. Path 2 starts from decoded quantized weights, edits them, then re-encodes the touched blocks. Define
+
+$$
+\begin{aligned}
+e_0 &= \hat Q_B(W)-W, \\
+e_1 &= \hat Q_B(W+\Delta W)-(W+\Delta W), \\
+e_2 &= \hat Q_B(\hat Q_B(W)+\Delta W)-(\hat Q_B(W)+\Delta W).
+\end{aligned}
+$$
+
+Subtracting the two reconstructed results gives
+
+$$
+\begin{aligned}
+&\hat Q_B(W+\Delta W)-\hat Q_B(\hat Q_B(W)+\Delta W) \\
+&\quad=e_1-e_0-e_2.
+\end{aligned}
+$$
+
+The implementation copies untouched blocks byte-for-byte, so no assumption that repeated encoding is idempotent is needed there. On touched `Q8_0` blocks, an ideal-arithmetic bound including `FP16` scale rounding is
+
+$$|e_1-e_0-e_2|\le\kappa\big((3+\kappa)\|W_b\|_\infty+2\|\Delta W_b\|_\infty\big),$$
+
+where
+
+$$\kappa=\frac1{254}+2^{-11}.$$
+
+This bound requires normal-range `FP16` scales in all three encodings and excludes the encoder's `float32` arithmetic error. A projector edit recomputes its update from the current weights, so it need not use the same additive delta in both paths. See the [quantized-weight guide](quantized-surgery.md) for these assumptions and the full derivation.
+
+The retained `Qwen3.5-0.8B` `ssm_out` experiment reported a target weight component decreasing from `0.5172` to `0.0079` with direct `Q8_0` editing (about `98.5%` removed). This measures a weight component, not a percentage of prompts. A separate whole-file experiment checked byte preservation outside the selected edits.
+
+> **Section 2 takeaway:** Both file formats use the same element offset, the `ssm_out` panel reordering has an exact inverse, and `Q8_0` blocks fit wholly inside 128-column panels while `Q4_K` superblocks span two. Editing still re-encodes the touched blocks, so the Proposition 3 bound is the error to expect.
 
 ---
 
 (project-then-heal-structural-orthogonal-complement-lora)=
-## 3. `Project-Then-Heal`: Structural Orthogonal-Complement LoRA
+## 3. Project-Then-Heal: Keep Adapter Updates Out of Protected Directions
 
-> **Plain-English Intuition:** After you surgically remove an unwanted behavior from a weight matrix $W_0$, you often want to fine-tune the model with LoRA so it stays fluent or learns a domain task. If you use standard LoRA, the adapter's updates write straight back into the direction you just removed. Even if you project the gradient to be perpendicular to the removed direction before calling `AdamW.step()`, `AdamW` divides each coordinate by its running variance—which tilts the perpendicular vector right back into the forbidden subspace on every single step! `Project-Then-Heal` solves this by placing the perpendicular projector *inside* the forward pass of the LoRA layer itself, making it mathematically impossible for any optimizer to write back into the removed direction.
+LoRA fine-tunes a model by adding a small trainable matrix product to a frozen weight matrix. Ordinary LoRA can add back a component that an earlier edit removed. Project-Then-Heal removes protected components from the adapter each time the model computes an output. This is a constraint on selected writers, not a guarantee about all later model behavior.
 
-### 3.1 Why Gradient Projection Alone Leaks Under AdamW
+### 3.1 Why Projecting the Gradient Is Not Enough
+
+A gradient gives a proposed update direction. AdamW rescales its coordinates using past gradients, so the final update can point somewhere else. A direction that was perpendicular before rescaling need not remain perpendicular afterward.
 
 Suppose a writer matrix $W_0 \in \mathbb{R}^{d_{\text{out}} \times d_{\text{in}}}$ has had an orthonormal row basis $D \in \mathbb{R}^{k \times d_{\text{out}}}$ ($D D^\top = I_k$) surgically excised, and we attach a rank-$r$ LoRA adapter $\Delta W = s B A$ ($s = \alpha_{\text{lora}} / r$, $B \in \mathbb{R}^{d_{\text{out}} \times r}$, $A \in \mathbb{R}^{r \times d_{\text{in}}}$).
 
@@ -116,13 +168,17 @@ If one projects only the gradient $g_t = P_\perp \nabla_B \mathcal{L}_t$ using t
 
 $$\Delta B_t = -\eta \big( \Lambda_t \hat{m}_t + \lambda B_{t-1} \big)$$
 
-Because a diagonal matrix $\Lambda_t$ with distinct positive entries does not commute with a non-axis-aligned projector $P_\perp$, their cross-product is non-zero:
+For a general projector and unequal coordinate scales, the update can have a component in the protected directions:
 
-$$D \Lambda_t P_\perp \neq 0$$
+$$D \Lambda_t P_\perp \neq 0.$$
 
-Consequently, AdamW rotates orthogonal gradients back into $\mathrm{span}(D^\top)$ on **100% of steps** (`108/108` gradient-projected AdamW runs in our 6-arm, 648-run optimizer ablation, leaking `1.56%` to `2.98%` of $\|\Delta W\|_{\mathrm{F}}$ on `0.8B`/`4B`/`7B` layer-16 `down_proj` weights and `0.33%` to `1.67%` across all 15 models in our H100 Stage-1 sweep).
+This is a possible failure of invariance, not a claim that every AdamW step must leak. Compatible scalings and axis-aligned protected directions are exceptions. The first-moment statement above also assumes its initial state lies in the allowed subspace. For a matrix-valued adapter, the diagonal-rescaling argument applies to each column, whose AdamW scales may differ.
 
-### 3.2 Forward-Pass Double Projection ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$)
+In the reported three-model comparison, gradient-projected AdamW had `1.56%` to `2.98%` relative weight-update leakage on the orthogonal target at step 60. The 15-model H100 comparison reported `0.33%` to `1.67%`. The [training guide](project-then-heal.md) gives the tasks, metrics, and learning-rate caveat.
+
+### 3.2 Apply the Constraint Whenever the Adapter Runs
+
+The optimizer can change the adapter's stored parameters freely. Before those parameters contribute to an output, the layer removes their protected components. Applying the projection twice is a numerical refinement; in exact arithmetic, the second pass changes nothing.
 
 `ProjectThenHealLinear` instead reparameterizes the LoRA output factor inside the forward computation graph via a twice-applied `float64` orthogonal projection:
 
@@ -138,26 +194,36 @@ $$y = W_0 x + s \, B_{\text{locked}}(\tilde{B}) (A x)$$
 
 By associativity, for **any** parameter state $(\tilde{B}_t, A_t)$ produced by any optimizer (`SGD`, `AdamW`, `Lion`, `Muon`):
 
-$$D \Delta W_t = s \, (D P_\perp) P_\perp(\tilde{B}_t) A_t = s \, \big(D - (D D^\top) D\big) P_\perp(\tilde{B}_t) A_t = 0$$
+$$
+\begin{aligned}
+D \Delta W_t &= s \, (D P_\perp) \, P_\perp(\tilde{B}_t) \, A_t \\
+  &= s \, \big(D - (D D^\top) D\big) \, P_\perp(\tilde{B}_t) \, A_t \\
+  &= 0
+\end{aligned}
+$$
 
-In exact arithmetic $P_\perp^2 = P_\perp$, but in finite-precision IEEE-754 `float64`, a single pass $P_\perp(\tilde{B})$ can leave $\mathcal{O}(\varepsilon_{\text{mach}} \|\tilde{B}\|)$ residual components along $D$ when columns of $\tilde{B}$ are nearly parallel to $\mathrm{span}(D^\top)$ (analogous to single-pass vs. two-pass Gram-Schmidt). Applying $P_\perp$ twice reduces $\max |D B_{\text{locked}}|$ by $1.8\times$ to $17.7\times$ (median $5.6\times$ across 120 seeded Gaussian bases), holding live `float64` writer leakage at $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$.
+In exact arithmetic $P_\perp^2 = P_\perp$, but in finite-precision IEEE-754 `float64`, a single pass $P_\perp(\tilde{B})$ can leave $\mathcal{O}(\varepsilon_{\text{mach}} \|\tilde{B}\|)$ residual components along $D$ when columns of $\tilde{B}$ are nearly parallel to $\mathrm{span}(D^\top)$ (analogous to single-pass vs. two-pass Gram-Schmidt). Applying $P_\perp$ twice reduces $\max |D B_{\text{locked}}|$ by $1.8\times$ to $17.7\times$ (median $5.6\times$ across 120 seeded Gaussian bases). Separately, the live-run diagnostic that recomputes an unrounded projected weight update reported $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$.
 
-### 3.3 Writer-Level Invariance vs. Downstream Residual-Stream Propagation
+### 3.3 Where the Guarantee Stops
 
-The guarantee $D \Delta W_t = 0$ holds at every protected writer's output. In a multi-layer transformer, an orthogonal perturbation $\delta h_\ell \in \ker(D)$ emitted at layer $\ell$ subsequently passes through downstream RMSNorm, attention, and MLP matrices $W_{\ell'}$ ($\ell' > \ell$) for which $D W_{\ell'} P_\perp \neq 0$ in general. Empirically on `Qwen3.5-0.8B` (`Step 60`), locking `L15..L17` reduces direct merged-`F32` writer leakage by $4.2 \times 10^7\times$ ($2.49 \times 10^{-10}$ vs. $1.05 \times 10^{-2}$) and cuts downstream pull-back along the `B1` loop direction at `resid L19` by more than half (`+0.276` vs. `+0.635` unconstrained).
+Later layers can turn a perpendicular change back toward a protected direction. Saving or merging weights at lower precision can also introduce a component that was absent in the calculation. Check both the stored weights and model responses after those steps.
+
+The exact-arithmetic guarantee $D \Delta W_t = 0$ holds at every protected writer's output. In a multi-layer transformer, an orthogonal perturbation $\delta h_\ell \in \ker(D)$ emitted at layer $\ell$ subsequently passes through downstream RMSNorm, attention, and MLP matrices $W_{\ell'}$ ($\ell' > \ell$) for which $D W_{\ell'} P_\perp \neq 0$ in general. Empirically on `Qwen3.5-0.8B` (`Step 60`), locking `L15..L17` reduces direct merged-`F32` writer leakage by $4.2 \times 10^7\times$ ($2.49 \times 10^{-10}$ vs. $1.05 \times 10^{-2}$) and cuts downstream pull-back along the `B1` loop direction at `resid L19` by more than half (`+0.276` vs. `+0.635` unconstrained).
+
+> **Section 3 takeaway:** Projecting only the gradient can leak once AdamW rescales coordinates. Projecting inside the forward pass makes $D \Delta W = 0$ hold in exact arithmetic for any optimizer at the locked writer. Rounding, merging, and later layers still have to be measured.
 
 ---
 
 (cross-architecture-empirical-evaluation-0-8b-to-72-7b)=
-## 4. Cross-Architecture Empirical Evaluation (`0.8B` to `72.7B`)
+## 4. Experiments and What They Measure
 
-> **Plain-English Intuition:** To make sure our equations aren't just theoretical curiosities, we tested Secant across 17 open-weight models (`0.8B` to `72.7B`) in four distinct experimental regimes:
-> - **Regime B (`Qwen3.5-4B` Dose-Response):** Does Target-Shift Calibration actually fix infinite `<think>` loops where uncalibrated edits fail (`0/30` $\to$ `30/30`)?
-> - **Regime A (Live Causal-LM Healing):** Does `ProjectThenHealLinear` match standard LoRA perplexity on real text while keeping leakage at machine zero (`~10^-18`)?
-> - **H100 Stage-1 (15-Model Calibration & 3-Arm Optimizer Sweep):** Does calibration solve for the exact target shift (`<= 7.99e-15` error) and does `ProjectThenHealLinear` beat gradient-projected AdamW across 15 architectures (`0.8B` to `32.8B`)?
-> - **Downstream Security Auditing & Public Benchmarks (`Qwen2.5-Coder-32B-Instruct`, `Qwen3-32B`, `Gemma-2-9B-IT`):** Does calibrated weight surgery improve real C/C++ vulnerability discovery (`6.7% -> 40.0%`, $p = 0.00195$) while preserving or improving general math and coding benchmarks?
+The following studies answer three separate questions: whether the edit produces the intended local numerical change, whether the adapter respects protected directions, and whether model answers improve. A pass on one question is not a pass on the others. `B1`, `B2`, and `B3` label the loop, refusal, and root-cause directions. An **arm** is one configuration being compared. Leakage metrics are named in each table because maximum absolute entries and norm ratios are not interchangeable.
 
-### 4.1 Regime B: Target-Shift Dose-Response on `Qwen3.5-4B` (`n = 30` Crash Traces)
+The numerical results below are retained experimental reports, not fresh runs made for this documentation review. Some raw runners and receipts remain in the lab evidence bank rather than this repository; the guides identify those limits. Results on the two largest checkpoints use one shard each, not full-model fine-tuning.
+
+### 4.1 Regime B: Does the Model Finish Its Answer?
+
+This test gives the same 30 crash traces to each edited model with a 1,536-token limit. “Closed” means the model emitted `</think>` within that limit. The other columns score the final answer's bug class, culprit frame, and root cause separately. A completed answer can still be wrong. The dose changes only `B1` in the `a05` and `a15` arms. Strict scoring requires a committed answer after `</think>`. In the reported copy-the-input control, a whole-output keyword matcher scored the raw prompt `28/30`, while strict scoring gave it `0/30`; merely repeating a function name is not correct attribution.
 
 | Arm (`Qwen3.5-4B`, `n = 30`, `1,536` token cap) | Summed `B1` target shift | `</think>` Closed | Strict Bug Class | Strict Culprit Frame | Strict Root Cause | Mean Tokens |
 |---|---:|---:|---:|---:|---:|---:|
@@ -170,7 +236,9 @@ The guarantee $D \Delta W_t = 0$ holds at every protected writer's output. In a 
 
 Exact two-sided McNemar tests against `base`: `cal738` loop closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant pairs); `a15` loop closure $p = 1.86 \times 10^{-9}$ (30 vs. 0 discordant pairs). Comparing `a15` vs. `cal738`: loop closure $p = 0.0039$, culprit frame $p = 0.0078$.
 
-### 4.2 Regime A: Live Causal-LM Fine-Tuning After Real Surgery
+### 4.2 Regime A: Fine-Tune on Text After Editing
+
+These two short runs compare a constrained adapter with ordinary LoRA after a weight edit. Perplexity measures prediction quality on held-out text; lower is better. The Qwen run reached its best held-out value at step 20, then both arms overfit the small training batch. The `float64` leakage column recomputes an unrounded projected delta; it is not a claim that the whole model ran in `float64`.
 
 Both arms train on real causal-LM completions after a byte-verified surgical edit, evaluated on the identical writer-level metric $\max |D \Delta W|$:
 
@@ -181,9 +249,12 @@ Both arms train on real causal-LM completions after a byte-verified surgical edi
 
 > **Storage Precision Boundary (`F32`/`F64` vs. `BF16`):** When merged weights are quantized down to 16-bit `BF16` (7-bit mantissa, unit roundoff $\approx 3.9 \times 10^{-3}$), rounding error alone introduces $\sim 10^{-4}$ to $10^{-3}$ subspace leakage. `secant heal` therefore stores healed LoRA adapters in `F32` or `F64`.
 
-### 4.3 H100 Stage-1: 15-Model Calibration & Three-Arm Optimizer Comparison (`0.8B` to `32.8B`)
+### 4.3 H100 Stage-1: Check Calibration and Adapters Across 15 Models
+
+This sweep checks the shift at a reference input and compares three adapter methods on one selected writer per model. It uses one seed per model and a synthetic target plus a real-token cross-entropy term. Public behavioral benchmarks were `NOT_RUN` in this sweep; the local numerical results do not establish generation quality.
 
 Across 15 full models on H100 (`0.8B` to `32.8B`, receipt `irrefutable-15models-stage1-receipt.json`), we applied full Target-Shift Calibration ($|\Delta_{\text{target}}| = 7.382$, $K = 128$ columns) to `B2` and `B3` and ran a 60-step 3-arm comparison on the surgically edited writer:
+
 - **Arm A:** Unconstrained LoRA + AdamW
 - **Arm B:** Gradient-Projected LoRA ($g_t \leftarrow P_\perp g_t$ before `AdamW.step()`)
 - **Arm C:** `ProjectThenHealLinear` ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$)
@@ -208,25 +279,31 @@ All 30 calibrated edits realize $\Delta_{\text{target}}$ at $h_{\text{ref}}$ to 
 | `Gemma-2-27B` | `27.2B` | `L14` / `L27` | `0.0845` / `0.0098` | `8.0e-15` | `1.98%` | `1.31%` | **`3.49e-10`** |
 | `Qwen3-32B` | `32.8B` | `L47` / `L25` | `0.0292` / `0.0738` | `3.6e-15` | `2.04%` | `0.75%` | **`3.07e-10`** |
 
-### 4.4 Downstream C/C++ Sanitizer Vulnerability Uplift & Public Benchmark Preservation
+### 4.4 Root-Cause Identification, Math, and Code Scores
+
+Here the measurement is answer quality, rather than a matrix property. “Correct cases” counts benchmark cases answered correctly, not newly discovered vulnerabilities. Changes in accuracy are percentage points (`pp`); rates and differences retain the reported rounding. A blank numerical result is marked `NOT_REPORTED`; the table cannot establish performance on that benchmark.
 
 We evaluated whether calibrated rank-1 surgery improves downstream C/C++ vulnerability root-cause identification on our 30-case sanitizer benchmark suite (6 CWE-aligned classes: integer overflow, signed/unsigned mismatch, off-by-one, use-after-free/lifetime, missing bounds check, and format/buffer overflow) while preserving general reasoning (`GSM8K`, `MATH-500`) and code generation (`HumanEval pass@1`):
 
 | Model (`calibrated_1p0x` vs. `base`) | Paired 30-Case C/C++ Sanitizer Audit | `GSM8K` | `MATH-500` | `HumanEval pass@1` |
 |---|---|---|---|---|
-| **`Qwen/Qwen2.5-Coder-32B-Instruct`** (`32.8B`) | **`2/30` (`6.7%`) $\to$ `12/30` (`40.0%`, `+10` crashes, $p = 0.00195$)** | Evaluated in domain uplift (`125.9 -> 122.4` mean tokens) | Evaluated in domain uplift | Evaluated in domain uplift |
-| **`Qwen/Qwen3-32B`** (`32.8B`) | Multi-subspace reasoning + code composition | `53.0%` $\to$ **`55.0%` (`+2.0%`)** | `31.0%` $\to$ **`38.0%` (`+7.0%`)** | `21.88%` $\to$ **`25.00%` (`+3.12%`)** |
-| **`google/gemma-2-9b-it`** (`9.2B`) | **`4/30` (`13.3%`) $\to$ `7/30` (`23.3%`, `+3` crashes)** | `77.0%` $\to$ **`79.0%` (`+2.0%`)** | `37.0%` $\to$ `37.0%` (`0.0%`) | `39.02%` $\to$ **`40.85%` (`+1.83%`)** |
-| **`Qwen/Qwen2.5-7B-Instruct`** (`7.6B`) | Multi-subspace capability preservation | `82.5%` $\to$ `81.5%` (`-1.0%`) | `51.0%` $\to$ **`54.0%` (`+3.0%`)** | `61.59%` $\to$ **`62.80%` (`+1.22%`)** |
-| **`Qwen/Qwen3-14B`** (`14.8B`) | Multi-subspace capability preservation | `84.5%` $\to$ `84.5%` (`0.0%`) | `57.0%` $\to$ `56.0%` (`-1.0%`) | `46.95%` $\to$ **`49.39%` (`+2.44%`)** |
+| **`Qwen/Qwen2.5-Coder-32B-Instruct`** (`32.8B`) | **`2/30` (`6.7%`) $\to$ `12/30` (`40.0%`, `+10` correct cases, $p = 0.00195$)** | NOT_REPORTED | NOT_REPORTED | NOT_REPORTED |
+| **`Qwen/Qwen3-32B`** (`32.8B`) | NOT_REPORTED | `53.0%` $\to$ **`55.0%` (`+2.0 pp`)** | `31.0%` $\to$ **`38.0%` (`+7.0 pp`)** | `21.88%` $\to$ **`25.00%` (`+3.12 pp`)** |
+| **`google/gemma-2-9b-it`** (`9.2B`) | **`4/30` (`13.3%`) $\to$ `7/30` (`23.3%`, `+3` correct cases)** | `77.0%` $\to$ **`79.0%` (`+2.0 pp`)** | `37.0%` $\to$ `37.0%` (`0.0 pp`) | `39.02%` $\to$ **`40.85%` (`+1.83 pp`)** |
+| **`Qwen/Qwen2.5-7B-Instruct`** (`7.6B`) | NOT_REPORTED | `82.5%` $\to$ `81.5%` (`-1.0 pp`) | `51.0%` $\to$ **`54.0%` (`+3.0 pp`)** | `61.59%` $\to$ **`62.80%` (`+1.22 pp`)** |
+| **`Qwen/Qwen3-14B`** (`14.8B`) | NOT_REPORTED | `84.5%` $\to$ `84.5%` (`0.0 pp`) | `57.0%` $\to$ `56.0%` (`-1.0 pp`) | `46.95%` $\to$ **`49.39%` (`+2.44 pp`)** |
 
-### 4.5 Regime C: 14-Model H100 Adversarial Subspace Stress Test (`7.2B` to `72.7B`)
+### 4.5 Regime C: Train Toward a Direction the Adapter Must Avoid
 
-In a separate adversarial stress test across 12 full models (`7.2B` to `32.8B`) and 2 single-shard runs (`70.6B`, `72.7B`), we trained LoRA for 60 AdamW steps toward a synthetic target $Y_{\text{target}} = Y + 1.5\,v_{B2}$ that deliberately lies *inside* the protected subspace $\mathrm{span}(D)$. Under this adversarial pull, unconstrained LoRA placed `8.42%` to `52.55%` of its output factor norm $\|B\|_{\mathrm{F}}$ into $\mathrm{span}(D)$, whereas `ProjectThenHealLinear` held $\max |D B_{\text{locked}}|$ (evaluated in `float64` on the `F32` working factor) to **`4.82e-10` – `1.08e-9`** at step 60 across all 14 checkpoints.
+This stress test deliberately asks the adapter to learn a change inside the protected subspace. A successful lock must leave that part of the task unfitted, so low leakage comes with a loss floor. The unconstrained and locked numbers below use different metrics and must not be read as a direct ratio.
+
+In a separate adversarial stress test across 12 full models (`7.2B` to `32.8B`) and 2 single-shard runs (`70.6B`, `72.7B`), we trained LoRA for 60 AdamW steps toward a synthetic target $Y_{\text{target}} = Y + 1.5\,v_{B2}$ that deliberately lies *inside* the protected subspace $\mathrm{span}(D^\top)$. Under this adversarial pull, unconstrained LoRA placed `8.42%` to `52.55%` of its output factor norm $\|B\|_{\mathrm{F}}$ into $\mathrm{span}(D^\top)$, whereas `ProjectThenHealLinear` held $\max |D B_{\text{locked}}|$ (evaluated in `float64` on the `F32` working factor) to **`4.82e-10` to `1.08e-9`** at step 60 across all 14 checkpoints.
 
 > **Verification & Diagnostic Notes on Regime C:**
 > - **Non-linear dose saturation at extreme shifts:** On 20 of 24 full-model edits in Regime C, raising the dose from $1.0\times$ to $1.5\times$ scaled the realized shift linearly (`1.49x` to `1.50x`). Four edits (`Phi-4` `B2`, `OLMo-2-13B` `B3`, `Gemma-2-9B` `B3`, `Gemma-2-27B` `B3`) showed sub-linear scaling (`1.04x` to `1.18x`) due to downstream RMSNorm normalization.
 > - **Outlier-dimension diagnostic (`Phi-4`):** In Regime C's uncalibrated capture on `Phi-4` (`L32`), peak $\mathrm{SNR}_{\text{proj}}$ reached `27,362.3` with $\mathrm{SNR}_{\text{trace}} = 60.4$, and the uncalibrated edit inverted sign (`-3.399`). Always pair $\mathrm{SNR}_{\text{proj}}$ with $\mathrm{SNR}_{\text{trace}}$ and verify the signed shift on held-out prompts (as done in Stage-1 L12 calibration, where `Phi-4` achieves `4.4e-15` shift error).
+
+> **Section 4 takeaway:** Each study supports its own claim. Calibration matched the requested shift on all 15 Stage-1 models. Project-Then-Heal kept local leakage at the `float32` floor on every model where gradient projection did not. The response benchmarks report measured changes on specific prompt sets, not general behavior.
 
 ---
 
@@ -235,11 +312,13 @@ In a separate adversarial stress test across 12 full models (`7.2B` to `32.8B`) 
 
 Orthogonal projection and subspace-constrained LoRA build upon a rich line of mechanistic interpretability and parameter-efficient fine-tuning research:
 
-- **Direct Weight Editing & Null-Space Constraints:** [ROME](https://arxiv.org/abs/2202.05262) (Meng et al., NeurIPS 2022) and [AlphaEdit](https://arxiv.org/abs/2410.02355) (Fang et al., ICLR 2025) formulate rank-1 and null-space-projected weight updates for factual editing. [Takehi, Teoh, Zhang, and Khattab](https://rikiyat.github.io/blog/weight-space-programming/) (MIT CSAIL, Nov 2026) introduced Weight-Space Programming on `Qwen3.5-0.8B`.
-- **Subspace-Constrained LoRA:** [Safe LoRA](https://proceedings.neurips.cc/paper_files/paper/2024/hash/77baa7c2a3a675823e89131698fd6e19-Abstract-Conference.html) (Hsu et al., NeurIPS 2024) projects LoRA weights post-hoc onto a safety-aligned checkpoint vector; [SaLoRA](https://arxiv.org/abs/2501.01765) (Li et al., ICLR 2025) introduces a fixed safety projection during fine-tuning; [LoRA-Null](https://arxiv.org/abs/2503.02659) (Tang et al., AAAI 2026) initializes adapters in the null space of pre-trained activations; [OPLoRA](https://arxiv.org/abs/2510.13003) (Xiong & Xie, 2025) projects out top singular vectors of frozen weights via left and right projections; and [OGPSA](https://arxiv.org/abs/2602.07892) (Sun et al., 2026) projects gradients against a capability subspace.
+- **Direct Weight Editing & Null-Space Constraints:** [ROME](https://arxiv.org/abs/2202.05262) (Meng et al., NeurIPS 2022) and [AlphaEdit](https://arxiv.org/abs/2410.02355) (Fang et al., ICLR 2025) formulate rank-1 and null-space-projected weight updates for factual editing. [Takehi, Teoh, Zhang, and Khattab](https://rikiyat.github.io/blog/weight-space-programming/) (MIT CSAIL, Nov 2026) presented Weight-Space Programming experiments on `Qwen3.5-0.8B`.
+- **Subspace-Constrained LoRA:** [Safe LoRA](https://proceedings.neurips.cc/paper_files/paper/2024/hash/77baa7c2a3a675823e89131698fd6e19-Abstract-Conference.html) (Hsu et al., NeurIPS 2024) projects LoRA weights post-hoc onto a safety-aligned subspace derived from base and aligned checkpoints; [SaLoRA](https://arxiv.org/abs/2501.01765) (Li et al., ICLR 2025) introduces a fixed safety projection during fine-tuning; [LoRA-Null](https://arxiv.org/abs/2503.02659) (Tang et al., AAAI 2026) initializes adapters in the null space of pre-trained activations; [OPLoRA](https://arxiv.org/abs/2510.13003) (Xiong & Xie, 2025) projects out top singular vectors of frozen weights via left and right projections; and [OGPSA](https://arxiv.org/abs/2602.07892) (Sun et al., 2026) projects gradients against a capability subspace.
 - **Directional Ablation Toolkits:** Community toolkits including [Heretic](https://github.com/p-e-w/heretic), [Obliteratus](https://github.com/elder-plinius/OBLITERATUS), and [model-unfetter](https://github.com/josepha-mayo/model-unfetter) provide single-direction and multi-direction refusal ablation workflows in Python/PyTorch.
 
-**Scope of Secant's Contributions:** Secant does not claim priority over orthogonal projection or null-space LoRA in general. Its specific technical contributions are: (1) closed-form **Target-Shift Calibration** ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) for cross-scale sparse rank-1 surgery; (2) the **$\Pi_{128}$ Quantization Commutation Theorem** and direct 34-byte `Q8_0` in-place `mmap` block surgery with SHA-256 non-target byte-identity verification; (3) the formal characterization of **AdamW diagonal preconditioner rotation** ($D \Lambda_t P_\perp \neq 0$) showing why gradient projection alone leaks on 100% of AdamW steps, paired with double-idempotent forward-pass projection $B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$; and (4) empirical validation on paired C/C++ vulnerability auditing (`Qwen2.5-Coder-32B-Instruct`, `6.7% -> 40.0%`, $p = 0.00195$).
+**Scope of this paper.** Secant does not claim to introduce orthogonal projection or null-space LoRA. It evaluates reference-based edit sizing, block-aware `Q8_0` file editing, and a forward-pass adapter constraint in one workflow. The equations explain local matrix properties. The experiments test particular checkpoints, directions, prompts, and storage formats; they do not establish universal behavior preservation or comparative superiority over the cited tools.
+
+> **Section 5 takeaway:** The projection methods are prior work. This paper evaluates reference-based edit sizing, block-aware `Q8_0` editing, and a forward-pass adapter constraint together, inside one file-editing workflow that verifies every untouched byte.
 
 ---
 
@@ -250,7 +329,7 @@ Orthogonal projection and subspace-constrained LoRA build upon a rich line of me
 3. **Junfeng Fang et al.** *AlphaEdit: Null-Space Constrained Knowledge Editing for Language Models.* ICLR 2025 (`arXiv:2410.02355`).
 4. **Pengwei Tang et al.** *Put the Space of LoRA Initialization to the Extreme to Preserve Pre-trained Knowledge (LoRA-Null).* AAAI 2026 (`arXiv:2503.02659`).
 5. **Yifeng Xiong and Xiaohui Xie.** *OPLoRA: Orthogonal Projection LoRA Prevents Catastrophic Forgetting during Parameter-Efficient Fine-Tuning.* `arXiv:2510.13003`, 2025.
-6. **Xuechen Li et al.** *SaLoRA: Safety-Alignment Preserved Low-Rank Adaptation.* ICLR 2025 (`arXiv:2501.01765`).
+6. **Mingjie Li et al.** *SaLoRA: Safety-Alignment Preserved Low-Rank Adaptation.* ICLR 2025 (`arXiv:2501.01765`).
 7. **Chia-Yi Hsu et al.** *Safe LoRA: The Silver Lining of Reducing Safety Risks when Fine-Tuning Large Language Models.* NeurIPS 2024.
-8. **Hao Sun et al.** *Orthogonal Gradient Projection for Safety Alignment (OGPSA).* `arXiv:2602.07892`, 2026.
+8. **Guanglong Sun et al.** *[Safety Alignment as Continual Learning: Mitigating the Alignment Tax via Orthogonal Gradient Projection](https://arxiv.org/abs/2602.07892).* `arXiv:2602.07892`, 2026.
 9. **Kevin Meng, David Bau, Alex Andonian, and Yonatan Belinkov.** *Locating and Editing Factual Associations in GPT (ROME).* NeurIPS 2022 (`arXiv:2202.05262`).

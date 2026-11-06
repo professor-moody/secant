@@ -1,22 +1,28 @@
-# Mathematical Theory & Scale Calibration
+# Theory: Choose a Direction and Size the Edit
 
-Before diving into the equations, here is the core intuition behind Secant's mathematical pipeline:
+Secant's calculations answer three practical questions:
 
-1. **Finding where a behavior lives (`SNR_proj`):** A transformer layer writes into a shared residual stream of width $d_{\text{model}}$ (`1,024` to `8,192` dimensions in the checkpoints we tested). If you measure variance across all dimensions at once (`SNR_trace`), background language variance across the other $d_{\text{model}} - 1$ axes dilutes a single behavioral direction (on the 12 full H100 models `snr_trace` is `0.32` to `4.88`, apart from `phi-4`). Measuring signal-to-noise ratio **projected onto the candidate direction (`SNR_proj`)** on held-out prompts isolates the exact layer and writer (`attn_out` vs. `mlp_out`) where the behavior is sharpest (held-out `snr_proj` `4.6` to `277.9` across all captured layers of the 12 full H100 models, excluding `phi-4`).
-2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors can overlap when they share residual coordinates. Two-pass modified Gram-Schmidt orthogonalization in `float64` removes pairwise overlap before compiling the weight patch. The Python API enforces $\max_{i,j} |(D D^\top - I_k)_{ij}| < 10^{-12}$ and fails closed otherwise; the measured `float64` residual on tested bases is below $10^{-15}$.
-3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model closed `0/30` `<think>` loops, while the calibrated loop edit (summed target shift `-7.38`) closed `21/30`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
+1. **Where is the signal strongest?** Compare activations from two prompt groups, then test the resulting direction on held-out examples. Signal-to-noise ratio (SNR) measures separation relative to variation within the groups.
+2. **How can several edits coexist?** Make their output directions perpendicular before combining them. This removes linear overlap between the chosen vectors, not all interaction between model behaviors.
+3. **How large should the edit be?** Use the layer's reference activation to calculate a requested output shift. A weight change of the same relative size can have different effects in different layers or models.
+
+A **writer** is a matrix that contributes to a layer's output. The **residual stream** is the running activation vector passed between transformer layers. A **norm** measures a vector's length or a matrix's size; the Frobenius norm is the square root of the sum of squared matrix entries. Below, `D` holds protected directions as rows. The labels `B1`, `B2`, and `B3` refer to loop, refusal, and root-cause directions in the reported experiments.
 
 ```{figure} assets/snr-and-calibration-profile.svg
 :name: fig-snr-and-calibration
 :alt: Panel A, refusal-direction SNR by layer for the attention-block and MLP outputs of Qwen3.5-0.8B with full-attention layers shaded; Panel B, Target-Shift Calibration step size beta against the selected-column activation norm on three models and on the 30 edits of the 15-model H100 Stage-1 run, and the realized shift error in float64 and after BF16 storage
 :width: 100%
 
-**A.** Held-out SNR of the `B2` refusal direction on `Qwen3.5-0.8B`, by layer and writer. This panel uses the margin statistic $(\mu_{\text{pos}} - \mu_{\text{neg}})/\sigma_{\text{ctl}}$ from the layer sweep (5 + 5 held-out prompts, 10 controls), not the $\mathrm{SNR}_{\text{proj}}$ of Section 1, so its values are not comparable to the H100 numbers. Layer 15, where a rule of thumb at about 60% depth lands, is the global minimum of the attention-block output (`0.23`) and is a full-attention layer (writer `o_proj`); layer 12, a Gated DeltaNet layer (writer `ssm_out`), peaks at `2.12`. **B.** Every calibrated rank-1 edit in the banked plans: the `B3` target $|\Delta| = 3.8956$ is the same on `Qwen3.5-4B`, `Qwen2.5-1.5B` and `SmolLM2-1.7B`, $\|h_S\|_2$ spans `4.13` to `10.44`, and $\beta$ spans `0.0358` to `0.2286`. Recomputing $\langle q, \Delta W\,h_{\text{ref}}\rangle$ from each plan in `float64` gives $|\text{error}| \le 4.0 \times 10^{-15}$; after the weights are stored in `BF16` the realized shift moves by $1.2 \times 10^{-6}$ to $2.0 \times 10^{-3}$. Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
+**A.** Held-out SNR of the `B2` refusal direction on `Qwen3.5-0.8B`, by layer and writer. This panel uses the margin statistic $(\mu_{\text{pos}} - \mu_{\text{neg}})/\sigma_{\text{ctl}}$ from the layer sweep (5 + 5 held-out prompts, 10 controls), not the $\mathrm{SNR}_{\text{proj}}$ of Section 1, so its values are not comparable to the H100 numbers. Layer 15, where a rule of thumb at about 60% depth lands, is the global minimum of the attention-block output (`0.23`) and is a full-attention layer (writer `o_proj`); layer 12, a Gated DeltaNet layer (writer `ssm_out`), peaks at `2.12`.
+
+**B.** Every calibrated rank-1 edit in the banked plans: the `B3` target $|\Delta| = 3.8956$ is the same on `Qwen3.5-4B`, `Qwen2.5-1.5B` and `SmolLM2-1.7B`, $\|h_S\|_2$ spans `4.13` to `10.44`, and $\beta$ spans `0.0358` to `0.2286`. Recomputing $\langle q, \Delta W\,h_{\text{ref}}\rangle$ from each plan in `float64` gives $|\text{error}| \le 4.0 \times 10^{-15}$; after the weights are stored in `BF16` the realized shift moves by $1.2 \times 10^{-6}$ to $2.0 \times 10^{-3}$. Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
 ```
 
 ---
 
-## 1. Contrastive Capture & Held-Out Signal-to-Noise Metrics
+## 1. Compare Two Prompt Groups on Held-Out Data
+
+Capture records the activations for each group. One half of the data chooses a candidate direction; the other tests it. Swapping the halves gives a second check. This reduces reuse of the fitting data, but choosing among many layers still needs a separate final evaluation set.
 
 Let $h_\ell(x) \in \mathbb{R}^{d}$ denote the activation exiting layer $\ell \in \{0, \dots, L-1\}$ (either in the residual stream or a specific writer sub-stream such as `attn_out` / `ssm_out` or `mlp_out`) at the final prompt token of input $x$. Capture collects a positive class $H^+ = \{h_\ell(x_i^+)\}_{i=1}^{n_+}$ and a negative class $H^- = \{h_\ell(x_j^-)\}_{j=1}^{n_-}$. The two classes are **not** paired and need not have equal size; every statistic below is computed from separate class means and separate class variances, in `float64` (`python/secant/capture.py`, `evaluate_cell`).
 
@@ -30,7 +36,7 @@ for the unit difference-of-means direction fitted on $S$. The reported `directio
 
 **Unbiased variances.** For a scalar sample $\{z_i\}_{i=1}^{n}$, $\hat{\sigma}^2(z) = \frac{1}{n-1}\sum_i (z_i - \bar{z})^2$ (`ddof=1`). For a vector class $H$ on split $S$, $\mathrm{tr}\hat{\Sigma}^S = \sum_{c=1}^{d} \hat{\sigma}^2(h_{\cdot, c})$, the sum of the unbiased per-coordinate variances.
 
-### Why `SNR_proj` Replaces Full-Trace `SNR_trace`
+### Two Signal-to-Noise Measures Answer Different Questions
 
 In high-dimensional residual streams ($d \in [1024, 5120]$), the trace denominator sums within-class variation across all $d$ coordinates, keeping raw trace SNR modest (`0.32` to `4.88` across the 12 full H100 models, with `microsoft/phi-4` an outlier at up to `909.6`) even when a 1D concept direction cleanly separates the two prompt classes. The projected statistic instead measures variance along one fitted direction only. Secant evaluates three diagnostics, each fitted on one half and scored on the other:
 
@@ -55,17 +61,19 @@ In high-dimensional residual streams ($d \in [1024, 5120]$), the trace denominat
    $$
    \cos(\theta_\ell) = u_A^\top u_B
    $$
-   Near `1` means a stable direction; near `0` (about $\mathcal{N}(0, 1/d)$) means the "direction" is noise.
+   Near `1` means the two fitted directions agree; near `0` means they do not. Independent isotropic random directions have cosine approximately $\mathcal{N}(0,1/d)$, but a small cosine alone does not prove the data contain no signal.
 
 The 1D projected SNR and the trace SNR answer different questions: $\mathrm{SNR}_{\text{proj}}$ asks how well one held-out direction separates the classes, while $\mathrm{SNR}_{\text{trace}}$ compares the mean shift with the total variance of the whole space. They are not interchangeable and are never divided into one another.
 
 **Undefined cells.** If a mean difference vanishes (relative to $\|\mu_+\| + \|\mu_-\|$, below $10^{-12}$) or a denominator is zero or non-finite, the cell is reported as `status="undetermined"` with `NaN` metrics and a reason, never as a number. Capture requires at least 4 samples per class so each half has a variance.
 
-The reported experimental selection heuristic treats a candidate layer $\ell^*$ as admissible if $\mathrm{SNR}_{\text{proj}}(\ell^*) \ge 2.0$ and $\cos(\theta_{\ell^*}) \ge 0.70$. These thresholds are permissive: every peak layer used for an edit in the H100 runs is far above them, so in practice the layer choice is the argmax, not the threshold. These are not enforced CLI acceptance gates. Selecting a maximum over layers on these splits requires a separate evaluation set before making an unbiased generalization claim.
+The reported experimental selection heuristic treats a candidate layer $\ell^*$ as admissible if $\mathrm{SNR}_{\text{proj}}(\ell^*) \ge 2.0$ and $\cos(\theta_{\ell^*}) \ge 0.70$. These thresholds are permissive: every peak layer used for an edit in the H100 runs is far above them, so in practice the highest score selects the layer. These are not enforced CLI acceptance gates. Selecting a maximum over layers on these splits requires a separate evaluation set before making an unbiased generalization claim.
 
 ---
 
-## 2. Sparse MLP Down-Projection Rank-1 Surgery
+## 2. Edit a Small Set of Input Columns
+
+The MLP is the transformer's feed-forward block. Its down-projection maps a wider internal activation back into the residual stream. A sparse edit changes selected input columns. A rank-1 edit is the outer product of one output direction and one input selector, scaled by an edit strength.
 
 Let $W_\ell \equiv W_{\text{down},\ell} \in \mathbb{R}^{d_{\text{model}} \times d_{\text{ffn}}}$ be the MLP down-projection matrix at layer $\ell$, which maps intermediate SwiGLU activations $m_\ell(x) \in \mathbb{R}^{d_{\text{ffn}}}$ into the residual stream:
 
@@ -73,13 +81,13 @@ $$
 h_\ell^{\text{post-mlp}}(x) = h_\ell^{\text{pre-mlp}}(x) + W_\ell \, m_\ell(x)
 $$
 
-Rather than modifying all $d_{\text{ffn}}$ columns of $W_\ell$, Secant selects the top-$K$ intermediate neurons $\mathcal{C}_b \subset \{0, \dots, d_{\text{ffn}}-1\}$ ($|\mathcal{C}_b| = K$, typically $K \in \{64, 128\}$) with the largest absolute reference activations in the Rust composer, and constructs a column-sparse selector vector $u_b \in \mathbb{R}^{d_{\text{ffn}}}$ supported solely on $\mathcal{C}_b$:
+Rather than modifying all $d_{\text{ffn}}$ columns of $W_\ell$, Secant selects the top-$K$ intermediate neurons $\mathcal{C}_b \subset \{0, \dots, d_{\text{ffn}}-1\}$ ($|\mathcal{C}_b| = K$, typically $K \in \{64, 128\}$) with the largest absolute reference activations in the Rust composer, and constructs a column-sparse selector vector $u_b \in \mathbb{R}^{d_{\text{ffn}}}$ supported solely on $\mathcal{C}_b$. Here $\bar m_\ell$ is the reference activation used to select those columns:
 
 $$
 u_{b, j} = \begin{cases} \dfrac{\bar{m}_{\ell, j}}{\sqrt{\sum_{r \in \mathcal{C}_b} \bar{m}_{\ell, r}^2}} & \text{if } j \in \mathcal{C}_b, \\[8pt] 0 & \text{otherwise.} \end{cases}
 $$
 
-A rank-1 column-sparse update with step size $\gamma_b \in \mathbb{R}$ takes the form:
+With unit-length output direction $v_b$ and normalized selector $u_b$, a rank-1 column-sparse update with step size $\gamma_b \in \mathbb{R}$ takes the form:
 
 $$
 \begin{aligned}
@@ -88,11 +96,13 @@ $$
 \end{aligned}
 $$
 
-Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.5-4B`), over **99% of the matrix entries remain completely untouched**.
+Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.5-4B`), over **99% of the logical matrix entries lie outside the edit**. In a quantized file, re-encoding a touched block can also change reconstructed values of other entries in that block.
 
 ---
 
-## 3. Multi-Subspace Gram-Schmidt Orthogonalization
+## 3. Remove Overlap Between Edit Directions
+
+Gram-Schmidt subtracts components that earlier directions already cover, then normalizes the remainder. The result depends on the direction order. Two passes reduce numerical error; directions that cannot supply an independent component are rejected.
 
 When $k$ behavioral edits $b \in \{1, \dots, k\}$ share the coordinate basis $\mathbb{R}^{d_{\text{model}}}$, non-orthogonal directions $\langle v_b, v_{b'} \rangle \ne 0$ can interfere constructively or destructively.
 
@@ -112,7 +122,9 @@ $$
 
 ---
 
-## 4. Target-Shift Calibration & Fixed-Ratio Subspace Projection
+## 4. Match an Edit to a Reference Activation
+
+Calibration asks for a particular change at one measured input to the writer. It divides that target by the energy in the selected input columns. The equality below holds in exact arithmetic at that reference input; rounding and other inputs require separate checks. A fixed weight-norm ratio sizes an edit by the weights instead, so the two choices need not produce the same activation shift.
 
 Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$, where $h_S \in \mathbb{R}^{d_{\text{in}}}$ denotes $h_{\text{ref}}$ zeroed outside the selected column support $S$ and satisfies the non-degeneracy precondition $\|h_S\|_2 > 0$:
 
@@ -141,9 +153,9 @@ $$
 \gamma_b(\alpha) = \alpha \cdot \frac{\tau_b \, \|W_\ell\|_{\mathrm{F}}}{\|q_b\|_2 \, \|u_b\|_2}
 $$
 
-The two modes are **not** equivalent: the calibrated step $\beta$ depends on the measured activation $h_S$, the ratio step $\gamma_b(\alpha)$ only on $\|W_\ell\|_{\mathrm{F}}$. The signed $\Delta_{\text{target}}$ in this derivation is the effective profile-slot target. Rust takes its magnitude from the selected calibration value and its sign from `slot.sign`; `projector-subtract` uses its own gamma path (`crates/secant-core/src/subspace.rs:587` and `:640`).
+The modes size different quantities: the calibrated step $\beta$ depends on the measured activation $h_S$, the ratio step $\gamma_b(\alpha)$ only on $\|W_\ell\|_{\mathrm{F}}$. The signed $\Delta_{\text{target}}$ in this derivation is the target after the profile's sign and value rules have been applied. Rust takes its magnitude from the selected calibration value and its sign from `slot.sign`; `projector-subtract` uses its own gamma path (`crates/secant-core/src/subspace.rs:587` and `:640`).
 
-Where each mode was used: full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) on `Qwen3.5-4B` (all `B1+B2+B3` edits; `<think>` closure `0/30` in `a05`, where only `B1` was at $0.5\times$ and `B2` and `B3` were held at $1.0\times$, then `21/30` with all three at $1.0\times$ and `30/30` in `a15`, where `B1` was at $1.5\times$ and `B2` and `B3` again at $1.0\times$) and on the `B3` edit of `SmolLM2-1.7B` and of `Qwen2.5-1.5B` ([](#fig-snr-and-calibration), panel B). The 14-checkpoint H100 sweep (`7.2B` to `72.7B`) used the fixed-ratio mode ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$); there, aligned directions separate from equal-norm random directions by `29.1x` to `1,269.9x` by magnitude. A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so this is a geometric sanity check, not evidence of behavioural change.
+**Reported experiments.** Full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) was used on `Qwen3.5-4B` (all `B1+B2+B3` edits; `<think>` closure `0/30` in `a05`, where only `B1` was at $0.5\times$ and `B2` and `B3` were held at $1.0\times$, then `21/30` with all three at $1.0\times$ and `30/30` in `a15`, where `B1` was at $1.5\times$ and `B2` and `B3` again at $1.0\times$) and on the `B3` edit of `SmolLM2-1.7B` and of `Qwen2.5-1.5B` (see [the calibration figure](#fig-snr-and-calibration), panel B). The 14-checkpoint H100 sweep (`7.2B` to `72.7B`) used the fixed-ratio mode ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$); there, aligned directions separate from equal-norm random directions by `29.1x` to `1,269.9x` by magnitude. A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so this is a geometric sanity check, not evidence of behavioural change.
 
 The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-stage1-receipt.json`, SHA-256 `00f4fe2afc4ff630c7c9ac55b5b2c0a85342477a5b32a0b0c455abd5b4c5056f`) applied full Target-Shift Calibration to `B2` and `B3` on every model, with $\lvert\Delta_{\text{target}}\rvert = 7.382$ and 128 selected input columns. Across `B2`, $\lVert h_S\rVert_2$ spans `1.41 to 15.91` and $\beta$ spans `0.0292 to 3.7192`; across `B3`, `2.53 to 27.47` and `0.0098 to 1.1508`. Every one of the 30 edits realizes its target at $h_{\text{ref}}$ with maximum error approximately `7.99e-15` in `float64` (10 of them exactly 0). Each random control is norm-matched. This run has no `BF16`-storage witness and its behavioral benchmarks are `NOT_RUN`, so it establishes that the step is solved correctly at every width tested, not what the edit does to generated output.
 
