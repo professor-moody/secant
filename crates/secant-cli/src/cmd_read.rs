@@ -4,8 +4,8 @@ use secant_core::read::{read_model, ReadOptions};
 
 #[derive(ClapArgs, Debug)]
 #[command(
-    long_about = "Read selected weights without inference: Frobenius norms, leading singular values, high-energy columns and optional vocabulary projections. Anomaly flags are informational and retain exit status 0.",
-    after_help = "Examples:\n  secant read --model model.gguf --tensor 'blk.0.*' --top-k-singular 4\n  secant read --model model.safetensors --detect-anomalies --json"
+    long_about = "Read selected weights without inference: Frobenius norms, leading singular values, high-energy columns and optional vocabulary projections. Anomaly flags are informational and retain exit status 0.\n\n--marchenko-pastur adds, per 2-D tensor, the bulk edge sigma_MP = sigma_bulk * (1 + sqrt(d_in/d_out)) of an i.i.d. matrix with the same energy (the computed outliers removed) and the spike ratio sigma_1/sigma_MP, plus a report-level ranking that carries the top promoted vocabulary tokens when --vocab-tensor is given. Trained weights are not i.i.d.: compare ratios across layers or against the base checkpoint.",
+    after_help = "Examples:\n  secant read --model model.gguf --tensor 'blk.0.*' --top-k-singular 4\n  secant read --model model.safetensors --detect-anomalies --json\n  secant read --model model.gguf --marchenko-pastur --vocab-tensor output.weight --json"
 )]
 pub struct Args {
     /// Input .gguf or .safetensors (read only)
@@ -29,6 +29,12 @@ pub struct Args {
     /// Optional NEW directory for u1_/v1_<tensor>.npy
     #[arg(long, default_value = "")]
     vectors_out: String,
+    /// Report the Marchenko-Pastur bulk edge sigma_MP and the spike ratio sigma_1/sigma_MP per 2-D tensor (informational)
+    #[arg(long)]
+    marchenko_pastur: bool,
+    /// Flag threshold on sigma_1/sigma_MP (default 1.5; requires --marchenko-pastur)
+    #[arg(long, allow_negative_numbers = true)]
+    mp_threshold: Option<f64>,
     #[arg(long)]
     json: bool,
 }
@@ -43,7 +49,12 @@ pub fn run(a: &Args) -> i32 {
         vocab_tensor: a.vocab_tensor.clone(),
         detect_anomalies: a.detect_anomalies,
         vectors_out: a.vectors_out.clone(),
+        marchenko_pastur: a.marchenko_pastur,
+        mp_threshold: a.mp_threshold.unwrap_or(0.0),
     };
+    if a.mp_threshold == Some(0.0) {
+        return usage("--mp-threshold must be > 0");
+    }
     let rep = match read_model(o) {
         Ok(r) => r,
         Err(e) => return fail(&e),
@@ -90,6 +101,7 @@ pub fn run(a: &Args) -> i32 {
                 })
                 .collect::<Vec<_>>(),
         );
+        print_bulk(t);
         if let Some(an) = &t.anomalies {
             if an.flagged {
                 print!(" ANOMALIES zero_rows={} collapsed_rows={} spike_cols={}", an.zero_rows, an.collapsed_rows, an.spike_cols);
@@ -111,4 +123,21 @@ pub fn run(a: &Args) -> i32 {
         }
     }
     0
+}
+
+/// One human line for the `--marchenko-pastur` block of a tensor.
+pub(crate) fn print_bulk(t: &secant_core::read::TensorSpectrum) {
+    if let Some(b) = &t.spectral_bulk {
+        match (b.sigma_mp, b.sigma1_over_mp) {
+            (Some(mp), Some(r)) => print!(
+                " MP sigma_mp={:.6e} sigma1/sigma_mp={:.4} outliers={}{}{}",
+                mp,
+                r,
+                b.outliers,
+                if b.spectrum_exhausted { "+" } else { "" },
+                if b.flagged { " OUTSIDE-BULK" } else { "" }
+            ),
+            _ => print!(" MP {}", b.status),
+        }
+    }
 }

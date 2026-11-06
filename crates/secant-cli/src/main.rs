@@ -3,6 +3,7 @@
 //! 1 = a gate ran and failed, 2 = usage / I-O / undeterminable.
 
 mod cmd_analyze;
+mod cmd_audit_trojan;
 mod cmd_compose;
 mod cmd_fetch_tensor;
 mod cmd_heal;
@@ -14,6 +15,7 @@ mod cmd_quant;
 mod cmd_read;
 mod cmd_rotation_test;
 mod cmd_sanitize;
+mod cmd_scan_sinks;
 mod cmd_verify_patch;
 mod cmd_verify_subspace;
 mod util;
@@ -44,6 +46,8 @@ enum Cmd {
     Inspect(cmd_inspect::Args),
     /// Static weight-space reader: Frobenius norm, top singular triplets, top columns, anomalies, vocab projection
     Read(cmd_read::Args),
+    /// Rank tensors by the Marchenko-Pastur spike ratio sigma_1/sigma_MP (read --detect-anomalies --marchenko-pastur)
+    AuditTrojan(cmd_audit_trojan::Args),
     /// Rank layers by precomputed per-layer SNR and emit optimal layer assignments
     Analyze(cmd_analyze::Args),
     /// Orthogonalize directions and calibrate a patch plan
@@ -54,6 +58,8 @@ enum Cmd {
     VerifyPatch(cmd_verify_patch::Args),
     /// Scan static weight values (Class I-IV) and optionally publish a clean copy
     Sanitize(cmd_sanitize::Args),
+    /// Scan C/C++/CUDA/Rust source trees for weight-value memory-safety and abort sinks
+    ScanSinks(cmd_scan_sinks::Args),
     /// Generate header-valid boundary-value weight fixtures
     Probe(cmd_probe::Args),
     /// Project-then-heal: lock a LoRA's B matrices out of protected output directions
@@ -75,11 +81,13 @@ fn main() {
         Cmd::Profiles(a) => cmd_profiles::run(a),
         Cmd::Inspect(a) => cmd_inspect::run(a),
         Cmd::Read(a) => cmd_read::run(a),
+        Cmd::AuditTrojan(a) => cmd_audit_trojan::run(a),
         Cmd::Analyze(a) => cmd_analyze::run(a),
         Cmd::Compose(a) => cmd_compose::run(a),
         Cmd::Patch(a) => cmd_patch::run(a),
         Cmd::VerifyPatch(a) => cmd_verify_patch::run(a),
         Cmd::Sanitize(a) => cmd_sanitize::run(a),
+        Cmd::ScanSinks(a) => cmd_scan_sinks::run(a),
         Cmd::Probe(a) => cmd_probe::run(a),
         Cmd::Heal(a) => cmd_heal::run(a),
         Cmd::VerifySubspace(a) => cmd_verify_subspace::run(a),

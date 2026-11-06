@@ -1,0 +1,313 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 718" width="100%" role="img" aria-label="Paired change from base in GSM8K, MATH-500, MMLU-Pro, HumanEval and ASan-30 root-cause accuracy for calibrated and norm-matched random edits across 14 models" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+<rect x="0.0" y="0.0" width="1320.0" height="718.0" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
+<text x="32.0" y="34.0" fill="#a8a29e" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.1">FIGURE · PUBLIC BENCHMARKS · 14 MODELS (0.8B TO 32.8B) · H100</text>
+<text x="32.0" y="60.0" fill="#fafaf9" font-size="18" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Pooled over 14 models, calibrated 1.0x edits move each benchmark by about 2 points or less, like equal-size random edits</text>
+<text x="32.0" y="82.0" fill="#a8a29e" font-size="12.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Each dot is a paired change from the unedited base on the same items (percentage points). Filled blue: Target-Shift-calibrated B2 + B3 edits at 1.0x. Orange ring: a random</text>
+<text x="32.0" y="100.0" fill="#a8a29e" font-size="12.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">direction orthogonal to the aligned one, with the same column support and the same Frobenius norm. A white halo marks a cell whose exact McNemar p survives Holm correction (70 cells, 0.05).</text>
+<rect x="208.0" y="128.0" width="204.0" height="452.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="310.0" y="148.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">GSM8K</text>
+<text x="310.0" y="163.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">accuracy, n = 100 per model</text>
+<line x1="222.0" y1="172.0" x2="222.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="222.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-40</text>
+<line x1="266.0" y1="172.0" x2="266.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="266.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-20</text>
+<line x1="310.0" y1="172.0" x2="310.0" y2="549.0" stroke="#78716c" stroke-width="1.2"/>
+<text x="310.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="354.0" y1="172.0" x2="354.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="354.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+20</text>
+<line x1="398.0" y1="172.0" x2="398.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="398.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+40</text>
+<rect x="210.0" y="170.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="307.8" cy="182.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-0.8B GSM8K random_1p0x: 48.0% -&gt; 47.0% (-1.0 pp), discordant 8/7, p = 1, Holm p = 1</title></circle>
+<circle cx="301.2" cy="182.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B GSM8K calibrated_1p0x: 48.0% -&gt; 44.0% (-4.0 pp), discordant 12/8, p = 0.503, Holm p = 1</title></circle>
+<circle cx="305.6" cy="207.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>SmolLM2-1.7B GSM8K random_1p0x: 23.0% -&gt; 21.0% (-2.0 pp), discordant 2/0, p = 0.5, Holm p = 1</title></circle>
+<circle cx="310.0" cy="207.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B GSM8K calibrated_1p0x: 23.0% -&gt; 23.0% (+0.0 pp), discordant 3/3, p = 1, Holm p = 1</title></circle>
+<rect x="210.0" y="220.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="323.2" cy="232.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-4B GSM8K random_1p0x: 14.0% -&gt; 20.0% (+6.0 pp), discordant 4/10, p = 0.18, Holm p = 1</title></circle>
+<circle cx="325.4" cy="232.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B GSM8K calibrated_1p0x: 14.0% -&gt; 21.0% (+7.0 pp), discordant 6/13, p = 0.167, Holm p = 1</title></circle>
+<circle cx="296.8" cy="257.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Mistral-7B-v0.3 GSM8K random_1p0x: 55.0% -&gt; 49.0% (-6.0 pp), discordant 13/7, p = 0.263, Holm p = 1</title></circle>
+<circle cx="290.2" cy="257.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 GSM8K calibrated_1p0x: 55.0% -&gt; 46.0% (-9.0 pp), discordant 19/10, p = 0.136, Holm p = 1</title></circle>
+<rect x="210.0" y="270.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="310.0" cy="282.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen2.5-7B GSM8K random_1p0x: 89.0% -&gt; 89.0% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="310.0" cy="282.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B GSM8K calibrated_1p0x: 89.0% -&gt; 89.0% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="318.8" cy="307.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Llama-3.1-8B GSM8K random_1p0x: 78.0% -&gt; 82.0% (+4.0 pp), discordant 1/5, p = 0.219, Holm p = 1</title></circle>
+<circle cx="321.0" cy="307.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B GSM8K calibrated_1p0x: 78.0% -&gt; 83.0% (+5.0 pp), discordant 1/6, p = 0.125, Holm p = 1</title></circle>
+<rect x="210.0" y="320.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="307.8" cy="332.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Llama-8B GSM8K random_1p0x: 66.0% -&gt; 65.0% (-1.0 pp), discordant 6/5, p = 1, Holm p = 1</title></circle>
+<circle cx="312.2" cy="332.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B GSM8K calibrated_1p0x: 66.0% -&gt; 67.0% (+1.0 pp), discordant 4/5, p = 1, Holm p = 1</title></circle>
+<circle cx="299.0" cy="357.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-8B GSM8K random_1p0x: 39.0% -&gt; 34.0% (-5.0 pp), discordant 13/8, p = 0.383, Holm p = 1</title></circle>
+<circle cx="305.6" cy="357.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B GSM8K calibrated_1p0x: 39.0% -&gt; 37.0% (-2.0 pp), discordant 13/11, p = 0.839, Holm p = 1</title></circle>
+<rect x="210.0" y="370.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="288.0" cy="382.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Gemma-2-9B GSM8K random_1p0x: 87.0% -&gt; 77.0% (-10.0 pp), discordant 11/1, p = 0.00635, Holm p = 0.438</title></circle>
+<circle cx="290.2" cy="382.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B GSM8K calibrated_1p0x: 87.0% -&gt; 78.0% (-9.0 pp), discordant 11/2, p = 0.0225, Holm p = 1</title></circle>
+<circle cx="307.8" cy="407.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>OLMo-2-13B GSM8K random_1p0x: 90.0% -&gt; 89.0% (-1.0 pp), discordant 2/1, p = 1, Holm p = 1</title></circle>
+<circle cx="310.0" cy="407.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B GSM8K calibrated_1p0x: 90.0% -&gt; 90.0% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<rect x="210.0" y="420.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="310.0" cy="432.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Phi-4 GSM8K random_1p0x: 95.0% -&gt; 95.0% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="312.2" cy="432.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 GSM8K calibrated_1p0x: 95.0% -&gt; 96.0% (+1.0 pp), discordant 1/2, p = 1, Holm p = 1</title></circle>
+<circle cx="310.0" cy="457.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-14B GSM8K random_1p0x: 59.0% -&gt; 59.0% (+0.0 pp), discordant 8/8, p = 1, Holm p = 1</title></circle>
+<circle cx="307.8" cy="457.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B GSM8K calibrated_1p0x: 59.0% -&gt; 58.0% (-1.0 pp), discordant 11/10, p = 1, Holm p = 1</title></circle>
+<rect x="210.0" y="470.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="314.4" cy="482.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Qwen-14B GSM8K random_1p0x: 50.0% -&gt; 52.0% (+2.0 pp), discordant 10/12, p = 0.832, Holm p = 1</title></circle>
+<circle cx="301.2" cy="482.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B GSM8K calibrated_1p0x: 50.0% -&gt; 46.0% (-4.0 pp), discordant 14/10, p = 0.541, Holm p = 1</title></circle>
+<circle cx="316.6" cy="507.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-32B GSM8K random_1p0x: 53.0% -&gt; 56.0% (+3.0 pp), discordant 6/9, p = 0.607, Holm p = 1</title></circle>
+<circle cx="314.4" cy="507.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B GSM8K calibrated_1p0x: 53.0% -&gt; 55.0% (+2.0 pp), discordant 8/10, p = 0.815, Holm p = 1</title></circle>
+<line x1="216.0" y1="524.5" x2="404.0" y2="524.5" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="304.4" y1="543.0" x2="312.2" y2="543.0" stroke="#d95926" stroke-width="2"/>
+<path d="M308.3,538.0 L313.3,543.0 L308.3,548.0 L303.3,543.0 z" fill="#d95926" stroke="#1c1b1a" stroke-width="1.2"><title>pooled random_1p0x GSM8K: -0.79 pp, 95% CI -2.56 to +0.99, exact p = 0.431</title></path>
+<line x1="303.6" y1="533.0" x2="312.3" y2="533.0" stroke="#3987e5" stroke-width="2"/>
+<path d="M308.0,528.0 L313.0,533.0 L308.0,538.0 L303.0,533.0 z" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>pooled calibrated_1p0x GSM8K: -0.93 pp, 95% CI -2.89 to +1.04, exact p = 0.393</title></path>
+<rect x="424.0" y="128.0" width="204.0" height="452.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="526.0" y="148.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">MATH-500</text>
+<text x="526.0" y="163.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">accuracy, n = 100 per model</text>
+<line x1="438.0" y1="172.0" x2="438.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="438.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-40</text>
+<line x1="482.0" y1="172.0" x2="482.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="482.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-20</text>
+<line x1="526.0" y1="172.0" x2="526.0" y2="549.0" stroke="#78716c" stroke-width="1.2"/>
+<text x="526.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="570.0" y1="172.0" x2="570.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="570.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+20</text>
+<line x1="614.0" y1="172.0" x2="614.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="614.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+40</text>
+<rect x="426.0" y="170.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="510.6" cy="182.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-0.8B MATH-500 random_1p0x: 30.0% -&gt; 23.0% (-7.0 pp), discordant 11/4, p = 0.118, Holm p = 1</title></circle>
+<circle cx="517.2" cy="182.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B MATH-500 calibrated_1p0x: 30.0% -&gt; 26.0% (-4.0 pp), discordant 8/4, p = 0.388, Holm p = 1</title></circle>
+<circle cx="521.6" cy="207.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>SmolLM2-1.7B MATH-500 random_1p0x: 25.0% -&gt; 23.0% (-2.0 pp), discordant 5/3, p = 0.727, Holm p = 1</title></circle>
+<circle cx="528.2" cy="207.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B MATH-500 calibrated_1p0x: 25.0% -&gt; 26.0% (+1.0 pp), discordant 2/3, p = 1, Holm p = 1</title></circle>
+<rect x="426.0" y="220.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="526.0" cy="232.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-4B MATH-500 random_1p0x: 20.0% -&gt; 20.0% (+0.0 pp), discordant 5/5, p = 1, Holm p = 1</title></circle>
+<circle cx="508.4" cy="232.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B MATH-500 calibrated_1p0x: 20.0% -&gt; 12.0% (-8.0 pp), discordant 9/1, p = 0.0215, Holm p = 1</title></circle>
+<circle cx="512.8" cy="257.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Mistral-7B-v0.3 MATH-500 random_1p0x: 13.0% -&gt; 7.0% (-6.0 pp), discordant 9/3, p = 0.146, Holm p = 1</title></circle>
+<circle cx="532.6" cy="257.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 MATH-500 calibrated_1p0x: 13.0% -&gt; 16.0% (+3.0 pp), discordant 7/10, p = 0.629, Holm p = 1</title></circle>
+<rect x="426.0" y="270.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="523.8" cy="282.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen2.5-7B MATH-500 random_1p0x: 59.0% -&gt; 58.0% (-1.0 pp), discordant 1/0, p = 1, Holm p = 1</title></circle>
+<circle cx="528.2" cy="282.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B MATH-500 calibrated_1p0x: 59.0% -&gt; 60.0% (+1.0 pp), discordant 2/3, p = 1, Holm p = 1</title></circle>
+<circle cx="519.4" cy="307.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Llama-3.1-8B MATH-500 random_1p0x: 44.0% -&gt; 41.0% (-3.0 pp), discordant 7/4, p = 0.549, Holm p = 1</title></circle>
+<circle cx="512.8" cy="307.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B MATH-500 calibrated_1p0x: 44.0% -&gt; 38.0% (-6.0 pp), discordant 12/6, p = 0.238, Holm p = 1</title></circle>
+<rect x="426.0" y="320.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="528.2" cy="332.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Llama-8B MATH-500 random_1p0x: 41.0% -&gt; 42.0% (+1.0 pp), discordant 3/4, p = 1, Holm p = 1</title></circle>
+<circle cx="530.4" cy="332.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B MATH-500 calibrated_1p0x: 41.0% -&gt; 43.0% (+2.0 pp), discordant 5/7, p = 0.774, Holm p = 1</title></circle>
+<circle cx="530.4" cy="357.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-8B MATH-500 random_1p0x: 31.0% -&gt; 33.0% (+2.0 pp), discordant 7/9, p = 0.804, Holm p = 1</title></circle>
+<circle cx="530.4" cy="357.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B MATH-500 calibrated_1p0x: 31.0% -&gt; 33.0% (+2.0 pp), discordant 11/13, p = 0.839, Holm p = 1</title></circle>
+<rect x="426.0" y="370.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="506.2" cy="382.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Gemma-2-9B MATH-500 random_1p0x: 48.0% -&gt; 39.0% (-9.0 pp), discordant 16/7, p = 0.0931, Holm p = 1</title></circle>
+<circle cx="499.6" cy="382.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B MATH-500 calibrated_1p0x: 48.0% -&gt; 36.0% (-12.0 pp), discordant 15/3, p = 0.00754, Holm p = 0.528</title></circle>
+<circle cx="534.8" cy="407.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>OLMo-2-13B MATH-500 random_1p0x: 33.0% -&gt; 37.0% (+4.0 pp), discordant 1/5, p = 0.219, Holm p = 1</title></circle>
+<circle cx="534.8" cy="407.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B MATH-500 calibrated_1p0x: 33.0% -&gt; 37.0% (+4.0 pp), discordant 1/5, p = 0.219, Holm p = 1</title></circle>
+<rect x="426.0" y="420.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="530.4" cy="432.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Phi-4 MATH-500 random_1p0x: 65.0% -&gt; 67.0% (+2.0 pp), discordant 2/4, p = 0.688, Holm p = 1</title></circle>
+<circle cx="526.0" cy="432.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 MATH-500 calibrated_1p0x: 65.0% -&gt; 65.0% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="526.0" cy="457.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-14B MATH-500 random_1p0x: 36.0% -&gt; 36.0% (+0.0 pp), discordant 9/9, p = 1, Holm p = 1</title></circle>
+<circle cx="534.8" cy="457.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B MATH-500 calibrated_1p0x: 36.0% -&gt; 40.0% (+4.0 pp), discordant 6/10, p = 0.454, Holm p = 1</title></circle>
+<rect x="426.0" y="470.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="523.8" cy="482.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Qwen-14B MATH-500 random_1p0x: 40.0% -&gt; 39.0% (-1.0 pp), discordant 4/3, p = 1, Holm p = 1</title></circle>
+<circle cx="523.8" cy="482.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B MATH-500 calibrated_1p0x: 40.0% -&gt; 39.0% (-1.0 pp), discordant 6/5, p = 1, Holm p = 1</title></circle>
+<circle cx="526.0" cy="507.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-32B MATH-500 random_1p0x: 31.0% -&gt; 31.0% (+0.0 pp), discordant 14/14, p = 1, Holm p = 1</title></circle>
+<circle cx="541.4" cy="507.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B MATH-500 calibrated_1p0x: 31.0% -&gt; 38.0% (+7.0 pp), discordant 7/14, p = 0.189, Holm p = 1</title></circle>
+<line x1="432.0" y1="524.5" x2="620.0" y2="524.5" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="518.9" y1="543.0" x2="526.8" y2="543.0" stroke="#d95926" stroke-width="2"/>
+<path d="M522.9,538.0 L527.9,543.0 L522.9,548.0 L517.9,543.0 z" fill="#d95926" stroke="#1c1b1a" stroke-width="1.2"><title>pooled random_1p0x MATH-500: -1.43 pp, 95% CI -3.24 to +0.38, exact p = 0.142</title></path>
+<line x1="520.8" y1="533.0" x2="529.0" y2="533.0" stroke="#3987e5" stroke-width="2"/>
+<path d="M524.9,528.0 L529.9,533.0 L524.9,538.0 L519.9,533.0 z" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>pooled calibrated_1p0x MATH-500: -0.50 pp, 95% CI -2.36 to +1.36, exact p = 0.652</title></path>
+<rect x="640.0" y="128.0" width="204.0" height="452.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="742.0" y="148.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">MMLU-Pro</text>
+<text x="742.0" y="163.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">accuracy, n = 100 per model</text>
+<line x1="654.0" y1="172.0" x2="654.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="654.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-40</text>
+<line x1="698.0" y1="172.0" x2="698.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="698.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-20</text>
+<line x1="742.0" y1="172.0" x2="742.0" y2="549.0" stroke="#78716c" stroke-width="1.2"/>
+<text x="742.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="786.0" y1="172.0" x2="786.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="786.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+20</text>
+<line x1="830.0" y1="172.0" x2="830.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="830.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+40</text>
+<rect x="642.0" y="170.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="731.0" cy="182.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-0.8B MMLU-Pro random_1p0x: 22.0% -&gt; 17.0% (-5.0 pp), discordant 11/6, p = 0.332, Holm p = 1</title></circle>
+<circle cx="737.6" cy="182.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B MMLU-Pro calibrated_1p0x: 22.0% -&gt; 20.0% (-2.0 pp), discordant 9/7, p = 0.804, Holm p = 1</title></circle>
+<circle cx="742.0" cy="207.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>SmolLM2-1.7B MMLU-Pro random_1p0x: 4.0% -&gt; 4.0% (+0.0 pp), discordant 0/0, p = 1, Holm p = 1</title></circle>
+<circle cx="744.2" cy="207.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B MMLU-Pro calibrated_1p0x: 4.0% -&gt; 5.0% (+1.0 pp), discordant 0/1, p = 1, Holm p = 1</title></circle>
+<rect x="642.0" y="220.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="739.8" cy="232.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-4B MMLU-Pro random_1p0x: 4.0% -&gt; 3.0% (-1.0 pp), discordant 2/1, p = 1, Holm p = 1</title></circle>
+<circle cx="742.0" cy="232.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B MMLU-Pro calibrated_1p0x: 4.0% -&gt; 4.0% (+0.0 pp), discordant 2/2, p = 1, Holm p = 1</title></circle>
+<circle cx="748.6" cy="257.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Mistral-7B-v0.3 MMLU-Pro random_1p0x: 25.0% -&gt; 28.0% (+3.0 pp), discordant 8/11, p = 0.648, Holm p = 1</title></circle>
+<circle cx="742.0" cy="257.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 MMLU-Pro calibrated_1p0x: 25.0% -&gt; 25.0% (+0.0 pp), discordant 10/10, p = 1, Holm p = 1</title></circle>
+<rect x="642.0" y="270.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="737.6" cy="282.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen2.5-7B MMLU-Pro random_1p0x: 56.0% -&gt; 54.0% (-2.0 pp), discordant 7/5, p = 0.774, Holm p = 1</title></circle>
+<circle cx="746.4" cy="282.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B MMLU-Pro calibrated_1p0x: 56.0% -&gt; 58.0% (+2.0 pp), discordant 4/6, p = 0.754, Holm p = 1</title></circle>
+<circle cx="748.6" cy="307.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Llama-3.1-8B MMLU-Pro random_1p0x: 48.0% -&gt; 51.0% (+3.0 pp), discordant 2/5, p = 0.453, Holm p = 1</title></circle>
+<circle cx="737.6" cy="307.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B MMLU-Pro calibrated_1p0x: 48.0% -&gt; 46.0% (-2.0 pp), discordant 5/3, p = 0.727, Holm p = 1</title></circle>
+<rect x="642.0" y="320.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="735.4" cy="332.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Llama-8B MMLU-Pro random_1p0x: 7.0% -&gt; 4.0% (-3.0 pp), discordant 4/1, p = 0.375, Holm p = 1</title></circle>
+<circle cx="733.2" cy="332.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B MMLU-Pro calibrated_1p0x: 7.0% -&gt; 3.0% (-4.0 pp), discordant 5/1, p = 0.219, Holm p = 1</title></circle>
+<circle cx="742.0" cy="357.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-8B MMLU-Pro random_1p0x: 9.0% -&gt; 9.0% (+0.0 pp), discordant 2/2, p = 1, Holm p = 1</title></circle>
+<circle cx="742.0" cy="357.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B MMLU-Pro calibrated_1p0x: 9.0% -&gt; 9.0% (+0.0 pp), discordant 3/3, p = 1, Holm p = 1</title></circle>
+<rect x="642.0" y="370.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="735.4" cy="382.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Gemma-2-9B MMLU-Pro random_1p0x: 55.0% -&gt; 52.0% (-3.0 pp), discordant 11/8, p = 0.648, Holm p = 1</title></circle>
+<circle cx="720.0" cy="382.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B MMLU-Pro calibrated_1p0x: 55.0% -&gt; 45.0% (-10.0 pp), discordant 14/4, p = 0.0309, Holm p = 1</title></circle>
+<circle cx="739.8" cy="407.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>OLMo-2-13B MMLU-Pro random_1p0x: 32.0% -&gt; 31.0% (-1.0 pp), discordant 3/2, p = 1, Holm p = 1</title></circle>
+<circle cx="733.2" cy="407.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B MMLU-Pro calibrated_1p0x: 32.0% -&gt; 28.0% (-4.0 pp), discordant 5/1, p = 0.219, Holm p = 1</title></circle>
+<rect x="642.0" y="420.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="737.6" cy="432.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Phi-4 MMLU-Pro random_1p0x: 68.0% -&gt; 66.0% (-2.0 pp), discordant 3/1, p = 0.625, Holm p = 1</title></circle>
+<circle cx="739.8" cy="432.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 MMLU-Pro calibrated_1p0x: 68.0% -&gt; 67.0% (-1.0 pp), discordant 3/2, p = 1, Holm p = 1</title></circle>
+<circle cx="744.2" cy="457.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-14B MMLU-Pro random_1p0x: 15.0% -&gt; 16.0% (+1.0 pp), discordant 1/2, p = 1, Holm p = 1</title></circle>
+<circle cx="731.0" cy="457.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B MMLU-Pro calibrated_1p0x: 15.0% -&gt; 10.0% (-5.0 pp), discordant 7/2, p = 0.18, Holm p = 1</title></circle>
+<rect x="642.0" y="470.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="735.4" cy="482.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Qwen-14B MMLU-Pro random_1p0x: 6.0% -&gt; 3.0% (-3.0 pp), discordant 3/0, p = 0.25, Holm p = 1</title></circle>
+<circle cx="735.4" cy="482.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B MMLU-Pro calibrated_1p0x: 6.0% -&gt; 3.0% (-3.0 pp), discordant 3/0, p = 0.25, Holm p = 1</title></circle>
+<circle cx="755.2" cy="507.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-32B MMLU-Pro random_1p0x: 7.0% -&gt; 13.0% (+6.0 pp), discordant 3/9, p = 0.146, Holm p = 1</title></circle>
+<circle cx="742.0" cy="507.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B MMLU-Pro calibrated_1p0x: 7.0% -&gt; 7.0% (+0.0 pp), discordant 3/3, p = 1, Holm p = 1</title></circle>
+<line x1="648.0" y1="524.5" x2="836.0" y2="524.5" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="737.6" y1="543.0" x2="744.2" y2="543.0" stroke="#d95926" stroke-width="2"/>
+<path d="M740.9,538.0 L745.9,543.0 L740.9,548.0 L735.9,543.0 z" fill="#d95926" stroke="#1c1b1a" stroke-width="1.2"><title>pooled random_1p0x MMLU-Pro: -0.50 pp, 95% CI -1.99 to +0.99, exact p = 0.573</title></path>
+<line x1="734.3" y1="533.0" x2="740.9" y2="533.0" stroke="#3987e5" stroke-width="2"/>
+<path d="M737.6,528.0 L742.6,533.0 L737.6,538.0 L732.6,533.0 z" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>pooled calibrated_1p0x MMLU-Pro: -2.00 pp, 95% CI -3.52 to -0.48, exact p = 0.0126</title></path>
+<rect x="856.0" y="128.0" width="204.0" height="452.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="958.0" y="148.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">HumanEval</text>
+<text x="958.0" y="163.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">pass@1, n = 64 per model</text>
+<line x1="870.0" y1="172.0" x2="870.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="870.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-40</text>
+<line x1="914.0" y1="172.0" x2="914.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="914.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-20</text>
+<line x1="958.0" y1="172.0" x2="958.0" y2="549.0" stroke="#78716c" stroke-width="1.2"/>
+<text x="958.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="1002.0" y1="172.0" x2="1002.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1002.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+20</text>
+<line x1="1046.0" y1="172.0" x2="1046.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1046.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+40</text>
+<rect x="858.0" y="170.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="944.2" cy="182.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-0.8B HumanEval random_1p0x: 7.8% -&gt; 1.6% (-6.2 pp), discordant 5/1, p = 0.219, Holm p = 1</title></circle>
+<circle cx="958.0" cy="182.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B HumanEval calibrated_1p0x: 7.8% -&gt; 7.8% (+0.0 pp), discordant 5/5, p = 1, Holm p = 1</title></circle>
+<circle cx="958.0" cy="207.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>SmolLM2-1.7B HumanEval random_1p0x: 10.9% -&gt; 10.9% (+0.0 pp), discordant 3/3, p = 1, Holm p = 1</title></circle>
+<circle cx="954.6" cy="207.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B HumanEval calibrated_1p0x: 10.9% -&gt; 9.4% (-1.6 pp), discordant 2/1, p = 1, Holm p = 1</title></circle>
+<rect x="858.0" y="220.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="951.1" cy="232.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-4B HumanEval random_1p0x: 32.8% -&gt; 29.7% (-3.1 pp), discordant 4/2, p = 0.688, Holm p = 1</title></circle>
+<circle cx="954.6" cy="232.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B HumanEval calibrated_1p0x: 32.8% -&gt; 31.2% (-1.6 pp), discordant 2/1, p = 1, Holm p = 1</title></circle>
+<circle cx="951.1" cy="257.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Mistral-7B-v0.3 HumanEval random_1p0x: 3.1% -&gt; 0.0% (-3.1 pp), discordant 2/0, p = 0.5, Holm p = 1</title></circle>
+<circle cx="951.1" cy="257.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 HumanEval calibrated_1p0x: 3.1% -&gt; 0.0% (-3.1 pp), discordant 2/0, p = 0.5, Holm p = 1</title></circle>
+<rect x="858.0" y="270.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="954.6" cy="282.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen2.5-7B HumanEval random_1p0x: 14.1% -&gt; 12.5% (-1.6 pp), discordant 4/3, p = 1, Holm p = 1</title></circle>
+<circle cx="964.9" cy="282.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B HumanEval calibrated_1p0x: 14.1% -&gt; 17.2% (+3.1 pp), discordant 4/6, p = 0.754, Holm p = 1</title></circle>
+<circle cx="961.4" cy="307.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Llama-3.1-8B HumanEval random_1p0x: 34.4% -&gt; 35.9% (+1.6 pp), discordant 6/7, p = 1, Holm p = 1</title></circle>
+<circle cx="944.2" cy="307.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B HumanEval calibrated_1p0x: 34.4% -&gt; 28.1% (-6.2 pp), discordant 8/4, p = 0.388, Holm p = 1</title></circle>
+<rect x="858.0" y="320.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="961.4" cy="332.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Llama-8B HumanEval random_1p0x: 9.4% -&gt; 10.9% (+1.6 pp), discordant 4/5, p = 1, Holm p = 1</title></circle>
+<circle cx="961.4" cy="332.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B HumanEval calibrated_1p0x: 9.4% -&gt; 10.9% (+1.6 pp), discordant 4/5, p = 1, Holm p = 1</title></circle>
+<circle cx="951.1" cy="357.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-8B HumanEval random_1p0x: 39.1% -&gt; 35.9% (-3.1 pp), discordant 2/0, p = 0.5, Holm p = 1</title></circle>
+<circle cx="944.2" cy="357.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B HumanEval calibrated_1p0x: 39.1% -&gt; 32.8% (-6.2 pp), discordant 5/1, p = 0.219, Holm p = 1</title></circle>
+<rect x="858.0" y="370.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1030.2" cy="382.0" r="8.5" fill="none" stroke="#fafaf9" stroke-width="1.6"/>
+<circle cx="1030.2" cy="382.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Gemma-2-9B HumanEval random_1p0x: 42.2% -&gt; 75.0% (+32.8 pp), discordant 1/22, p = 5.72e-06, Holm p = 0.000401</title></circle>
+<circle cx="999.2" cy="382.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B HumanEval calibrated_1p0x: 42.2% -&gt; 60.9% (+18.8 pp), discordant 6/18, p = 0.0227, Holm p = 1</title></circle>
+<circle cx="951.1" cy="407.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>OLMo-2-13B HumanEval random_1p0x: 12.5% -&gt; 9.4% (-3.1 pp), discordant 2/0, p = 0.5, Holm p = 1</title></circle>
+<circle cx="958.0" cy="407.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B HumanEval calibrated_1p0x: 12.5% -&gt; 12.5% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<rect x="858.0" y="420.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="958.0" cy="432.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Phi-4 HumanEval random_1p0x: 6.2% -&gt; 6.2% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="968.3" cy="432.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 HumanEval calibrated_1p0x: 6.2% -&gt; 10.9% (+4.7 pp), discordant 1/4, p = 0.375, Holm p = 1</title></circle>
+<circle cx="947.7" cy="457.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-14B HumanEval random_1p0x: 20.3% -&gt; 15.6% (-4.7 pp), discordant 4/1, p = 0.375, Holm p = 1</title></circle>
+<circle cx="944.2" cy="457.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B HumanEval calibrated_1p0x: 20.3% -&gt; 14.1% (-6.2 pp), discordant 5/1, p = 0.219, Holm p = 1</title></circle>
+<rect x="858.0" y="470.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="937.4" cy="482.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Qwen-14B HumanEval random_1p0x: 40.6% -&gt; 31.2% (-9.4 pp), discordant 7/1, p = 0.0703, Holm p = 1</title></circle>
+<circle cx="961.4" cy="482.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B HumanEval calibrated_1p0x: 40.6% -&gt; 42.2% (+1.6 pp), discordant 4/5, p = 1, Holm p = 1</title></circle>
+<circle cx="968.3" cy="507.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-32B HumanEval random_1p0x: 21.9% -&gt; 26.6% (+4.7 pp), discordant 4/7, p = 0.549, Holm p = 1</title></circle>
+<circle cx="964.9" cy="507.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B HumanEval calibrated_1p0x: 21.9% -&gt; 25.0% (+3.1 pp), discordant 4/6, p = 0.754, Holm p = 1</title></circle>
+<line x1="864.0" y1="524.5" x2="1052.0" y2="524.5" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="954.1" y1="543.0" x2="963.8" y2="543.0" stroke="#d95926" stroke-width="2"/>
+<path d="M959.0,538.0 L964.0,543.0 L959.0,548.0 L954.0,543.0 z" fill="#d95926" stroke="#1c1b1a" stroke-width="1.2"><title>pooled random_1p0x HumanEval: +0.45 pp, 95% CI -1.76 to +2.66, exact p = 0.767</title></path>
+<line x1="954.2" y1="533.0" x2="964.3" y2="533.0" stroke="#3987e5" stroke-width="2"/>
+<path d="M959.2,528.0 L964.2,533.0 L959.2,538.0 L954.2,533.0 z" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>pooled calibrated_1p0x HumanEval: +0.56 pp, 95% CI -1.75 to +2.86, exact p = 0.704</title></path>
+<rect x="1072.0" y="128.0" width="204.0" height="452.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1174.0" y="148.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">ASan-30</text>
+<text x="1174.0" y="163.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">root cause, n = 30 per model</text>
+<line x1="1086.0" y1="172.0" x2="1086.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1086.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-40</text>
+<line x1="1130.0" y1="172.0" x2="1130.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1130.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">-20</text>
+<line x1="1174.0" y1="172.0" x2="1174.0" y2="549.0" stroke="#78716c" stroke-width="1.2"/>
+<text x="1174.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="1218.0" y1="172.0" x2="1218.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1218.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+20</text>
+<line x1="1262.0" y1="172.0" x2="1262.0" y2="549.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1262.0" y="565.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">+40</text>
+<rect x="1074.0" y="170.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1225.3" cy="182.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-0.8B ASan-30 random_1p0x: 16.7% -&gt; 40.0% (+23.3 pp), discordant 1/8, p = 0.0391, Holm p = 1</title></circle>
+<circle cx="1188.7" cy="182.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B ASan-30 calibrated_1p0x: 16.7% -&gt; 23.3% (+6.7 pp), discordant 3/5, p = 0.727, Holm p = 1</title></circle>
+<circle cx="1181.3" cy="207.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>SmolLM2-1.7B ASan-30 random_1p0x: 16.7% -&gt; 20.0% (+3.3 pp), discordant 0/1, p = 1, Holm p = 1</title></circle>
+<circle cx="1181.3" cy="207.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B ASan-30 calibrated_1p0x: 16.7% -&gt; 20.0% (+3.3 pp), discordant 0/1, p = 1, Holm p = 1</title></circle>
+<rect x="1074.0" y="220.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1174.0" cy="232.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3.5-4B ASan-30 random_1p0x: 20.0% -&gt; 20.0% (+0.0 pp), discordant 0/0, p = 1, Holm p = 1</title></circle>
+<circle cx="1166.7" cy="232.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B ASan-30 calibrated_1p0x: 20.0% -&gt; 16.7% (-3.3 pp), discordant 1/0, p = 1, Holm p = 1</title></circle>
+<circle cx="1159.3" cy="257.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Mistral-7B-v0.3 ASan-30 random_1p0x: 40.0% -&gt; 33.3% (-6.7 pp), discordant 3/1, p = 0.625, Holm p = 1</title></circle>
+<circle cx="1196.0" cy="257.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 ASan-30 calibrated_1p0x: 40.0% -&gt; 50.0% (+10.0 pp), discordant 0/3, p = 0.25, Holm p = 1</title></circle>
+<rect x="1074.0" y="270.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1181.3" cy="282.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen2.5-7B ASan-30 random_1p0x: 56.7% -&gt; 60.0% (+3.3 pp), discordant 1/2, p = 1, Holm p = 1</title></circle>
+<circle cx="1166.7" cy="282.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B ASan-30 calibrated_1p0x: 56.7% -&gt; 53.3% (-3.3 pp), discordant 1/0, p = 1, Holm p = 1</title></circle>
+<circle cx="1181.3" cy="307.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Llama-3.1-8B ASan-30 random_1p0x: 56.7% -&gt; 60.0% (+3.3 pp), discordant 1/2, p = 1, Holm p = 1</title></circle>
+<circle cx="1203.3" cy="307.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B ASan-30 calibrated_1p0x: 56.7% -&gt; 70.0% (+13.3 pp), discordant 0/4, p = 0.125, Holm p = 1</title></circle>
+<rect x="1074.0" y="320.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1159.3" cy="332.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Llama-8B ASan-30 random_1p0x: 60.0% -&gt; 53.3% (-6.7 pp), discordant 4/2, p = 0.688, Holm p = 1</title></circle>
+<circle cx="1188.7" cy="332.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B ASan-30 calibrated_1p0x: 60.0% -&gt; 66.7% (+6.7 pp), discordant 1/3, p = 0.625, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="357.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-8B ASan-30 random_1p0x: 56.7% -&gt; 56.7% (+0.0 pp), discordant 2/2, p = 1, Holm p = 1</title></circle>
+<circle cx="1166.7" cy="357.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B ASan-30 calibrated_1p0x: 56.7% -&gt; 53.3% (-3.3 pp), discordant 2/1, p = 1, Holm p = 1</title></circle>
+<rect x="1074.0" y="370.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1174.0" cy="382.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Gemma-2-9B ASan-30 random_1p0x: 43.3% -&gt; 43.3% (+0.0 pp), discordant 4/4, p = 1, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="382.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B ASan-30 calibrated_1p0x: 43.3% -&gt; 43.3% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="1159.3" cy="407.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>OLMo-2-13B ASan-30 random_1p0x: 73.3% -&gt; 66.7% (-6.7 pp), discordant 2/0, p = 0.5, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="407.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B ASan-30 calibrated_1p0x: 73.3% -&gt; 73.3% (+0.0 pp), discordant 0/0, p = 1, Holm p = 1</title></circle>
+<rect x="1074.0" y="420.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1174.0" cy="432.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Phi-4 ASan-30 random_1p0x: 76.7% -&gt; 76.7% (+0.0 pp), discordant 0/0, p = 1, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="432.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 ASan-30 calibrated_1p0x: 76.7% -&gt; 76.7% (+0.0 pp), discordant 0/0, p = 1, Holm p = 1</title></circle>
+<circle cx="1159.3" cy="457.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-14B ASan-30 random_1p0x: 50.0% -&gt; 43.3% (-6.7 pp), discordant 4/2, p = 0.688, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="457.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B ASan-30 calibrated_1p0x: 50.0% -&gt; 50.0% (+0.0 pp), discordant 3/3, p = 1, Holm p = 1</title></circle>
+<rect x="1074.0" y="470.5" width="200.0" height="23.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<circle cx="1166.7" cy="482.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>R1-Qwen-14B ASan-30 random_1p0x: 53.3% -&gt; 50.0% (-3.3 pp), discordant 1/0, p = 1, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="482.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B ASan-30 calibrated_1p0x: 53.3% -&gt; 53.3% (+0.0 pp), discordant 1/1, p = 1, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="507.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"><title>Qwen3-32B ASan-30 random_1p0x: 50.0% -&gt; 50.0% (+0.0 pp), discordant 3/3, p = 1, Holm p = 1</title></circle>
+<circle cx="1174.0" cy="507.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B ASan-30 calibrated_1p0x: 50.0% -&gt; 50.0% (+0.0 pp), discordant 2/2, p = 1, Holm p = 1</title></circle>
+<line x1="1080.0" y1="524.5" x2="1268.0" y2="524.5" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="1167.0" y1="543.0" x2="1182.0" y2="543.0" stroke="#d95926" stroke-width="2"/>
+<path d="M1174.5,538.0 L1179.5,543.0 L1174.5,548.0 L1169.5,543.0 z" fill="#d95926" stroke="#1c1b1a" stroke-width="1.2"><title>pooled random_1p0x ASan-30: +0.24 pp, 95% CI -3.16 to +3.64, exact p = 1</title></path>
+<line x1="1172.3" y1="533.0" x2="1185.1" y2="533.0" stroke="#3987e5" stroke-width="2"/>
+<path d="M1178.7,528.0 L1183.7,533.0 L1178.7,538.0 L1173.7,533.0 z" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>pooled calibrated_1p0x ASan-30: +2.14 pp, 95% CI -0.76 to +5.05, exact p = 0.2</title></path>
+<text x="196.0" y="186.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3.5-0.8B</text>
+<text x="40.0" y="186.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0.8B</text>
+<text x="196.0" y="211.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">SmolLM2-1.7B</text>
+<text x="40.0" y="211.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1.7B</text>
+<text x="196.0" y="236.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3.5-4B</text>
+<text x="40.0" y="236.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">4.0B</text>
+<text x="196.0" y="261.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Mistral-7B-v0.3</text>
+<text x="40.0" y="261.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">7.2B</text>
+<text x="196.0" y="286.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen2.5-7B</text>
+<text x="40.0" y="286.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">7.6B</text>
+<text x="196.0" y="311.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Llama-3.1-8B</text>
+<text x="40.0" y="311.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">8.0B</text>
+<text x="196.0" y="336.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">R1-Llama-8B</text>
+<text x="40.0" y="336.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">8.0B</text>
+<text x="196.0" y="361.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3-8B</text>
+<text x="40.0" y="361.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">8.2B</text>
+<text x="196.0" y="386.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Gemma-2-9B</text>
+<text x="40.0" y="386.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">9.2B</text>
+<text x="196.0" y="411.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">OLMo-2-13B</text>
+<text x="40.0" y="411.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">13.7B</text>
+<text x="196.0" y="436.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Phi-4</text>
+<text x="40.0" y="436.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">14.7B</text>
+<text x="196.0" y="461.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3-14B</text>
+<text x="40.0" y="461.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">14.8B</text>
+<text x="196.0" y="486.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">R1-Qwen-14B</text>
+<text x="40.0" y="486.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">14.8B</text>
+<text x="196.0" y="511.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3-32B</text>
+<text x="40.0" y="511.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">32.8B</text>
+<text x="196.0" y="542.0" fill="#fafaf9" font-size="12" font-weight="700" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Pooled, 95% CI</text>
+<text x="742.0" y="583.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Change from base (percentage points)</text>
+<circle cx="48.0" cy="642.0" r="5" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.5"/>
+<text x="60.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Calibrated 1.0x (B2 + B3)</text>
+<circle cx="250.0" cy="642.0" r="4.6" fill="#1c1b1a" stroke="#d95926" stroke-width="2.2"/>
+<text x="262.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Norm-matched random 1.0x</text>
+<circle cx="462.0" cy="642.0" r="8.5" fill="none" stroke="#fafaf9" stroke-width="1.6"/>
+<text x="476.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Holm-adjusted p &lt; 0.05</text>
+<path d="M650,637 L655,642 L650,647 L645,642 z" fill="#3987e5"/>
+<text x="662.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Pooled over 14 models (diamond, 95% CI)</text>
+<text x="32.0" y="672.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Holm-significant cells: calibrated 1.0x 0/70, calibrated 1.5x 1/70, random 1.0x 1/70, random 1.5x 2/70. Gemma-2-27B is HOLD in this receipt (gated repository, HTTP 401) and is not plotted.</text>
+<text x="32.0" y="692.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">First-N items of each official split, greedy decoding, one seed (20261105). ASan-30 is keyword-scored (class and culprit function both named). Source: public-benchmarks/irrefutable-receipt.json, sha256 9859ef3e...3132.</text>
+</svg>

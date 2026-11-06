@@ -8,10 +8,10 @@ Secant also offers **Project-Then-Heal**: a LoRA layer that keeps adapter update
 
 ```{figure} assets/secant-pipeline.svg
 :name: fig-secant-pipeline
-:alt: Secant workflow from inspecting weights through composing edits, patching files, and constraining LoRA updates
+:alt: Four-stage Secant diagram. Stage 1 shows control and target activation distributions and the per-layer SNR curve of SmolLM2-1.7B with its Borda winner L12. Stage 2 shows two-pass Gram-Schmidt orthogonalization and the sparse top-64 input-column support. Stage 3 shows Q8_0 32-weight blocks fitting 128-column panels exactly while a 256-weight Q4_K superblock is split. Stage 4 shows the ProjectThenHealLinear update staying in the plane orthogonal to D while an AdamW step drifts out of it.
 :width: 100%
 
-Inspect the checkpoint, prepare an edit, write and verify the changed weights, then constrain any later LoRA training.
+The four stages and the geometry behind each one. **1. Capture and rank:** the target prompts' projections separate from the control prompts' by `m / σ = 40.48` at `L12`, and `secant analyze` picks that layer by Borda rank over four activation streams. **2. Orthogonalize and size:** two `float64` Gram-Schmidt passes take the two directions from cosine `0.1236` to `1.12e-17`, and the `B3` edit touches only the 64 input columns where the reference activation is largest. **3. Patch stored blocks:** a 128-column panel holds exactly four `Q8_0` blocks, but cuts a `Q4_K` superblock in half. **4. Lock later training:** `ProjectThenHealLinear` keeps the adapter update in the plane perpendicular to `D`. AdamW's per-coordinate scaling tilts a gradient-masked update back out of that plane. Panels marked DATA are drawn from real files; panels marked SCHEMATIC are sketches whose labels quote measured values.
 ```
 
 ## What You Can Do
@@ -24,7 +24,7 @@ Inspect the checkpoint, prepare an edit, write and verify the changed weights, t
 
 ## See It Run
 
-This is a real terminal recording, not a drawing: `secant patch` edits two tensors in a copy of the 3.4 GB `SmolLM2-1.7B-Instruct` checkpoint, and the output hash matches the one recorded when the original experiment ran. The [quickstart](quickstart.md) shows all six steps, from `inspect` to `verify-patch`, with their tapes and text transcripts.
+This is a real terminal recording, not a drawing: `secant patch` edits two tensors in a copy of the 3.4 GB `SmolLM2-1.7B-Instruct` checkpoint, and the output hash matches the one recorded when the original experiment ran. The roughly 30 s spent copying and hashing is cut from the recording, and bash `time` prints the real elapsed time on screen. The [quickstart](quickstart.md) shows all six steps, from `inspect` to `verify-patch`, with their tapes and text transcripts.
 
 ```{figure} assets/secant-patch.gif
 :name: fig-index-vhs-patch
@@ -41,10 +41,27 @@ Different experiments answer different questions. The paper reports results acro
 | Experiment | Result | What it establishes |
 |---|---|---|
 | Reference-activation calibration, 15 models (`0.8B` to `32.8B`) | Maximum reported `float64` shift error about `7.99e-15` | The edit size matches the requested shift at the reference input. Behavioral benchmarks were `NOT_RUN` in this sweep. |
+| Public benchmarks after the edit, 14 models (`0.8B` to `32.8B`) | Calibrated `1.0x` edits: 0 of 70 model-by-benchmark cells change significantly (exact McNemar, Holm). Pooled shifts are `-2.0` to `+2.1` points | Retention on first-N items of GSM8K, MATH-500, MMLU-Pro, HumanEval, and a 30-trace crash-triage set. Equal-size random edits behave the same way, so this shows the edit does little harm. It does not show a benefit. |
 | Reasoning-loop test, `Qwen3.5-4B`, 30 crash traces | Completion within the token limit rose from `0/30` to `21/30`, then `30/30` at a higher loop-edit dose | A measured improvement on this prompt set. Completing an answer is separate from identifying the correct root cause (`19/30` at the higher dose). |
 | LoRA comparison, 15 models | Gradient-projected AdamW retained `0.33%` to `1.67%` relative leakage; Project-Then-Heal measured `1.78e-10` to `8.67e-10` | A local constraint on the adapter's weight update, measured with the same metric in all three arms. |
 | C/C++ root-cause benchmark, `Qwen2.5-Coder-32B-Instruct` | Correct cases rose from `2/30` to `12/30` (reported paired `p = 0.00195`) | Performance on the reported suite, not a count of new vulnerabilities discovered. |
 | Live fine-tuning, `Qwen3.5-0.8B` and `SmolLM2-1.7B` | Similar held-out perplexity to unconstrained LoRA, with lower local leakage | Evidence from two short runs. Both Qwen arms overfit the small training batch by step 60. |
+
+```{figure} assets/benchmark-retention-14models.svg
+:name: fig-index-benchmark-retention
+:alt: Small multiples of paired change from base for 14 models on GSM8K, MATH-500, MMLU-Pro, HumanEval and ASan-30, comparing calibrated edits with norm-matched random edits
+:width: 100%
+
+What a calibrated `B2 + B3` edit does to public benchmarks on 14 models. Each dot is a paired change from the same model's unedited score on the same items. Blue is the calibrated edit; orange is a random direction with the same columns and the same Frobenius norm. Almost every dot sits near zero, and blue and orange overlap. Pooled over all 14 models, each benchmark moves by about 2 points or less. The full method and every number are in the [paper, Section 4.4](#sec-paper-public-benchmarks).
+```
+
+```{figure} assets/h100-15model-leakage-log10.svg
+:name: fig-index-leakage-log10
+:alt: Log-scale relative leakage at step 60 for unconstrained LoRA, gradient-projected AdamW and ProjectThenHealLinear on 15 models, plus trajectories over 60 steps
+:width: 100%
+
+Leakage into the protected direction after 60 AdamW steps, on a log scale. Masking the gradient (yellow) still leaks `0.33%` to `1.67%`. `ProjectThenHealLinear` (green) stays between `1.78e-10` and `8.67e-10` on all 15 models, 6.5 million to 38 million times lower than the gradient-masked arm on the same model.
+```
 
 ```{figure} assets/qwen4b-phase-transition.svg
 :name: fig-qwen4b-phase-transition

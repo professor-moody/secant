@@ -26,6 +26,14 @@ Throughout the derivations, `D` stores protected directions as rows, `W` is a we
 
 ---
 
+```{figure} assets/secant-pipeline.svg
+:name: fig-paper-pipeline
+:alt: Four-stage Secant diagram showing contrastive activation distributions and a per-layer SNR curve, two-pass Gram-Schmidt and sparse column support, Q8_0 versus Q4_K block alignment under the 128-column panel permutation, and the ProjectThenHealLinear plane versus AdamW drift
+:width: 100%
+
+The paper's four parts in one picture. Stage 1 and the Stage 2 support strip are drawn from the `SmolLM2-1.7B` demo inputs and the real `secant analyze` and `secant compose` outputs. Stage 3 uses the exact `ggml` block layouts (34 bytes per 32 `Q8_0` weights, 144 bytes per 256 `Q4_K` weights). Stage 4 is a geometric sketch whose bars show the measured step-60 ranges from Section 4.3. Section 1 covers Stages 1 and 2, Section 2 covers Stage 3, and Section 3 covers Stage 4.
+```
+
 (multi-subspace-orthogonalization-target-shift-calibration)=
 ## 1. Choose Independent Directions and Size Each Edit
 
@@ -259,7 +267,7 @@ Across 15 full models on H100 (`0.8B` to `32.8B`, receipt `irrefutable-15models-
 - **Arm B:** Gradient-Projected LoRA ($g_t \leftarrow P_\perp g_t$ before `AdamW.step()`)
 - **Arm C:** `ProjectThenHealLinear` ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$)
 
-All 30 calibrated edits realize $\Delta_{\text{target}}$ at $h_{\text{ref}}$ to within `<= 7.99e-15` in `float64`. On the 3-arm healing test (measured by relative leakage $\|D \Delta W\|_{\mathrm{F}} / \|\Delta W\|_{\mathrm{F}}$ at step 60), Gradient-Projected AdamW (Arm B) leaks on **15 of 15 models (`0.33%` to `1.67%`)**, whereas `ProjectThenHealLinear` (Arm C) stays at the `float32` working-dtype floor (**`1.78e-10` to `8.67e-10`**, at least $3.8 \times 10^6\times$ lower than Arm B on every model):
+All 30 calibrated edits realize $\Delta_{\text{target}}$ at $h_{\text{ref}}$ to within `<= 7.99e-15` in `float64`. On the 3-arm healing test (measured by relative leakage $\|D \Delta W\|_{\mathrm{F}} / \|\Delta W\|_{\mathrm{F}}$ at step 60), Gradient-Projected AdamW (Arm B) leaks on **15 of 15 models (`0.33%` to `1.67%`)**, whereas `ProjectThenHealLinear` (Arm C) stays at the `float32` working-dtype floor (**`1.78e-10` to `8.67e-10`**; model by model, $6.5 \times 10^6$ to $3.8 \times 10^7$ times lower than Arm B):
 
 | Model | Size | `B2` / `B3` Layers | `B2` / `B3` $\beta$ | Max `float64` Shift Error | Arm A: Unconstrained | Arm B: Grad-Projected AdamW | Arm C: `ProjectThenHealLinear` |
 |---|---:|---|---:|---:|---:|---:|---:|
@@ -279,7 +287,57 @@ All 30 calibrated edits realize $\Delta_{\text{target}}$ at $h_{\text{ref}}$ to 
 | `Gemma-2-27B` | `27.2B` | `L14` / `L27` | `0.0845` / `0.0098` | `8.0e-15` | `1.98%` | `1.31%` | **`3.49e-10`** |
 | `Qwen3-32B` | `32.8B` | `L47` / `L25` | `0.0292` / `0.0738` | `3.6e-15` | `2.04%` | `0.75%` | **`3.07e-10`** |
 
-### 4.4 Root-Cause Identification, Math, and Code Scores
+```{figure} assets/h100-15model-leakage-log10.svg
+:name: fig-paper-leakage-log10
+:alt: Log-scale relative leakage at step 60 for unconstrained LoRA, gradient-projected AdamW and ProjectThenHealLinear on 15 models, with the B over C ratio per model, and trajectories over 60 AdamW steps
+:width: 100%
+
+The last three columns of the table, on a log scale. Left: step-60 relative leakage for each model, with the Arm B to Arm C ratio printed above each row. Right: all 15 trajectories over 60 AdamW steps, with the median drawn thick. Arms A and B jump to their plateau in the first 10 steps and stay there. Arm C stays near `1e-10` from step 0 to step 60.
+```
+
+(sec-paper-public-benchmarks)=
+### 4.4 Public Benchmarks After Calibrated Edits, 14 Models
+
+Section 4.3 checks the local arithmetic of each edit. This section asks a different question: what the same `B2 + B3` edits do to a model's answers on public benchmarks. The receipt is `public-benchmarks/irrefutable-receipt.json` (SHA-256 `9859ef3e0603318e09b0366e6dae6994b47f7d7cc4456cfff1fff7ddb2253132`, `status: PASS`, completed `2026-11-06T20:41:59Z`), with per-item rows in `predictions.jsonl` (SHA-256 `0c2d65e1...86fe`). It covers 14 of the 15 Stage-1 models. `Gemma-2-27B` is `HOLD` because its gated repository returned HTTP 401, so it has no benchmark row. The aligned edits (layers, column support $S$, $\beta$), model revisions, and seed (`20261105`) are those of Section 4.3, and the healing results in this receipt are identical to the Stage-1 receipt for all 14 shared models.
+
+Five variants of each model answer the same items: the unedited `base`; the calibrated edits at `1.0x` and `1.5x`; and two **norm-matched random** controls at `1.0x` and `1.5x`. A random control replaces each aligned direction $q$ with a random unit vector orthogonal to $q$, keeping the same $\beta$, the same input-column support $S$, and therefore the same $\lVert \Delta W\rVert_{\mathrm{F}}$. If a calibrated edit and its random control move a score by similar amounts, the movement comes from the size of the edit, not its direction.
+
+Each model answers the first 100 items of `GSM8K`, `MATH-500` and `MMLU-Pro`, the first 64 of `HumanEval`, and the 30 retained sanitizer traces (ASan-30). Decoding is greedy. ASan-30 counts a root cause as correct when the answer names both the bug class and the culprit function, matched by keyword. Every comparison is paired by item: an exact two-sided McNemar test on the discordant pairs, then a Holm correction across the 70 model-by-benchmark cells of each variant. The pooled rows add the discordant pairs over all 14 models. Their 95% intervals use the paired normal approximation, and they treat items from different models as independent, which they are not.
+
+```{figure} assets/benchmark-retention-14models.svg
+:name: fig-paper-benchmark-retention
+:alt: Small multiples of paired change from base for 14 models on GSM8K, MATH-500, MMLU-Pro, HumanEval and ASan-30, comparing calibrated 1.0x edits with norm-matched random 1.0x edits, with pooled diamonds and 95% intervals
+:width: 100%
+
+Paired change from base, in percentage points, for every model and benchmark. Blue dots are calibrated `1.0x`; orange rings are the norm-matched random `1.0x` control. A white halo marks a cell that survives Holm correction. Only one does at `1.0x`, and it is a random control: `Gemma-2-9B` `HumanEval`, `42.2%` to `75.0%`. The diamonds pool all 14 models.
+```
+
+| Benchmark (pooled over 14 models) | Paired items | Calibrated `1.0x`: change in pp (95% CI), exact p | Calibrated `1.5x` | Random `1.0x` | Random `1.5x` |
+|---|---:|---|---|---|---|
+| `GSM8K` | 1400 | `-0.9` (`-2.9` to `+1.0`), p = `0.39` | `-2.0` (`-4.1` to `+0.1`), p = `0.079` | `-0.8` (`-2.6` to `+1.0`), p = `0.43` | `-0.9` (`-3.0` to `+1.1`), p = `0.41` |
+| `MATH-500` | 1400 | `-0.5` (`-2.4` to `+1.4`), p = `0.65` | `-0.4` (`-2.2` to `+1.5`), p = `0.76` | `-1.4` (`-3.2` to `+0.4`), p = `0.14` | `-0.1` (`-2.0` to `+1.7`), p = `0.94` |
+| `MMLU-Pro` | 1400 | `-2.0` (`-3.5` to `-0.5`), p = `0.013` | `-2.4` (`-3.9` to `-1.0`), p = `0.0015` | `-0.5` (`-2.0` to `+1.0`), p = `0.57` | `-2.0` (`-3.6` to `-0.4`), p = `0.017` |
+| `HumanEval` pass@1 | 896 | `+0.6` (`-1.7` to `+2.9`), p = `0.70` | `+0.3` (`-2.0` to `+2.7`), p = `0.85` | `+0.4` (`-1.8` to `+2.7`), p = `0.77` | `+0.3` (`-1.8` to `+2.5`), p = `0.84` |
+| ASan-30 root cause | 420 | `+2.1` (`-0.8` to `+5.0`), p = `0.20` | `+1.2` (`-1.8` to `+4.2`), p = `0.53` | `+0.2` (`-3.2` to `+3.6`), p = `1.0` | `-2.9` (`-5.6` to `-0.1`), p = `0.065` |
+
+What this shows:
+
+- **Retention.** At `1.0x`, no calibrated cell changes significantly after Holm correction (`0/70`). Single cells range from `-12` to `+19` points, which is what 100-item and 64-item samples produce by chance. Pooled, each benchmark moves by `2.1` points or less.
+- **One pooled cost, MMLU-Pro.** Calibrated edits lower pooled `MMLU-Pro` by `2.0` points at `1.0x` and `2.4` at `1.5x`. Random `1.5x` lowers it by `2.0`, so edit size explains at least part of the cost. Under a Holm correction across all 20 pooled tests, only calibrated `1.5x` remains below `0.05` (`p = 0.031`).
+- **No measured uplift.** The ASan-30 root-cause gain at `1.0x` (`+2.1` points, `p = 0.20`) is not significant, and no root-cause cell survives Holm correction. These edits were sized to hit a reference shift, not tuned for this task. This receipt does not reproduce the root-cause gains reported in Sections 4.1 and 4.5 for other edit sets.
+- **Edit size matters more than direction on one model.** `Gemma-2-9B` carries the largest `B2` step in the sweep ($\beta = 3.72$). It accounts for every Holm-significant cell across the four variants: `GSM8K` falls `17` points at calibrated `1.5x` and `14` at random `1.5x`, and `HumanEval` rises `33` to `34` points under both random controls. The random controls move it as far as the calibrated edits do.
+
+```{figure} assets/asan30-audit-uplift.svg
+:name: fig-paper-asan30
+:alt: Per-model ASan-30 scores out of 30 for root cause, culprit frame and bug class, comparing base, calibrated 1.0x and norm-matched random 1.0x, with paired root-cause changes and exact p-values
+:width: 100%
+
+ASan-30 counts out of 30 for each model: base (gray ring), calibrated `1.0x` (blue), and random `1.0x` (orange). The right column lists the paired root-cause change and its unadjusted exact McNemar p. The largest single gains are `+4` (`Llama-3.1-8B`, `p = 0.12`) and `+3` (`Mistral-7B-v0.3`, `p = 0.25`).
+```
+
+> **Scope.** These are first-N items, not random samples, from one seed, decoded greedily, on a set of checkpoints weighted toward Qwen. The receipt's standalone `secant` CLI cross-check is `HOLD` for 7 of the 14 models; that check is separate from these benchmark results. Section 4.5's table comes from separate runs. For `Gemma-2-9B`, `Qwen2.5-7B` and `Qwen3-14B`, its numbers do not match this receipt, which uses 100 and 64 items per benchmark, so do not combine the two tables.
+
+### 4.5 Root-Cause Identification, Math, and Code Scores
 
 Here the measurement is answer quality, rather than a matrix property. “Correct cases” counts benchmark cases answered correctly, not newly discovered vulnerabilities. Changes in accuracy are percentage points (`pp`); rates and differences retain the reported rounding. A blank numerical result is marked `NOT_REPORTED`; the table cannot establish performance on that benchmark.
 
@@ -293,7 +351,7 @@ We evaluated whether calibrated rank-1 surgery improves downstream C/C++ vulnera
 | **`Qwen/Qwen2.5-7B-Instruct`** (`7.6B`) | NOT_REPORTED | `82.5%` $\to$ `81.5%` (`-1.0 pp`) | `51.0%` $\to$ **`54.0%` (`+3.0 pp`)** | `61.59%` $\to$ **`62.80%` (`+1.22 pp`)** |
 | **`Qwen/Qwen3-14B`** (`14.8B`) | NOT_REPORTED | `84.5%` $\to$ `84.5%` (`0.0 pp`) | `57.0%` $\to$ `56.0%` (`-1.0 pp`) | `46.95%` $\to$ **`49.39%` (`+2.44 pp`)** |
 
-### 4.5 Regime C: Train Toward a Direction the Adapter Must Avoid
+### 4.6 Regime C: Train Toward a Direction the Adapter Must Avoid
 
 This stress test deliberately asks the adapter to learn a change inside the protected subspace. A successful lock must leave that part of the task unfitted, so low leakage comes with a loss floor. The unconstrained and locked numbers below use different metrics and must not be read as a direct ratio.
 
@@ -303,7 +361,7 @@ In a separate adversarial stress test across 12 full models (`7.2B` to `32.8B`) 
 > - **Non-linear dose saturation at extreme shifts:** On 20 of 24 full-model edits in Regime C, raising the dose from $1.0\times$ to $1.5\times$ scaled the realized shift linearly (`1.49x` to `1.50x`). Four edits (`Phi-4` `B2`, `OLMo-2-13B` `B3`, `Gemma-2-9B` `B3`, `Gemma-2-27B` `B3`) showed sub-linear scaling (`1.04x` to `1.18x`) due to downstream RMSNorm normalization.
 > - **Outlier-dimension diagnostic (`Phi-4`):** In Regime C's uncalibrated capture on `Phi-4` (`L32`), peak $\mathrm{SNR}_{\text{proj}}$ reached `27,362.3` with $\mathrm{SNR}_{\text{trace}} = 60.4$, and the uncalibrated edit inverted sign (`-3.399`). Always pair $\mathrm{SNR}_{\text{proj}}$ with $\mathrm{SNR}_{\text{trace}}$ and verify the signed shift on held-out prompts (as done in Stage-1 L12 calibration, where `Phi-4` achieves `4.4e-15` shift error).
 
-> **Section 4 takeaway:** Each study supports its own claim. Calibration matched the requested shift on all 15 Stage-1 models. Project-Then-Heal kept local leakage at the `float32` floor on every model where gradient projection did not. The response benchmarks report measured changes on specific prompt sets, not general behavior.
+> **Section 4 takeaway:** Each study supports its own claim. Calibration matched the requested shift on all 15 Stage-1 models. Project-Then-Heal kept local leakage at the `float32` floor on every model where gradient projection did not. On 14 models, the calibrated `1.0x` edits left public-benchmark scores within about 2 pooled points of base, as equal-size random edits did, with a pooled `MMLU-Pro` cost of `2.0` points and no significant crash-triage gain. The response benchmarks report measured changes on specific prompt sets, not general behavior.
 
 ---
 

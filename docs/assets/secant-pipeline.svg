@@ -1,94 +1,451 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 310" width="100%" height="100%">
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b"/>
-    </marker>
-  </defs>
-
-  <!-- Clean Light Canvas -->
-  <rect width="1200" height="310" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
-
-  <!-- Top Header Bar -->
-  <rect x="0" y="0" width="1200" height="46" rx="10" fill="#0f172a"/>
-  <rect x="0" y="36" width="1200" height="10" fill="#0f172a"/>
-  <text x="28" y="29" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc" letter-spacing="0.6">SECANT WORKFLOW: INSPECT, PLAN, PATCH, AND CONSTRAIN ADAPTERS</text>
-  <text x="1172" y="29" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12" font-weight="600" fill="#94a3b8">Read / Edit / Verify</text>
-
-  <!-- Stage 1 -->
-  <g transform="translate(24, 66)">
-    <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-    <rect width="264" height="5" rx="2.5" fill="#2563eb"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#2563eb" letter-spacing="0.8">STAGE 01 · AUDIT &amp; CAPTURE</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Inspect and Measure</text>
-
-    <rect x="18" y="70" width="228" height="54" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#1e3a8a">Compare prompt groups</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#1d4ed8">Measure candidate directions</text>
-
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Read stored weight structure</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Rank layers on held-out data</text>
-
-    <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
-    <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#93c5fd">CLI + Python capture</text>
-  </g>
-
-  <line x1="292" y1="176" x2="312" y2="176" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
-
-  <!-- Stage 2 -->
-  <g transform="translate(320, 66)">
-    <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-    <rect width="264" height="5" rx="2.5" fill="#4f46e5"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#4f46e5" letter-spacing="0.8">STAGE 02 · PLAN EDITS</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Size the Change</text>
-
-    <rect x="18" y="70" width="228" height="54" rx="6" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#312e81">Remove direction overlap</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#4338ca">Set a reference-input shift</text>
-
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Two projection passes</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Check numerical error</text>
-
-    <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
-    <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#a5b4fc">secant compose</text>
-  </g>
-
-  <line x1="588" y1="176" x2="608" y2="176" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
-
-  <!-- Stage 3 -->
-  <g transform="translate(616, 66)">
-    <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-    <rect width="264" height="5" rx="2.5" fill="#0891b2"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#0891b2" letter-spacing="0.8">STAGE 03 · PATCH AND VERIFY</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Edit Selected Blocks</text>
-
-    <rect x="18" y="70" width="228" height="54" rx="6" fill="#ecfeff" stroke="#a5f3fc" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#164e63">Change planned weights</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#0e7490">Keep other blocks identical</text>
-
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Copy output by default</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Verify non-target tensors</text>
-
-    <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
-    <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#67e8f9">secant patch | quant patch</text>
-  </g>
-
-  <line x1="884" y1="176" x2="904" y2="176" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
-
-  <!-- Stage 4 -->
-  <g transform="translate(912, 66)">
-    <rect width="264" height="220" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-    <rect width="264" height="5" rx="2.5" fill="#059669"/>
-    <text x="18" y="30" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="700" fill="#059669" letter-spacing="0.8">STAGE 04 · CONSTRAIN LORA</text>
-    <text x="18" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700" fill="#0f172a">Project-Then-Heal</text>
-
-    <rect x="18" y="70" width="228" height="54" rx="6" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1"/>
-    <text x="132" y="93" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="12.5" font-weight="700" fill="#064e3b">Project adapter outputs</text>
-    <text x="132" y="113" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11.5" fill="#047857">Remove protected components</text>
-
-    <text x="18" y="148" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Constrain each forward pass</text>
-    <text x="18" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12.5" fill="#334155">• Check leakage after storage</text>
-
-    <rect x="18" y="182" width="228" height="26" rx="4" fill="#0f172a"/>
-    <text x="132" y="199" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" fill="#6ee7b7">ProjectThenHealLinear</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 760" width="100%" role="img" aria-label="Secant four-stage workflow: capture and rank layers, orthogonalize and calibrate, patch quantized blocks, and lock LoRA updates out of protected directions" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+<rect x="0.0" y="0.0" width="1560.0" height="760.0" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#a8a29e"/></marker>
+<marker id="ahB" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#c98500"/></marker>
+<marker id="ahC" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#199e70"/></marker>
+<marker id="ahI" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#fafaf9"/></marker>
+<marker id="ahCal" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#3987e5"/></marker>
+<marker id="ahBad" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#e66767"/></marker>
+</defs>
+<text x="32.0" y="34.0" fill="#a8a29e" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.1">SECANT · FOUR-STAGE WORKFLOW · GEOMETRY OF EACH STEP</text>
+<text x="32.0" y="62.0" fill="#fafaf9" font-size="19" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Measure a direction, size an exact edit, write it into stored blocks, and keep later training out of it</text>
+<text x="32.0" y="86.0" fill="#a8a29e" font-size="12.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Panels marked DATA are drawn from real files (named in the footer); panels marked SCHEMATIC are geometric sketches whose labels quote measured numbers.</text>
+<rect x="32.0" y="112.0" width="352.0" height="560.0" rx="10" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1.2"/>
+<rect x="32.0" y="112.0" width="352.0" height="4.0" rx="2" fill="#3987e5" stroke="none" stroke-width="1.0"/>
+<text x="50.0" y="140.0" fill="#3987e5" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="0.9">STAGE 1 · CAPTURE AND RANK</text>
+<text x="50.0" y="164.0" fill="#fafaf9" font-size="14.5" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Which layer separates the prompts?</text>
+<rect x="50.0" y="632.0" width="316.0" height="26.0" rx="5" fill="#0f0f0e" stroke="#2e2d2b" stroke-width="1"/>
+<text x="208.0" y="650.0" fill="#d6d3d1" font-size="11.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">secant analyze --in layer_snr.json</text>
+<line x1="387.0" y1="392.0" x2="405.0" y2="392.0" stroke="#a8a29e" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="408.0" y="112.0" width="352.0" height="560.0" rx="10" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1.2"/>
+<rect x="408.0" y="112.0" width="352.0" height="4.0" rx="2" fill="#9085e9" stroke="none" stroke-width="1.0"/>
+<text x="426.0" y="140.0" fill="#9085e9" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="0.9">STAGE 2 · ORTHOGONALIZE AND SIZE</text>
+<text x="426.0" y="164.0" fill="#fafaf9" font-size="14.5" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Two passes, then an exact step</text>
+<rect x="426.0" y="632.0" width="316.0" height="26.0" rx="5" fill="#0f0f0e" stroke="#2e2d2b" stroke-width="1"/>
+<text x="584.0" y="650.0" fill="#d6d3d1" font-size="11.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">secant compose --profile p.json</text>
+<line x1="763.0" y1="392.0" x2="781.0" y2="392.0" stroke="#a8a29e" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="784.0" y="112.0" width="352.0" height="560.0" rx="10" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1.2"/>
+<rect x="784.0" y="112.0" width="352.0" height="4.0" rx="2" fill="#c98500" stroke="none" stroke-width="1.0"/>
+<text x="802.0" y="140.0" fill="#c98500" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="0.9">STAGE 3 · PATCH STORED BLOCKS</text>
+<text x="802.0" y="164.0" fill="#fafaf9" font-size="14.5" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Q8_0 commutes with Π₁₂₈; Q4_K does not</text>
+<rect x="802.0" y="632.0" width="316.0" height="26.0" rx="5" fill="#0f0f0e" stroke="#2e2d2b" stroke-width="1"/>
+<text x="960.0" y="650.0" fill="#d6d3d1" font-size="11.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">secant quant patch / secant patch</text>
+<line x1="1139.0" y1="392.0" x2="1157.0" y2="392.0" stroke="#a8a29e" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="1160.0" y="112.0" width="352.0" height="560.0" rx="10" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1.2"/>
+<rect x="1160.0" y="112.0" width="352.0" height="4.0" rx="2" fill="#199e70" stroke="none" stroke-width="1.0"/>
+<text x="1178.0" y="140.0" fill="#199e70" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="0.9">STAGE 4 · LOCK LATER TRAINING</text>
+<text x="1178.0" y="164.0" fill="#fafaf9" font-size="14.5" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Projection survives AdamW; masks do not</text>
+<rect x="1178.0" y="632.0" width="316.0" height="26.0" rx="5" fill="#0f0f0e" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1336.0" y="650.0" fill="#d6d3d1" font-size="11.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">secant.nn.ProjectThenHealLinear</text>
+<rect x="320.0" y="185.0" width="33.6" height="15.0" rx="3" fill="none" stroke="#a8a29e" stroke-width="1"/>
+<text x="324.0" y="196.0" fill="#a8a29e" font-size="9.5" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">DATA</text>
+<path d="M60.0,333.4 L62.5,332.1 L65.0,328.6 L67.5,321.2 L70.1,307.8 L72.6,288.0 L75.1,264.7 L77.6,244.3 L80.1,234.3 L82.7,238.9 L85.2,256.1 L87.7,279.2 L90.2,301.0 L92.7,316.9 L95.2,326.4 L97.8,331.1 L100.3,333.0 L102.8,333.7 L105.3,333.9 L107.8,334.0 L110.3,334.0 L112.9,334.0 L115.4,334.0 L117.9,334.0 L120.4,334.0 L122.9,334.0 L125.4,334.0 L128.0,334.0 L130.5,334.0 L133.0,334.0 L135.5,334.0 L138.0,334.0 L140.5,334.0 L143.0,334.0 L145.6,334.0 L148.1,334.0 L150.6,334.0 L153.1,334.0 L155.6,334.0 L158.2,334.0 L160.7,334.0 L163.2,334.0 L165.7,334.0 L168.2,334.0 L170.7,334.0 L173.2,334.0 L175.8,334.0 L178.3,334.0 L180.8,334.0 L183.3,334.0 L185.8,334.0 L188.3,334.0 L190.9,334.0 L193.4,334.0 L195.9,334.0 L198.4,334.0 L200.9,334.0 L203.4,334.0 L206.0,334.0 L208.5,334.0 L211.0,334.0 L213.5,334.0 L216.0,334.0 L218.6,334.0 L221.1,334.0 L223.6,334.0 L226.1,334.0 L228.6,334.0 L231.1,334.0 L233.7,334.0 L236.2,334.0 L238.7,334.0 L241.2,334.0 L243.7,334.0 L246.2,334.0 L248.8,334.0 L251.3,334.0 L253.8,334.0 L256.3,334.0 L258.8,334.0 L261.3,334.0 L263.8,334.0 L266.4,334.0 L268.9,334.0 L271.4,334.0 L273.9,334.0 L276.4,334.0 L278.9,334.0 L281.5,334.0 L284.0,334.0 L286.5,334.0 L289.0,334.0 L291.5,334.0 L294.1,334.0 L296.6,334.0 L299.1,334.0 L301.6,334.0 L304.1,334.0 L306.6,334.0 L309.2,334.0 L311.7,334.0 L314.2,334.0 L316.7,334.0 L319.2,334.0 L321.7,334.0 L324.2,334.0 L326.8,334.0 L329.3,334.0 L331.8,334.0 L334.3,334.0 L336.8,334.0 L339.4,334.0 L341.9,334.0 L344.4,334.0 L346.9,334.0 L349.4,334.0 L351.9,334.0 L354.4,334.0 L357.0,334.0 L359.5,334.0 L362.0,334.0 L362.0,334.0 L60.0,334.0" fill="#a8a29e" stroke="none" stroke-width="0" stroke-linejoin="round" stroke-linecap="round" fill-opacity="0.18"/>
+<path d="M60.0,333.4 L62.5,332.1 L65.0,328.6 L67.5,321.2 L70.1,307.8 L72.6,288.0 L75.1,264.7 L77.6,244.3 L80.1,234.3 L82.7,238.9 L85.2,256.1 L87.7,279.2 L90.2,301.0 L92.7,316.9 L95.2,326.4 L97.8,331.1 L100.3,333.0 L102.8,333.7 L105.3,333.9 L107.8,334.0 L110.3,334.0 L112.9,334.0 L115.4,334.0 L117.9,334.0 L120.4,334.0 L122.9,334.0 L125.4,334.0 L128.0,334.0 L130.5,334.0 L133.0,334.0 L135.5,334.0 L138.0,334.0 L140.5,334.0 L143.0,334.0 L145.6,334.0 L148.1,334.0 L150.6,334.0 L153.1,334.0 L155.6,334.0 L158.2,334.0 L160.7,334.0 L163.2,334.0 L165.7,334.0 L168.2,334.0 L170.7,334.0 L173.2,334.0 L175.8,334.0 L178.3,334.0 L180.8,334.0 L183.3,334.0 L185.8,334.0 L188.3,334.0 L190.9,334.0 L193.4,334.0 L195.9,334.0 L198.4,334.0 L200.9,334.0 L203.4,334.0 L206.0,334.0 L208.5,334.0 L211.0,334.0 L213.5,334.0 L216.0,334.0 L218.6,334.0 L221.1,334.0 L223.6,334.0 L226.1,334.0 L228.6,334.0 L231.1,334.0 L233.7,334.0 L236.2,334.0 L238.7,334.0 L241.2,334.0 L243.7,334.0 L246.2,334.0 L248.8,334.0 L251.3,334.0 L253.8,334.0 L256.3,334.0 L258.8,334.0 L261.3,334.0 L263.8,334.0 L266.4,334.0 L268.9,334.0 L271.4,334.0 L273.9,334.0 L276.4,334.0 L278.9,334.0 L281.5,334.0 L284.0,334.0 L286.5,334.0 L289.0,334.0 L291.5,334.0 L294.1,334.0 L296.6,334.0 L299.1,334.0 L301.6,334.0 L304.1,334.0 L306.6,334.0 L309.2,334.0 L311.7,334.0 L314.2,334.0 L316.7,334.0 L319.2,334.0 L321.7,334.0 L324.2,334.0 L326.8,334.0 L329.3,334.0 L331.8,334.0 L334.3,334.0 L336.8,334.0 L339.4,334.0 L341.9,334.0 L344.4,334.0 L346.9,334.0 L349.4,334.0 L351.9,334.0 L354.4,334.0 L357.0,334.0 L359.5,334.0 L362.0,334.0" fill="none" stroke="#a8a29e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="114.6" y="234.0" fill="#d6d3d1" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">control prompts</text>
+<path d="M60.0,334.0 L62.5,334.0 L65.0,334.0 L67.5,334.0 L70.1,334.0 L72.6,334.0 L75.1,334.0 L77.6,334.0 L80.1,334.0 L82.7,334.0 L85.2,334.0 L87.7,334.0 L90.2,334.0 L92.7,334.0 L95.2,334.0 L97.8,334.0 L100.3,334.0 L102.8,334.0 L105.3,334.0 L107.8,334.0 L110.3,334.0 L112.9,334.0 L115.4,334.0 L117.9,334.0 L120.4,334.0 L122.9,334.0 L125.4,334.0 L128.0,334.0 L130.5,334.0 L133.0,334.0 L135.5,334.0 L138.0,334.0 L140.5,334.0 L143.0,334.0 L145.6,334.0 L148.1,334.0 L150.6,334.0 L153.1,334.0 L155.6,334.0 L158.2,334.0 L160.7,334.0 L163.2,334.0 L165.7,334.0 L168.2,334.0 L170.7,334.0 L173.2,334.0 L175.8,334.0 L178.3,334.0 L180.8,334.0 L183.3,334.0 L185.8,334.0 L188.3,334.0 L190.9,334.0 L193.4,334.0 L195.9,334.0 L198.4,334.0 L200.9,334.0 L203.4,334.0 L206.0,334.0 L208.5,334.0 L211.0,334.0 L213.5,334.0 L216.0,334.0 L218.6,334.0 L221.1,334.0 L223.6,334.0 L226.1,334.0 L228.6,334.0 L231.1,334.0 L233.7,334.0 L236.2,334.0 L238.7,334.0 L241.2,334.0 L243.7,334.0 L246.2,334.0 L248.8,334.0 L251.3,334.0 L253.8,334.0 L256.3,334.0 L258.8,334.0 L261.3,334.0 L263.8,334.0 L266.4,334.0 L268.9,334.0 L271.4,334.0 L273.9,334.0 L276.4,334.0 L278.9,334.0 L281.5,334.0 L284.0,334.0 L286.5,334.0 L289.0,334.0 L291.5,334.0 L294.1,334.0 L296.6,334.0 L299.1,334.0 L301.6,334.0 L304.1,334.0 L306.6,334.0 L309.2,334.0 L311.7,334.0 L314.2,334.0 L316.7,333.9 L319.2,333.7 L321.7,333.0 L324.2,331.1 L326.8,326.4 L329.3,316.9 L331.8,301.0 L334.3,279.2 L336.8,256.1 L339.4,238.9 L341.9,234.3 L344.4,244.3 L346.9,264.7 L349.4,288.0 L351.9,307.8 L354.4,321.2 L357.0,328.6 L359.5,332.1 L362.0,333.4 L362.0,334.0 L60.0,334.0" fill="#3987e5" stroke="none" stroke-width="0" stroke-linejoin="round" stroke-linecap="round" fill-opacity="0.18"/>
+<path d="M60.0,334.0 L62.5,334.0 L65.0,334.0 L67.5,334.0 L70.1,334.0 L72.6,334.0 L75.1,334.0 L77.6,334.0 L80.1,334.0 L82.7,334.0 L85.2,334.0 L87.7,334.0 L90.2,334.0 L92.7,334.0 L95.2,334.0 L97.8,334.0 L100.3,334.0 L102.8,334.0 L105.3,334.0 L107.8,334.0 L110.3,334.0 L112.9,334.0 L115.4,334.0 L117.9,334.0 L120.4,334.0 L122.9,334.0 L125.4,334.0 L128.0,334.0 L130.5,334.0 L133.0,334.0 L135.5,334.0 L138.0,334.0 L140.5,334.0 L143.0,334.0 L145.6,334.0 L148.1,334.0 L150.6,334.0 L153.1,334.0 L155.6,334.0 L158.2,334.0 L160.7,334.0 L163.2,334.0 L165.7,334.0 L168.2,334.0 L170.7,334.0 L173.2,334.0 L175.8,334.0 L178.3,334.0 L180.8,334.0 L183.3,334.0 L185.8,334.0 L188.3,334.0 L190.9,334.0 L193.4,334.0 L195.9,334.0 L198.4,334.0 L200.9,334.0 L203.4,334.0 L206.0,334.0 L208.5,334.0 L211.0,334.0 L213.5,334.0 L216.0,334.0 L218.6,334.0 L221.1,334.0 L223.6,334.0 L226.1,334.0 L228.6,334.0 L231.1,334.0 L233.7,334.0 L236.2,334.0 L238.7,334.0 L241.2,334.0 L243.7,334.0 L246.2,334.0 L248.8,334.0 L251.3,334.0 L253.8,334.0 L256.3,334.0 L258.8,334.0 L261.3,334.0 L263.8,334.0 L266.4,334.0 L268.9,334.0 L271.4,334.0 L273.9,334.0 L276.4,334.0 L278.9,334.0 L281.5,334.0 L284.0,334.0 L286.5,334.0 L289.0,334.0 L291.5,334.0 L294.1,334.0 L296.6,334.0 L299.1,334.0 L301.6,334.0 L304.1,334.0 L306.6,334.0 L309.2,334.0 L311.7,334.0 L314.2,334.0 L316.7,333.9 L319.2,333.7 L321.7,333.0 L324.2,331.1 L326.8,326.4 L329.3,316.9 L331.8,301.0 L334.3,279.2 L336.8,256.1 L339.4,238.9 L341.9,234.3 L344.4,244.3 L346.9,264.7 L349.4,288.0 L351.9,307.8 L354.4,321.2 L357.0,328.6 L359.5,332.1 L362.0,333.4" fill="none" stroke="#3987e5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="307.4" y="234.0" fill="#d6d3d1" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">target prompts</text>
+<line x1="60.0" y1="334.0" x2="362.0" y2="334.0" stroke="#78716c" stroke-width="1"/>
+<line x1="80.6" y1="346.0" x2="341.4" y2="346.0" stroke="#fafaf9" stroke-width="1.2" marker-start="url(#ahI)" marker-end="url(#ahI)"/>
+<text x="211.0" y="360.0" fill="#d6d3d1" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">held-out gap m = 33.035, σ_ctl = 0.8161</text>
+<text x="50.0" y="384.0" fill="#fafaf9" font-size="13.5" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">SNR = m / σ_ctl = 40.48</text>
+<text x="50.0" y="400.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">projection on v at L12, b3 attention output (normal sketch)</text>
+<line x1="78.0" y1="564.0" x2="362.0" y2="564.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="72.0" y="567.5" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="78.0" y1="535.2" x2="362.0" y2="535.2" stroke="#2e2d2b" stroke-width="1"/>
+<text x="72.0" y="538.7" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">10</text>
+<line x1="78.0" y1="506.4" x2="362.0" y2="506.4" stroke="#2e2d2b" stroke-width="1"/>
+<text x="72.0" y="509.9" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">20</text>
+<line x1="78.0" y1="477.5" x2="362.0" y2="477.5" stroke="#2e2d2b" stroke-width="1"/>
+<text x="72.0" y="481.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">30</text>
+<line x1="78.0" y1="448.7" x2="362.0" y2="448.7" stroke="#2e2d2b" stroke-width="1"/>
+<text x="72.0" y="452.2" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">40</text>
+<rect x="152.1" y="438.0" width="148.2" height="126.0" rx="0" fill="#ffffff" stroke="none" stroke-width="1.0" fill-opacity="0.035"/>
+<path d="M78.0,563.1 L90.3,544.8 L102.7,548.7 L115.0,543.0 L127.4,536.4 L139.7,552.9 L152.1,556.5 L164.4,554.9 L176.8,546.5 L189.1,540.6 L201.5,515.0 L213.8,528.0 L226.2,447.3 L238.5,486.7 L250.9,524.8 L263.2,487.8 L275.6,539.2 L287.9,547.2 L300.3,484.0 L312.6,527.3 L325.0,469.3 L337.3,509.8 L349.7,517.7 L362.0,536.7" fill="none" stroke="#3987e5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="78.0" cy="563.1" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L0: SNR 0.299</title></circle>
+<circle cx="90.3" cy="544.8" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L1: SNR 6.654</title></circle>
+<circle cx="102.7" cy="548.7" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L2: SNR 5.292</title></circle>
+<circle cx="115.0" cy="543.0" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L3: SNR 7.301</title></circle>
+<circle cx="127.4" cy="536.4" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L4: SNR 9.588</title></circle>
+<circle cx="139.7" cy="552.9" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L5: SNR 3.864</title></circle>
+<circle cx="152.1" cy="556.5" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L6: SNR 2.610</title></circle>
+<circle cx="164.4" cy="554.9" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L7: SNR 3.152</title></circle>
+<circle cx="176.8" cy="546.5" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L8: SNR 6.064</title></circle>
+<circle cx="189.1" cy="540.6" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L9: SNR 8.129</title></circle>
+<circle cx="201.5" cy="515.0" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L10: SNR 16.986</title></circle>
+<circle cx="213.8" cy="528.0" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L11: SNR 12.506</title></circle>
+<circle cx="226.2" cy="447.3" r="5.5" fill="#fafaf9" stroke="#1c1b1a" stroke-width="1.2"><title>L12: SNR 40.481</title></circle>
+<circle cx="238.5" cy="486.7" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L13: SNR 26.830</title></circle>
+<circle cx="250.9" cy="524.8" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L14: SNR 13.590</title></circle>
+<circle cx="263.2" cy="487.8" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L15: SNR 26.430</title></circle>
+<circle cx="275.6" cy="539.2" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L16: SNR 8.618</title></circle>
+<circle cx="287.9" cy="547.2" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L17: SNR 5.827</title></circle>
+<circle cx="300.3" cy="484.0" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L18: SNR 27.741</title></circle>
+<circle cx="312.6" cy="527.3" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L19: SNR 12.750</title></circle>
+<circle cx="325.0" cy="469.3" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L20: SNR 32.869</title></circle>
+<circle cx="337.3" cy="509.8" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L21: SNR 18.791</title></circle>
+<circle cx="349.7" cy="517.7" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L22: SNR 16.069</title></circle>
+<circle cx="362.0" cy="536.7" r="2.6" fill="#3987e5" stroke="#1c1b1a" stroke-width="1.2"><title>L23: SNR 9.480</title></circle>
+<text x="234.2" y="443.3" fill="#fafaf9" font-size="10.5" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">L12 = L_root* (Borda)</text>
+<text x="78.0" y="578.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">L0</text>
+<text x="152.1" y="578.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">L6</text>
+<text x="226.2" y="578.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">L12</text>
+<text x="300.3" y="578.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">L18</text>
+<text x="362.0" y="578.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">L23</text>
+<text x="50.0" y="426.0" fill="#d6d3d1" font-size="11.5" font-weight="600" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">SNR by layer (SmolLM2-1.7B, b3 attn)</text>
+<text x="50.0" y="596.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Borda rank over resid, attn, mlp and h picks the layer;</text>
+<text x="50.0" y="610.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">shaded = hardcoded mid band L6 to L18</text>
+<rect x="652.0" y="185.0" width="65.6" height="15.0" rx="3" fill="none" stroke="#a8a29e" stroke-width="1"/>
+<text x="656.0" y="196.0" fill="#a8a29e" font-size="9.5" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">SCHEMATIC</text>
+<line x1="468.0" y1="344.0" x2="648.0" y2="344.0" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="478.0" y1="354.0" x2="478.0" y2="192.0" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="478.0" y1="344.0" x2="608.0" y2="344.0" stroke="#3987e5" stroke-width="2.4" marker-end="url(#ahCal)"/>
+<text x="614.0" y="362.0" fill="#fafaf9" font-size="12.5" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">q₁ = d₁/‖d₁‖</text>
+<line x1="478.0" y1="344.0" x2="494.1" y2="215.0" stroke="#a8a29e" stroke-width="1.8" marker-end="url(#ah)" stroke-dasharray="5 3"/>
+<text x="502.1" y="211.0" fill="#a8a29e" font-size="12" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">d₂ (raw)</text>
+<line x1="478.0" y1="341.0" x2="494.1" y2="341.0" stroke="#e66767" stroke-width="3"/>
+<line x1="494.1" y1="215.0" x2="478.0" y2="215.0" stroke="#e66767" stroke-width="1" stroke-dasharray="2 2"/>
+<line x1="478.0" y1="344.0" x2="478.0" y2="215.0" stroke="#9085e9" stroke-width="2.4" marker-end="url(#ah)"/>
+<text x="468.0" y="207.0" fill="#fafaf9" font-size="13" font-weight="400" text-anchor="end" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">q₂</text>
+<path d="M490.0,344.0 L490.0,332.0 L478.0,332.0" fill="none" stroke="#fafaf9" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="498.1" y="360.0" fill="#e66767" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">⟨q₁, d₂⟩ = 0.1236</text>
+<text x="426.0" y="388.0" fill="#d6d3d1" font-size="11" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">2 passes in float64: post max |cos| = 1.12e-17</text>
+<text x="426.0" y="408.0" fill="#fafaf9" font-size="12.5" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">D Dᵀ = I_k,   max |D Dᵀ − I| ≤ 4.4e-16</text>
+<rect x="696.0" y="421.0" width="33.6" height="15.0" rx="3" fill="none" stroke="#a8a29e" stroke-width="1"/>
+<text x="700.0" y="432.0" fill="#a8a29e" font-size="9.5" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">DATA</text>
+<rect x="426.0" y="498.5" width="1.6" height="29.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="428.0" y="512.2" width="1.6" height="15.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="429.9" y="512.1" width="1.6" height="15.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="431.9" y="519.4" width="1.6" height="8.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="433.9" y="510.6" width="1.6" height="17.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="435.9" y="511.1" width="1.6" height="16.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="437.9" y="491.2" width="1.6" height="36.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="439.8" y="495.9" width="1.6" height="32.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="441.8" y="506.8" width="1.6" height="21.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="443.8" y="513.4" width="1.6" height="14.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="445.8" y="505.9" width="1.6" height="22.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="447.7" y="510.9" width="1.6" height="17.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="449.7" y="518.6" width="1.6" height="9.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="451.7" y="514.8" width="1.6" height="13.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="453.6" y="509.9" width="1.6" height="18.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="455.6" y="512.9" width="1.6" height="15.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="457.6" y="478.8" width="1.6" height="49.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="459.6" y="507.7" width="1.6" height="20.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="461.6" y="520.5" width="1.6" height="7.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="463.5" y="514.6" width="1.6" height="13.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="465.5" y="493.0" width="1.6" height="35.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="467.5" y="505.6" width="1.6" height="22.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="469.4" y="503.7" width="1.6" height="24.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="471.4" y="479.9" width="1.6" height="48.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="473.4" y="504.2" width="1.6" height="23.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="475.4" y="519.4" width="1.6" height="8.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="477.4" y="509.3" width="1.6" height="18.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="479.3" y="513.5" width="1.6" height="14.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="481.3" y="520.0" width="1.6" height="8.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="483.3" y="513.4" width="1.6" height="14.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="485.2" y="518.1" width="1.6" height="9.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="487.2" y="487.4" width="1.6" height="40.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="489.2" y="501.8" width="1.6" height="26.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="491.2" y="517.9" width="1.6" height="10.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="493.1" y="516.3" width="1.6" height="11.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="495.1" y="514.0" width="1.6" height="14.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="497.1" y="517.7" width="1.6" height="10.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="499.1" y="494.7" width="1.6" height="33.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="501.1" y="503.0" width="1.6" height="25.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="503.0" y="517.0" width="1.6" height="11.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="505.0" y="507.6" width="1.6" height="20.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="507.0" y="504.1" width="1.6" height="23.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="508.9" y="508.5" width="1.6" height="19.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="510.9" y="518.3" width="1.6" height="9.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="512.9" y="502.7" width="1.6" height="25.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="514.9" y="502.9" width="1.6" height="25.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="516.9" y="511.4" width="1.6" height="16.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="518.8" y="506.5" width="1.6" height="21.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="520.8" y="520.3" width="1.6" height="7.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="522.8" y="516.0" width="1.6" height="12.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="524.8" y="506.6" width="1.6" height="21.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="526.7" y="516.8" width="1.6" height="11.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="528.7" y="517.2" width="1.6" height="10.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="530.7" y="512.5" width="1.6" height="15.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="532.6" y="520.1" width="1.6" height="7.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="534.6" y="515.8" width="1.6" height="12.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="536.6" y="512.0" width="1.6" height="16.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="538.6" y="507.4" width="1.6" height="20.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="540.5" y="515.7" width="1.6" height="12.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="542.5" y="510.4" width="1.6" height="17.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="544.5" y="508.4" width="1.6" height="19.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="546.5" y="513.4" width="1.6" height="14.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="548.5" y="500.7" width="1.6" height="27.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="550.4" y="507.8" width="1.6" height="20.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="552.4" y="515.3" width="1.6" height="12.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="554.4" y="512.9" width="1.6" height="15.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="556.4" y="514.9" width="1.6" height="13.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="558.3" y="509.7" width="1.6" height="18.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="560.3" y="496.8" width="1.6" height="31.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="562.3" y="490.6" width="1.6" height="37.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="564.2" y="504.3" width="1.6" height="23.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="566.2" y="519.4" width="1.6" height="8.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="568.2" y="506.9" width="1.6" height="21.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="570.2" y="516.6" width="1.6" height="11.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="572.1" y="502.0" width="1.6" height="26.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="574.1" y="517.5" width="1.6" height="10.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="576.1" y="516.3" width="1.6" height="11.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="578.1" y="489.4" width="1.6" height="38.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="580.0" y="509.3" width="1.6" height="18.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="582.0" y="517.1" width="1.6" height="10.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="584.0" y="504.3" width="1.6" height="23.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="586.0" y="510.5" width="1.6" height="17.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="588.0" y="513.4" width="1.6" height="14.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="589.9" y="514.4" width="1.6" height="13.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="591.9" y="497.3" width="1.6" height="30.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="593.9" y="514.9" width="1.6" height="13.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="595.9" y="507.7" width="1.6" height="20.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="597.8" y="515.9" width="1.6" height="12.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="599.8" y="499.2" width="1.6" height="28.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="601.8" y="513.4" width="1.6" height="14.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="603.8" y="509.1" width="1.6" height="18.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="605.7" y="516.6" width="1.6" height="11.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="607.7" y="505.3" width="1.6" height="22.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="609.7" y="448.0" width="1.6" height="80.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="611.6" y="505.2" width="1.6" height="22.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="613.6" y="503.2" width="1.6" height="24.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="615.6" y="504.6" width="1.6" height="23.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="617.6" y="515.6" width="1.6" height="12.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="619.5" y="513.9" width="1.6" height="14.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="621.5" y="519.0" width="1.6" height="9.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="623.5" y="502.9" width="1.6" height="25.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="625.5" y="511.2" width="1.6" height="16.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="627.5" y="499.5" width="1.6" height="28.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="629.4" y="512.2" width="1.6" height="15.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="631.4" y="494.9" width="1.6" height="33.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="633.4" y="491.2" width="1.6" height="36.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="635.4" y="514.4" width="1.6" height="13.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="637.3" y="501.9" width="1.6" height="26.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="639.3" y="513.4" width="1.6" height="14.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="641.3" y="519.9" width="1.6" height="8.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="643.2" y="510.9" width="1.6" height="17.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="645.2" y="495.5" width="1.6" height="32.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="647.2" y="504.9" width="1.6" height="23.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="649.2" y="509.7" width="1.6" height="18.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="651.1" y="499.2" width="1.6" height="28.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="653.1" y="518.2" width="1.6" height="9.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="655.1" y="516.5" width="1.6" height="11.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="657.1" y="512.6" width="1.6" height="15.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="659.0" y="512.1" width="1.6" height="15.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="661.0" y="519.2" width="1.6" height="8.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="663.0" y="515.4" width="1.6" height="12.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="665.0" y="510.9" width="1.6" height="17.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="667.0" y="517.6" width="1.6" height="10.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="668.9" y="521.3" width="1.6" height="6.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="670.9" y="502.5" width="1.6" height="25.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="672.9" y="519.5" width="1.6" height="8.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="674.9" y="473.0" width="1.6" height="55.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="676.8" y="478.3" width="1.6" height="49.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="678.8" y="512.6" width="1.6" height="15.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="680.8" y="514.6" width="1.6" height="13.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="682.8" y="510.0" width="1.6" height="18.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="684.7" y="514.6" width="1.6" height="13.4" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="686.7" y="476.2" width="1.6" height="51.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="688.7" y="513.8" width="1.6" height="14.2" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="690.7" y="511.3" width="1.6" height="16.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="692.6" y="517.0" width="1.6" height="11.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="694.6" y="508.7" width="1.6" height="19.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="696.6" y="509.3" width="1.6" height="18.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="698.5" y="505.2" width="1.6" height="22.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="700.5" y="496.4" width="1.6" height="31.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="702.5" y="514.0" width="1.6" height="14.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="704.5" y="494.9" width="1.6" height="33.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="706.5" y="517.0" width="1.6" height="11.0" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="708.4" y="520.5" width="1.6" height="7.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="710.4" y="516.7" width="1.6" height="11.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="712.4" y="512.4" width="1.6" height="15.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="714.3" y="509.7" width="1.6" height="18.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="716.3" y="505.2" width="1.6" height="22.8" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="718.3" y="506.5" width="1.6" height="21.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="720.3" y="499.1" width="1.6" height="28.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="722.2" y="506.4" width="1.6" height="21.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="724.2" y="513.7" width="1.6" height="14.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="726.2" y="520.4" width="1.6" height="7.6" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="728.2" y="513.5" width="1.6" height="14.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="730.2" y="513.3" width="1.6" height="14.7" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="732.1" y="503.5" width="1.6" height="24.5" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="734.1" y="488.1" width="1.6" height="39.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="736.1" y="509.9" width="1.6" height="18.1" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="738.0" y="512.7" width="1.6" height="15.3" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<rect x="740.0" y="501.1" width="1.6" height="26.9" rx="0" fill="#4a4845" stroke="none" stroke-width="1.0"/>
+<line x1="610.0" y1="448.0" x2="610.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="676.6" y1="473.0" x2="676.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="687.8" y1="476.2" x2="687.8" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="677.9" y1="478.3" x2="677.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="459.4" y1="478.8" x2="459.4" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="471.9" y1="479.9" x2="471.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="488.1" y1="487.4" x2="488.1" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="734.7" y1="488.1" x2="734.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="578.7" y1="489.4" x2="578.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="564.0" y1="490.6" x2="564.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="635.0" y1="491.2" x2="635.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="438.1" y1="491.2" x2="438.1" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="467.0" y1="493.0" x2="467.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="499.7" y1="494.7" x2="499.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="631.9" y1="494.9" x2="631.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="705.4" y1="494.9" x2="705.4" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="646.7" y1="495.5" x2="646.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="676.0" y1="495.7" x2="676.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="440.9" y1="495.9" x2="440.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="701.3" y1="496.4" x2="701.3" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="488.6" y1="496.6" x2="488.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="562.1" y1="496.8" x2="562.1" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="678.4" y1="497.1" x2="678.4" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="592.9" y1="497.3" x2="592.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="427.7" y1="498.5" x2="427.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="459.4" y1="499.0" x2="459.4" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="720.4" y1="499.1" x2="720.4" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="600.0" y1="499.2" x2="600.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="652.5" y1="499.2" x2="652.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="628.6" y1="499.5" x2="628.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="548.7" y1="500.7" x2="548.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="740.6" y1="501.1" x2="740.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="490.5" y1="501.8" x2="490.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="639.0" y1="501.9" x2="639.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="574.0" y1="502.0" x2="574.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="671.5" y1="502.5" x2="671.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="439.3" y1="502.5" x2="439.3" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="458.9" y1="502.5" x2="458.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="514.7" y1="502.7" x2="514.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="624.5" y1="502.9" x2="624.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="516.7" y1="502.9" x2="516.7" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="502.6" y1="503.0" x2="502.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="721.6" y1="503.0" x2="721.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="629.1" y1="503.0" x2="629.1" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="613.9" y1="503.2" x2="613.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="426.5" y1="503.4" x2="426.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="732.5" y1="503.5" x2="732.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="470.6" y1="503.7" x2="470.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="508.2" y1="504.1" x2="508.2" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="474.8" y1="504.2" x2="474.8" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="585.0" y1="504.3" x2="585.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="564.9" y1="504.3" x2="564.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="617.5" y1="504.6" x2="617.5" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="585.0" y1="504.9" x2="585.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="649.0" y1="504.9" x2="649.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="625.0" y1="505.0" x2="625.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="612.0" y1="505.2" x2="612.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="699.2" y1="505.2" x2="699.2" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="718.2" y1="505.2" x2="718.2" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="608.9" y1="505.3" x2="608.9" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="469.0" y1="505.6" x2="469.0" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="446.6" y1="505.9" x2="446.6" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="722.8" y1="506.4" x2="722.8" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="698.8" y1="506.4" x2="698.8" y2="534.0" stroke="#3987e5" stroke-width="1.1"/>
+<line x1="426.0" y1="528.0" x2="742.0" y2="528.0" stroke="#78716c" stroke-width="1"/>
+<text x="426.0" y="546.0" fill="#d6d3d1" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">|h_ref| over 8192 input columns; blue = top-K support S, K = 64</text>
+<text x="426.0" y="570.0" fill="#fafaf9" font-size="12.5" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">β = |Δ| / ‖h_S‖²,   ‖h_S‖ = 10.435,   shift = 3.8956</text>
+<rect x="1028.0" y="185.0" width="65.6" height="15.0" rx="3" fill="none" stroke="#a8a29e" stroke-width="1"/>
+<text x="1032.0" y="196.0" fill="#a8a29e" font-size="9.5" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">SCHEMATIC</text>
+<text x="806.0" y="210.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">one weight row, columns 0 to 255</text>
+<rect x="806.0" y="216.0" width="153.0" height="24.0" rx="3" fill="#2b3f5c" stroke="#2e2d2b" stroke-width="1"/>
+<text x="883.0" y="232.0" fill="#fafaf9" font-size="10" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">panel h = 0 · 128 cols</text>
+<rect x="960.0" y="216.0" width="153.0" height="24.0" rx="3" fill="#3a2e57" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1037.0" y="232.0" fill="#fafaf9" font-size="10" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">panel h = 1 · 128 cols</text>
+<text x="806.0" y="256.0" fill="#d6d3d1" font-size="11" font-weight="600" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Q8_0: 32 weights per block, 34 bytes</text>
+<rect x="806.5" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="825.2" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B0</text>
+<rect x="845.0" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="863.8" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B1</text>
+<rect x="883.5" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="902.2" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B2</text>
+<rect x="922.0" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="940.8" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B3</text>
+<rect x="960.5" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="979.2" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B4</text>
+<rect x="999.0" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="1017.8" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B5</text>
+<rect x="1037.5" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="1056.2" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B6</text>
+<rect x="1076.0" y="262.0" width="36.5" height="20.0" rx="2" fill="#16332a" stroke="#199e70" stroke-width="1.2"/>
+<text x="1094.8" y="276.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">B7</text>
+<text x="960.0" y="298.0" fill="#199e70" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">128 = 4 × 32: every panel is whole blocks, 0 straddles</text>
+<text x="806.0" y="320.0" fill="#d6d3d1" font-size="11" font-weight="600" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Q4_K: 256 weights per superblock, 144 bytes</text>
+<rect x="806.0" y="326.0" width="308.0" height="20.0" rx="2" fill="#3a2a12" stroke="#c98500" stroke-width="1.2"/>
+<text x="883.0" y="340.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">shared d, dmin</text>
+<text x="1037.0" y="340.0" fill="#d6d3d1" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">shared d, dmin</text>
+<path d="M960.0,320.0 L956.0,330.0 L964.0,336.0 L957.0,344.0 L961.0,354.0" fill="none" stroke="#e66767" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="960.0" y="368.0" fill="#e66767" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">column 128 splits one superblock: Π₁₂₈ moves half</text>
+<text x="960.0" y="382.0" fill="#e66767" font-size="10.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">of its weights away from their shared scales</text>
+<text x="806.0" y="410.0" fill="#d6d3d1" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Π₁₂₈ on panels: π(k·r + j) = j·n_k + k   (toy n_k = 2, r = 2)</text>
+<rect x="808.0" y="418.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="844.5" y="431.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P0</text>
+<rect x="808.0" y="468.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="844.5" y="481.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P0</text>
+<line x1="844.5" y1="438.0" x2="844.5" y2="466.0" stroke="#a8a29e" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="885.0" y="418.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="921.5" y="431.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P1</text>
+<rect x="962.0" y="468.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="998.5" y="481.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P1</text>
+<line x1="921.5" y1="438.0" x2="998.5" y2="466.0" stroke="#a8a29e" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="962.0" y="418.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="998.5" y="431.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P2</text>
+<rect x="885.0" y="468.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="921.5" y="481.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P2</text>
+<line x1="998.5" y1="438.0" x2="921.5" y2="466.0" stroke="#a8a29e" stroke-width="1.2" marker-end="url(#ah)"/>
+<rect x="1039.0" y="418.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1075.5" y="431.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P3</text>
+<rect x="1039.0" y="468.0" width="73.0" height="18.0" rx="3" fill="#26252a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1075.5" y="481.0" fill="#d6d3d1" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">P3</text>
+<line x1="1075.5" y1="438.0" x2="1075.5" y2="466.0" stroke="#a8a29e" stroke-width="1.2" marker-end="url(#ah)"/>
+<text x="806.0" y="508.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">bytes per block, drawn to one scale</text>
+<text x="806.0" y="526.0" fill="#d6d3d1" font-size="10" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Q8_0</text>
+<rect x="850.0" y="514.0" width="3.1" height="16.0" rx="0" fill="#3b5f8a" stroke="#2e2d2b" stroke-width="0.8"/>
+<rect x="853.7" y="514.0" width="58.1" height="16.0" rx="0" fill="#16332a" stroke="#2e2d2b" stroke-width="0.8"/>
+<text x="918.3" y="526.0" fill="#199e70" font-size="10" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">34 B = 2 B f16 d + 32 B int8</text>
+<text x="806.0" y="550.0" fill="#d6d3d1" font-size="10" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Q4_K</text>
+<rect x="850.0" y="538.0" width="3.1" height="16.0" rx="0" fill="#3b5f8a" stroke="#2e2d2b" stroke-width="0.8"/>
+<rect x="853.7" y="538.0" width="3.1" height="16.0" rx="0" fill="#2f4c6e" stroke="#2e2d2b" stroke-width="0.8"/>
+<rect x="857.3" y="538.0" width="21.4" height="16.0" rx="0" fill="#4a3d63" stroke="#2e2d2b" stroke-width="0.8"/>
+<rect x="879.3" y="538.0" width="234.1" height="16.0" rx="0" fill="#3a2a12" stroke="#2e2d2b" stroke-width="0.8"/>
+<text x="1114.0" y="572.0" fill="#c98500" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">144 B = d, dmin (f16) + 12 B scales + 128 B 4-bit q</text>
+<text x="802.0" y="596.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">secant quant patch edits Q8_0 blocks in place and</text>
+<text x="802.0" y="610.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">refuses Q4_K.</text>
+<rect x="1404.0" y="185.0" width="65.6" height="15.0" rx="3" fill="none" stroke="#a8a29e" stroke-width="1"/>
+<text x="1408.0" y="196.0" fill="#a8a29e" font-size="9.5" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">SCHEMATIC</text>
+<path d="M1190.0,392.0 L1450.0,392.0 L1510.0,322.0 L1250.0,322.0 L1190.0,392.0" fill="#232b28" stroke="#2e2d2b" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="1250.0" y="314.0" fill="#199e70" font-size="12" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">span(D)⊥</text>
+<line x1="1320.0" y1="362.0" x2="1320.0" y2="212.0" stroke="#fafaf9" stroke-width="1.6" marker-end="url(#ahI)"/>
+<text x="1328.0" y="222.0" fill="#fafaf9" font-size="12.5" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">D (protected)</text>
+<path d="M1320.0,362.0 L1470.0,266.0 L1496.0,310.0 L1320.0,362.0" fill="#c98500" stroke="none" stroke-width="0" stroke-linejoin="round" stroke-linecap="round" fill-opacity="0.16"/>
+<line x1="1320.0" y1="362.0" x2="1485.0" y2="288.0" stroke="#c98500" stroke-width="2.4" marker-end="url(#ahB)"/>
+<line x1="1485.0" y1="288.0" x2="1485.0" y2="356.0" stroke="#c98500" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="1440.0" y="258.0" fill="#c98500" font-size="11" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">AdamW step</text>
+<text x="1440.0" y="274.0" fill="#c98500" font-size="12" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">−η S_t⁻¹ m_t</text>
+<line x1="1320.0" y1="362.0" x2="1490.0" y2="366.0" stroke="#199e70" stroke-width="2.6" marker-end="url(#ahC)"/>
+<text x="1416.0" y="408.0" fill="#199e70" font-size="11" font-weight="700" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">PTH update stays in the plane</text>
+<line x1="1320.0" y1="362.0" x2="1250.0" y2="382.0" stroke="#a8a29e" stroke-width="1.6" marker-end="url(#ah)" stroke-dasharray="4 3"/>
+<text x="1250.0" y="402.0" fill="#a8a29e" font-size="12" font-weight="400" text-anchor="middle" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">P⊥ ∇_B</text>
+<text x="1492.0" y="326.0" fill="#c98500" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-style="italic">drift</text>
+<text x="1178.0" y="446.0" fill="#fafaf9" font-size="13" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">PTH:  B = (I − DᵀD) B̃  on every forward</text>
+<text x="1178.0" y="468.0" fill="#fafaf9" font-size="13" font-weight="400" text-anchor="start" font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif" font-style="italic">AdamW:  S_t⁻¹ P⊥ g ≠ P⊥ S_t⁻¹ P⊥ g</text>
+<text x="1178.0" y="486.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">a diagonal preconditioner rescales coordinates,</text>
+<text x="1178.0" y="500.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">which rotates a masked gradient back toward D</text>
+<rect x="1448.0" y="515.0" width="33.6" height="15.0" rx="3" fill="none" stroke="#a8a29e" stroke-width="1"/>
+<text x="1452.0" y="526.0" fill="#a8a29e" font-size="9.5" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">DATA</text>
+<line x1="1216.9" y1="536.0" x2="1216.9" y2="584.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1216.9" y="598.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-10</text>
+<line x1="1270.7" y1="536.0" x2="1270.7" y2="584.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1270.7" y="598.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-8</text>
+<line x1="1324.5" y1="536.0" x2="1324.5" y2="584.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1324.5" y="598.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-6</text>
+<line x1="1378.4" y1="536.0" x2="1378.4" y2="584.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1378.4" y="598.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-4</text>
+<line x1="1432.2" y1="536.0" x2="1432.2" y2="584.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1432.2" y="598.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-2</text>
+<line x1="1486.0" y1="536.0" x2="1486.0" y2="584.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="1486.0" y="598.0" fill="#a8a29e" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1</text>
+<rect x="1416.1" y="542.0" width="25.1" height="12.0" rx="4" fill="#c98500" stroke="none" stroke-width="1.0"/>
+<rect x="1220.6" y="564.0" width="24.5" height="12.0" rx="4" fill="#199e70" stroke="none" stroke-width="1.0"/>
+<text x="1432.2" y="536.0" fill="#c98500" font-size="10" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">B 0.33% to 1.67%</text>
+<text x="1250.2" y="574.0" fill="#199e70" font-size="10" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">C 1.8e-10 to 8.7e-10</text>
+<text x="1178.0" y="616.0" fill="#d6d3d1" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">step-60 relative leakage, 15 models (log10)</text>
+<text x="32.0" y="710.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">DATA sources: Stage 1 = layer_snr.json and secant analyze output for SmolLM2-1.7B (peak L12, L_root* = 12); Stage 2 support and Gram-Schmidt numbers = secant compose plan.json (B3, K = 64); Stage 4 ranges and D Dᵀ bound = irrefutable-15models-stage1-receipt.json.</text>
+<text x="32.0" y="730.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Byte layouts are the ggml block_q8_0 (34 B) and block_q4_K (144 B) structs. The Π₁₂₈ toy uses n_k = 2; Qwen3.5-4B has n_k = 16, r = 2. Geometry in Stages 2 and 4 is a 2D/3D sketch, not to scale.</text>
 </svg>

@@ -21,6 +21,12 @@
 //! Subnormal, extreme-finite, norm and negative/out-of-range findings are
 //! never rewritten; a copy that still has one after the rescan is NOT
 //! published and the status stays `findings`.
+//!
+//! Secant extension (the oracle refuses every quantized GGUF): Q8_0 and Q4_K
+//! tensors are scanned at the scale-header level (`d`, `dmin`) for NaN, Inf,
+//! subnormal and extreme scales (`crate::quant_scale`), and the receipt's
+//! `policy_version` gains `+quant-scale-headers-v1`. Other quantized types
+//! are still refused with exit 2.
 
 pub use probe::{
     generate_probe, write_probe_receipt, ProbeFixture, ProbeOptions, ProbeReport, ProbeTensor, ProbeUnavailable, PROBE_ARCHITECTURE,
@@ -668,6 +674,8 @@ pub mod sanitize {
     use crate::container::{scan_gguf_layout, scan_safetensors_layout, sha256_hex, Layout, TensorLocation};
     use crate::dtype::dtype_size;
     use crate::error::{Error, Result};
+    use crate::quant::QuantFormat;
+    use crate::quant_scale;
     use serde::{Deserialize, Serialize};
     use std::collections::{BTreeMap, HashSet};
     use std::fs::File;
@@ -758,6 +766,11 @@ pub mod sanitize {
         pub file_offset: i64,
         #[serde(default, skip_serializing_if = "String::is_empty")]
         pub bits: String,
+        /// Secant extension, quantized findings only (omitted otherwise): the
+        /// scale field (`d` / `dmin`) the finding is about. For these findings
+        /// `index` is the block index and `file_offset` points at the field.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        pub field: String,
     }
 
     impl SanitizeFinding {
@@ -773,6 +786,9 @@ pub mod sanitize {
             if !self.bits.is_empty() {
                 v.push(("bits", J::s(&self.bits)));
             }
+            if !self.field.is_empty() {
+                v.push(("field", J::s(&self.field)));
+            }
             J::obj(v)
         }
     }
@@ -785,10 +801,20 @@ pub mod sanitize {
         pub routing_rows: i64,
         pub norm_rows: i64,
         pub ignored_integer_tensors: i64,
+        /// Secant extension (omitted when zero): Q8_0 / Q4_K tensors and
+        /// blocks whose scale headers were scanned.
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub quant_tensors: i64,
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub quant_blocks: i64,
         pub total_findings: i64,
         pub counts: BTreeMap<String, i64>,
         pub examples: Vec<SanitizeFinding>,
         pub examples_truncated: bool,
+    }
+
+    fn is_zero_i64(v: &i64) -> bool {
+        *v == 0
     }
 
     fn counts_j(m: &BTreeMap<String, i64>) -> J {
@@ -797,18 +823,26 @@ pub mod sanitize {
 
     impl SanitizeScan {
         pub fn to_j(&self) -> J {
-            J::obj(vec![
+            let mut v = vec![
                 ("tensors", J::Int(self.tensors)),
                 ("float_elements", J::Int(self.float_elements)),
                 ("routing_elements", J::Int(self.routing_elements)),
                 ("routing_rows", J::Int(self.routing_rows)),
                 ("norm_rows", J::Int(self.norm_rows)),
                 ("ignored_integer_tensors", J::Int(self.ignored_integer_tensors)),
-                ("total_findings", J::Int(self.total_findings)),
-                ("counts", counts_j(&self.counts)),
-                ("examples", J::Arr(self.examples.iter().map(|e| e.to_j()).collect())),
-                ("examples_truncated", J::Bool(self.examples_truncated)),
-            ])
+            ];
+            // omitempty-style: unquantized files serialize exactly as the oracle's.
+            if self.quant_tensors != 0 {
+                v.push(("quant_tensors", J::Int(self.quant_tensors)));
+            }
+            if self.quant_blocks != 0 {
+                v.push(("quant_blocks", J::Int(self.quant_blocks)));
+            }
+            v.push(("total_findings", J::Int(self.total_findings)));
+            v.push(("counts", counts_j(&self.counts)));
+            v.push(("examples", J::Arr(self.examples.iter().map(|e| e.to_j()).collect())));
+            v.push(("examples_truncated", J::Bool(self.examples_truncated)));
+            J::obj(v)
         }
     }
 
@@ -990,6 +1024,9 @@ pub mod sanitize {
         let size = st.len() as i64;
         let layout = sanitize_layout(f, size)?;
         rep.format = layout.format.clone();
+        if layout.tensors.iter().any(|t| t.is_quantized()) {
+            rep.policy_version = format!("{}+{}", rep.policy_version, crate::quant_scale::POLICY_TAG);
+        }
         sanitize_selectors(&layout, o)?;
         let before = sanitize_scan(f, &layout, o, None, None)?;
         rep.status = if before.total_findings == 0 { "clean".into() } else { "findings".into() };
@@ -1108,8 +1145,9 @@ pub mod sanitize {
 
     /// Validate the layout again before trusting it with value reads: arithmetic
     /// overflow, aliasing, duplicate names, payload extents, SafeTensors holes.
-    /// Quantized tensors are rejected here with the oracle's message (the Go
-    /// scanner fails the whole file; Secant's scanner lists them).
+    /// Quantized tensors other than Q8_0 / Q4_K are rejected here with the
+    /// oracle's message (the Go scanner fails the whole file on ANY quantized
+    /// tensor; Secant scans Q8_0 / Q4_K scale headers, see `quant_scale`).
     pub fn sanitize_layout(f: &File, size: i64) -> Result<Layout> {
         let mut head = [0u8; 8];
         if size < 8 {
@@ -1128,14 +1166,17 @@ pub mod sanitize {
                 let buf = read_prefix(f, want)?;
                 match guarded("gguf", || scan_gguf_layout(&buf)).map_err(|e| go_scan_error(e, buf.len())) {
                     Ok(l) => break l,
-                    Err(e) if want < limit && e.message().contains("unexpected EOF") => {
+                    Err(e) if want < limit && (e.message().contains("unexpected EOF") || e.message().ends_with(": EOF")) => {
                         want = std::cmp::min(limit, want * 4);
                     }
                     Err(e) => return Err(e),
                 }
             };
+            // Q8_0 / Q4_K scale headers are scanned (Secant extension; the
+            // oracle refuses every quantized file). Every other quantized
+            // type is still refused with the oracle's message.
             for t in &l.tensors {
-                if t.is_quantized() {
+                if t.is_quantized() && QuantFormat::from_dtype(&t.dtype).is_none() {
                     return Err(Error::msg(format!(
                         "gguf: tensor {:?}: unsupported ggml type {} (quantized): weight surgery is implemented for F32/F16/BF16/F64/I32/I64 payloads only",
                         t.name,
@@ -1170,7 +1211,17 @@ pub mod sanitize {
                 }
                 n *= d;
             }
-            let w = dtype_size(&t.dtype);
+            // A quantized row (GGUF ne[0]) must hold whole blocks, as ggml requires.
+            let (w, n) = match QuantFormat::from_dtype(&t.dtype) {
+                Some(q) => {
+                    let be = q.block_elems() as i64;
+                    if t.shape.is_empty() || t.shape[0] as i64 % be != 0 {
+                        return Err(Error::msg(format!("tensor {:?}: {} row width is not a multiple of {}", t.name, t.dtype, be)));
+                    }
+                    (q.block_bytes() as i64, n / be)
+                }
+                None => (dtype_size(&t.dtype), n),
+            };
             let bad = w == 0
                 || n > i64::MAX / w
                 || n * w != t.size
@@ -1581,6 +1632,12 @@ pub mod sanitize {
             if norm && (integer || t.size == 0) {
                 return Err(Error::msg(format!("norm tensor {:?} requires nonempty floating point vectors", t.name)));
             }
+            if norm && t.is_quantized() {
+                return Err(Error::msg(format!(
+                    "norm tensor {:?} is {}: norm-row checks are implemented for unquantized floats only",
+                    t.name, t.dtype
+                )));
+            }
         }
         Ok(())
     }
@@ -1748,10 +1805,75 @@ pub mod sanitize {
                 row,
                 file_offset: t.offset + i * w,
                 bits: encoded,
+                field: String::new(),
             });
         } else {
             s.examples_truncated = true;
         }
+    }
+
+    /// Scale-header scan of one Q8_0 / Q4_K tensor (see `quant_scale`). With
+    /// `dst` it rewrites the repairable scale fields in the copy, classifying
+    /// from the original `f`. A finding's `index` is the block index, `row`
+    /// the GGUF row (`ne[0]` elements) and `file_offset` the field's offset.
+    fn scan_quant_scales(
+        f: &File,
+        t: &TensorLocation,
+        q: QuantFormat,
+        o: &SanitizeOptions,
+        s: &mut SanitizeScan,
+        dst: Option<&File>,
+        mut changes: Option<&mut BTreeMap<String, i64>>,
+    ) -> Result<()> {
+        let bb = q.block_bytes() as i64;
+        let blocks = t.size / bb;
+        let per_row = std::cmp::max(1, t.shape.first().copied().unwrap_or(0) as i64 / q.block_elems() as i64);
+        let repairs =
+            quant_scale::Repairs { clamp_nonfinite: o.clamp_nonfinite, clamp_extreme: o.clamp_extreme, flush_subnormal: o.flush_subnormal };
+        let rewrite = dst.is_some() && (o.clamp_nonfinite || o.clamp_extreme || o.flush_subnormal);
+        s.quant_tensors += 1;
+        let mut buf = vec![0u8; (std::cmp::max(1, (64 << 10) / bb) * bb) as usize];
+        let mut base = 0i64;
+        while base < blocks {
+            let count = std::cmp::min(blocks - base, buf.len() as i64 / bb);
+            let chunk = &mut buf[..(count * bb) as usize];
+            read_at(f, chunk, t.offset + base * bb)?;
+            for j in 0..count {
+                let blk = &mut chunk[(j * bb) as usize..((j + 1) * bb) as usize];
+                let i = base + j;
+                s.quant_blocks += 1;
+                for fd in quant_scale::scan_block(q, blk, o.max_abs) {
+                    s.total_findings += 1;
+                    *s.counts.entry(fd.kind.to_string()).or_insert(0) += 1;
+                    if (s.examples.len() as i64) < o.max_examples {
+                        s.examples.push(SanitizeFinding {
+                            kind: fd.kind.into(),
+                            tensor: t.name.clone(),
+                            dtype: t.dtype.clone(),
+                            index: i,
+                            row: i / per_row,
+                            file_offset: t.offset + i * bb + fd.offset as i64,
+                            bits: if fd.field.is_empty() { String::new() } else { format!("0x{:04x}", fd.bits) },
+                            field: fd.field.into(),
+                        });
+                    } else {
+                        s.examples_truncated = true;
+                    }
+                }
+                if rewrite {
+                    for kind in quant_scale::repair_block(q, blk, o.max_abs, repairs) {
+                        if let Some(c) = changes.as_deref_mut() {
+                            *c.entry(kind.to_string()).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+            if let (Some(d), true) = (dst, rewrite) {
+                write_at(d, chunk, t.offset + base * bb)?;
+            }
+            base += count;
+        }
+        Ok(())
     }
 
     /// Oracle `sanitizeScan`. With `dst` it rewrites the repairable findings in
@@ -1765,6 +1887,10 @@ pub mod sanitize {
     ) -> Result<SanitizeScan> {
         let mut s = SanitizeScan { tensors: l.tensors.len() as i64, examples: Vec::new(), ..Default::default() };
         for t in &l.tensors {
+            if let Some(q) = QuantFormat::from_dtype(&t.dtype) {
+                scan_quant_scales(f, t, q, o, &mut s, dst, changes.as_deref_mut())?;
+                continue;
+            }
             let w = dtype_size(&t.dtype);
             let n = t.size / w;
             let width = row_width(t, &l.format);

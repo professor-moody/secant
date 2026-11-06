@@ -28,10 +28,12 @@ fn all_help_pages_have_examples_and_human_reports_are_not_json() {
     for command in [
         "inspect",
         "read",
+        "audit-trojan",
         "compose",
         "patch",
         "verify-patch",
         "sanitize",
+        "scan-sinks",
         "probe",
         "heal",
         "verify-subspace",

@@ -15,7 +15,7 @@ use secant_core::Error;
 
 #[derive(ClapArgs, Debug)]
 #[command(
-    long_about = "Scan weight values against explicit numerical policies and write a receipt. Repairs are opt-in and published only after a clean rescan. Exit 0 means clean or remediated; 1 means findings remain; 2 means the scan was incomplete or invalid.",
+    long_about = "Scan weight values against explicit numerical policies and write a receipt. Repairs are opt-in and published only after a clean rescan. Exit 0 means clean or remediated; 1 means findings remain; 2 means the scan was incomplete or invalid.\n\nQ8_0 and Q4_K GGUF tensors are scanned at the scale-header level: every block's f16 d (and Q4_K dmin) is checked for NaN, Inf, subnormal, and finite values whose largest realized multiplier pushes the block past --max-abs (quant_scale_* findings; quant_block_extreme when opposite-signed Q4_K terms add up). The same repair flags apply to those scale fields. Other quantized types are refused with exit 2.",
     after_help = "Example:\n  secant sanitize --model model.safetensors --receipt scan.json --attempt-id local-check\n\nA clean static scan does not prove runtime inference safety."
 )]
 pub struct Args {
@@ -46,7 +46,7 @@ pub struct Args {
     /// Bounded examples, 1..10000; aggregate counts remain exact
     #[arg(long, default_value_t = 128, allow_negative_numbers = true)]
     pub max_examples: i64,
-    /// NaN to +0; infinities to signed representable max-abs
+    /// NaN to +0; infinities to signed representable max-abs (Q8_0/Q4_K scales: the largest f16 keeping the block within max-abs)
     #[arg(long)]
     pub clamp_nonfinite: bool,
     /// Replace later duplicate slots with lowest unused valid expert IDs

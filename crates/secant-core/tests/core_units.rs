@@ -1,3 +1,4 @@
+#![allow(clippy::identity_op, clippy::erasing_op)]
 //! Invariant tests for the RRR-critical primitives: logical orientation,
 //! the Qwen3.5 ssm_out permutation, Gram-Schmidt, npy codec, patch/verify.
 
@@ -241,11 +242,9 @@ fn plan_and_profile_inputs_accept_canonical_and_legacy_schema_ids() {
     std::fs::create_dir_all(&vdir).unwrap();
     write(&format!("{}/d_loop_L0.npy", vdir), &npy_bytes_f64(&[1.0, 0.0, 0.0, 0.0], &[4]).unwrap());
     let legacy_profile = legacy_alias(PROFILE_SCHEMA).unwrap();
-    for (tag, schema, ok) in [
-        ("canonical", PROFILE_SCHEMA.to_string(), true),
-        ("legacy", legacy_profile, true),
-        ("plan-id", PLAN_SCHEMA.to_string(), false),
-    ] {
+    for (tag, schema, ok) in
+        [("canonical", PROFILE_SCHEMA.to_string(), true), ("legacy", legacy_profile, true), ("plan-id", PLAN_SCHEMA.to_string(), false)]
+    {
         let prof = serde_json::json!({
             "schema": schema, "name": "alias-profile", "description": "schema alias test",
             "subspaces": [], "default_target_shift": 0.0, "default_gamma": 0.25,
@@ -255,7 +254,8 @@ fn plan_and_profile_inputs_accept_canonical_and_legacy_schema_ids() {
         });
         let pp = s.path(&format!("profile-{}.json", tag));
         write(&pp, prof.to_string().as_bytes());
-        let opts = ComposeOptions { profile_path: pp.clone(), vectors_dir: vdir.clone(), gamma: 0.25, has_gamma: true, ..Default::default() };
+        let opts =
+            ComposeOptions { profile_path: pp.clone(), vectors_dir: vdir.clone(), gamma: 0.25, has_gamma: true, ..Default::default() };
         match compose(opts) {
             Ok(plan) => {
                 assert!(ok, "{}: profile {:?} must be rejected", tag, schema);
@@ -319,4 +319,36 @@ fn hostile_offsets_are_errors_not_panics() {
     st.extend_from_slice(hdr.as_bytes());
     let e2 = layout_of_bytes(&st, "x.safetensors").unwrap_err();
     assert!(e2.message().contains("overflow") || e2.message().contains("exceeds"), "{}", e2);
+}
+
+#[test]
+fn duplicate_tensor_names_are_rejected_in_both_containers() {
+    // Wiring audit H18: Go bound the last duplicate and Secant the first, so
+    // the two tools patched different tensors and every verifier accepted
+    // both. A duplicated name is now a scan error on both sides.
+    let mut rng = Rng(5);
+    let ok = build_gguf(&[], &[tensor("wa", "F32", &[2, 2], &mut rng), tensor("wb", "F32", &[2, 2], &mut rng)], 32).unwrap();
+    assert!(scan_gguf_layout(&ok).is_ok(), "control: distinct names must load");
+    // rename the second tensor "wb" -> "wa" in place (same length, so offsets hold)
+    let mut dup = ok.clone();
+    let at = dup.windows(2).rposition(|w| w == b"wb").unwrap();
+    dup[at + 1] = b'a';
+    let e = scan_gguf_layout(&dup).unwrap_err();
+    assert!(e.message().contains("duplicate tensor name"), "{}", e);
+
+    let st = |hdr: &str| {
+        let mut b = (hdr.len() as u64).to_le_bytes().to_vec();
+        b.extend_from_slice(hdr.as_bytes());
+        b.extend_from_slice(&[0u8; 8]);
+        b
+    };
+    let control = st(r#"{"w":{"dtype":"F32","shape":[2],"data_offsets":[0,8]}}"#);
+    assert!(scan_safetensors_layout(&control).is_ok(), "control: unique header must load");
+    for hdr in [
+        r#"{"w":{"dtype":"F32","shape":[1],"data_offsets":[0,4]},"w":{"dtype":"F32","shape":[1],"data_offsets":[4,8]}}"#,
+        r#"{"w":{"dtype":"F32","shape":[2],"data_offsets":[0,8],"data_offsets":[0,4]}}"#,
+    ] {
+        let e = scan_safetensors_layout(&st(hdr)).unwrap_err();
+        assert!(e.message().contains("duplicate JSON key"), "{}: {}", hdr, e);
+    }
 }

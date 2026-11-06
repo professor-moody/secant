@@ -127,10 +127,7 @@ pub fn run(a: &Args) -> i32 {
                             ]
                             .iter()
                             .map(|(label, key)| {
-                                vec![
-                                    label.to_string(),
-                                    v[*key].as_f64().map(|n| format!("{:.6e}", n)).unwrap_or_else(|| "UNKNOWN".into()),
-                                ]
+                                vec![label.to_string(), v[*key].as_f64().map(|n| format!("{:.6e}", n)).unwrap_or_else(|| "UNKNOWN".into())]
                             })
                             .collect::<Vec<_>>(),
                         );
@@ -173,8 +170,7 @@ pub fn run(a: &Args) -> i32 {
                     field("Output SHA-256", &rep.out_sha256);
                     table(
                         &["EDIT", "TENSOR", "TOUCHED / TOTAL", "REWRITTEN", "MAX REQUANT ERROR"],
-                        &rep
-                            .edits
+                        &rep.edits
                             .iter()
                             .map(|e| {
                                 vec![

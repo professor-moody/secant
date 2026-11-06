@@ -1,0 +1,231 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 740" width="100%" role="img" aria-label="Relative leakage into the protected direction at step 60 for three LoRA arms on 15 models, and leakage trajectories over 60 AdamW steps, both on a log10 axis" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+<rect x="0.0" y="0.0" width="1320.0" height="740.0" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#a8a29e"/></marker>
+<marker id="ahB" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#c98500"/></marker>
+<marker id="ahC" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#199e70"/></marker>
+<marker id="ahI" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#fafaf9"/></marker>
+<marker id="ahCal" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#3987e5"/></marker>
+<marker id="ahBad" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#e66767"/></marker>
+</defs>
+<text x="32.0" y="34.0" fill="#a8a29e" font-size="11" font-weight="700" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" letter-spacing="1.1">FIGURE · PROJECT-THEN-HEAL VS ADAMW · 15 MODELS (0.8B TO 32.8B) · H100 STAGE-1</text>
+<text x="32.0" y="60.0" fill="#fafaf9" font-size="18" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Gradient projection leaks 0.33% to 1.67% after AdamW; ProjectThenHealLinear stays near 1e-10</text>
+<text x="32.0" y="82.0" fill="#a8a29e" font-size="12.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Relative leakage  ||D ΔW||_F / ||ΔW||_F  of the LoRA writer update into the protected direction D, one metric for all three arms, log10 axis. 60 AdamW steps from a common</text>
+<text x="32.0" y="100.0" fill="#a8a29e" font-size="12.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">initialization on the surgically edited writer, synthetic target orthogonal to span(D) plus real-token cross-entropy (weight 0.1), one seed per model.</text>
+<rect x="32.0" y="116.0" width="778.0" height="494.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="182.0" y="136.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Step 60, per model</text>
+<line x1="182.0" y1="150.0" x2="182.0" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="182.0" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-11</text>
+<line x1="237.3" y1="150.0" x2="237.3" y2="570.0" stroke="#3a3936" stroke-width="1"/>
+<line x1="292.5" y1="150.0" x2="292.5" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="292.5" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-9</text>
+<line x1="347.8" y1="150.0" x2="347.8" y2="570.0" stroke="#3a3936" stroke-width="1"/>
+<line x1="403.1" y1="150.0" x2="403.1" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="403.1" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-7</text>
+<line x1="458.4" y1="150.0" x2="458.4" y2="570.0" stroke="#3a3936" stroke-width="1"/>
+<line x1="513.6" y1="150.0" x2="513.6" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="513.6" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-5</text>
+<line x1="568.9" y1="150.0" x2="568.9" y2="570.0" stroke="#3a3936" stroke-width="1"/>
+<line x1="624.2" y1="150.0" x2="624.2" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="624.2" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-3</text>
+<line x1="679.5" y1="150.0" x2="679.5" y2="570.0" stroke="#3a3936" stroke-width="1"/>
+<line x1="734.7" y1="150.0" x2="734.7" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="734.7" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-1</text>
+<line x1="790.0" y1="150.0" x2="790.0" y2="570.0" stroke="#3a3936" stroke-width="1"/>
+<text x="790.0" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1</text>
+<text x="486.0" y="603.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">relative leakage (log10)</text>
+<rect x="34.0" y="151.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="168.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3.5-0.8B</text>
+<text x="40.0" y="168.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0.8B</text>
+<line x1="289.1" y1="164.0" x2="667.7" y2="164.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="478.4" y="160.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×7.1e6</text>
+<circle cx="728.1" cy="164.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B A  Unconstrained LoRA + AdamW: 7.599e-02</title></circle>
+<circle cx="667.7" cy="164.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B B  Gradient-projected AdamW: 6.119e-03</title></circle>
+<circle cx="289.1" cy="164.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-0.8B C  ProjectThenHealLinear: 8.674e-10</title></circle>
+<text x="170.0" y="196.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">SmolLM2-1.7B</text>
+<text x="40.0" y="196.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1.7B</text>
+<line x1="277.8" y1="192.0" x2="691.1" y2="192.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="484.4" y="188.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×3.0e7</text>
+<circle cx="705.4" cy="192.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B A  Unconstrained LoRA + AdamW: 2.953e-02</title></circle>
+<circle cx="691.1" cy="192.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B B  Gradient-projected AdamW: 1.623e-02</title></circle>
+<circle cx="277.8" cy="192.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>SmolLM2-1.7B C  ProjectThenHealLinear: 5.411e-10</title></circle>
+<rect x="34.0" y="207.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="224.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3.5-4B</text>
+<text x="40.0" y="224.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">4.0B</text>
+<line x1="279.5" y1="220.0" x2="691.7" y2="220.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="485.6" y="216.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×2.9e7</text>
+<circle cx="698.6" cy="220.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B A  Unconstrained LoRA + AdamW: 2.222e-02</title></circle>
+<circle cx="691.7" cy="220.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B B  Gradient-projected AdamW: 1.666e-02</title></circle>
+<circle cx="279.5" cy="220.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3.5-4B C  ProjectThenHealLinear: 5.812e-10</title></circle>
+<text x="170.0" y="252.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Mistral-7B-v0.3</text>
+<text x="40.0" y="252.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">7.2B</text>
+<line x1="266.5" y1="248.0" x2="677.5" y2="248.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="472.0" y="244.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×2.7e7</text>
+<circle cx="698.0" cy="248.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 A  Unconstrained LoRA + AdamW: 2.170e-02</title></circle>
+<circle cx="677.5" cy="248.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 B  Gradient-projected AdamW: 9.200e-03</title></circle>
+<circle cx="266.5" cy="248.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Mistral-7B-v0.3 C  ProjectThenHealLinear: 3.379e-10</title></circle>
+<rect x="34.0" y="263.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="280.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen2.5-7B</text>
+<text x="40.0" y="280.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">7.6B</text>
+<line x1="274.5" y1="276.0" x2="662.2" y2="276.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="468.3" y="272.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×1.0e7</text>
+<circle cx="696.6" cy="276.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B A  Unconstrained LoRA + AdamW: 2.041e-02</title></circle>
+<circle cx="662.2" cy="276.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B B  Gradient-projected AdamW: 4.864e-03</title></circle>
+<circle cx="274.5" cy="276.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen2.5-7B C  ProjectThenHealLinear: 4.706e-10</title></circle>
+<text x="170.0" y="308.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Llama-3.1-8B</text>
+<text x="40.0" y="308.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">8.0B</text>
+<line x1="272.6" y1="304.0" x2="674.2" y2="304.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="473.4" y="300.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×1.8e7</text>
+<circle cx="674.8" cy="304.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B A  Unconstrained LoRA + AdamW: 8.233e-03</title></circle>
+<circle cx="674.2" cy="304.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B B  Gradient-projected AdamW: 8.027e-03</title></circle>
+<circle cx="272.6" cy="304.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Llama-3.1-8B C  ProjectThenHealLinear: 4.360e-10</title></circle>
+<rect x="34.0" y="319.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="336.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">R1-Llama-8B</text>
+<text x="40.0" y="336.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">8.0B</text>
+<line x1="273.4" y1="332.0" x2="667.1" y2="332.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="470.2" y="328.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×1.3e7</text>
+<circle cx="690.6" cy="332.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B A  Unconstrained LoRA + AdamW: 1.590e-02</title></circle>
+<circle cx="667.1" cy="332.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B B  Gradient-projected AdamW: 5.965e-03</title></circle>
+<circle cx="273.4" cy="332.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Llama-8B C  ProjectThenHealLinear: 4.498e-10</title></circle>
+<text x="170.0" y="364.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3-8B</text>
+<text x="40.0" y="364.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">8.2B</text>
+<line x1="264.7" y1="360.0" x2="666.2" y2="360.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="465.5" y="356.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×1.8e7</text>
+<circle cx="696.3" cy="360.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B A  Unconstrained LoRA + AdamW: 2.019e-02</title></circle>
+<circle cx="666.2" cy="360.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B B  Gradient-projected AdamW: 5.756e-03</title></circle>
+<circle cx="264.7" cy="360.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-8B C  ProjectThenHealLinear: 3.136e-10</title></circle>
+<rect x="34.0" y="375.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="392.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Gemma-2-9B</text>
+<text x="40.0" y="392.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">9.2B</text>
+<line x1="278.0" y1="388.0" x2="654.6" y2="388.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="466.3" y="384.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×6.5e6</text>
+<circle cx="730.9" cy="388.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B A  Unconstrained LoRA + AdamW: 8.512e-02</title></circle>
+<circle cx="654.6" cy="388.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B B  Gradient-projected AdamW: 3.544e-03</title></circle>
+<circle cx="278.0" cy="388.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-9B C  ProjectThenHealLinear: 5.456e-10</title></circle>
+<text x="170.0" y="420.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">OLMo-2-13B</text>
+<text x="40.0" y="420.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">13.7B</text>
+<line x1="251.1" y1="416.0" x2="659.9" y2="416.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="455.5" y="412.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×2.5e7</text>
+<circle cx="692.2" cy="416.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B A  Unconstrained LoRA + AdamW: 1.701e-02</title></circle>
+<circle cx="659.9" cy="416.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B B  Gradient-projected AdamW: 4.431e-03</title></circle>
+<circle cx="251.1" cy="416.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>OLMo-2-13B C  ProjectThenHealLinear: 1.776e-10</title></circle>
+<rect x="34.0" y="431.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="448.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Phi-4</text>
+<text x="40.0" y="448.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">14.7B</text>
+<line x1="265.6" y1="444.0" x2="652.5" y2="444.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="459.1" y="440.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×1.0e7</text>
+<circle cx="675.9" cy="444.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 A  Unconstrained LoRA + AdamW: 8.633e-03</title></circle>
+<circle cx="652.5" cy="444.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 B  Gradient-projected AdamW: 3.254e-03</title></circle>
+<circle cx="265.6" cy="444.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Phi-4 C  ProjectThenHealLinear: 3.261e-10</title></circle>
+<text x="170.0" y="476.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3-14B</text>
+<text x="40.0" y="476.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">14.8B</text>
+<line x1="261.0" y1="472.0" x2="667.0" y2="472.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="464.0" y="468.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×2.2e7</text>
+<circle cx="697.6" cy="472.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B A  Unconstrained LoRA + AdamW: 2.126e-02</title></circle>
+<circle cx="667.0" cy="472.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B B  Gradient-projected AdamW: 5.964e-03</title></circle>
+<circle cx="261.0" cy="472.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-14B C  ProjectThenHealLinear: 2.691e-10</title></circle>
+<rect x="34.0" y="487.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="504.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">R1-Qwen-14B</text>
+<text x="40.0" y="504.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">14.8B</text>
+<line x1="267.5" y1="500.0" x2="673.2" y2="500.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="470.4" y="496.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×2.2e7</text>
+<circle cx="684.4" cy="500.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B A  Unconstrained LoRA + AdamW: 1.230e-02</title></circle>
+<circle cx="673.2" cy="500.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B B  Gradient-projected AdamW: 7.722e-03</title></circle>
+<circle cx="267.5" cy="500.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>R1-Qwen-14B C  ProjectThenHealLinear: 3.526e-10</title></circle>
+<text x="170.0" y="532.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Gemma-2-27B</text>
+<text x="40.0" y="532.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">27.2B</text>
+<line x1="267.3" y1="528.0" x2="685.9" y2="528.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="476.6" y="524.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×3.8e7</text>
+<circle cx="695.9" cy="528.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-27B A  Unconstrained LoRA + AdamW: 1.980e-02</title></circle>
+<circle cx="685.9" cy="528.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-27B B  Gradient-projected AdamW: 1.311e-02</title></circle>
+<circle cx="267.3" cy="528.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Gemma-2-27B C  ProjectThenHealLinear: 3.489e-10</title></circle>
+<rect x="34.0" y="543.0" width="772.0" height="26.0" rx="0" fill="#201f1e" stroke="none" stroke-width="1.0"/>
+<text x="170.0" y="560.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="end" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Qwen3-32B</text>
+<text x="40.0" y="560.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">32.8B</text>
+<line x1="264.2" y1="556.0" x2="672.5" y2="556.0" stroke="#4a4845" stroke-width="1.2"/>
+<text x="468.3" y="552.0" fill="#78716c" font-size="9.5" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">×2.4e7</text>
+<circle cx="696.5" cy="556.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B A  Unconstrained LoRA + AdamW: 2.038e-02</title></circle>
+<circle cx="672.5" cy="556.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B B  Gradient-projected AdamW: 7.490e-03</title></circle>
+<circle cx="264.2" cy="556.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"><title>Qwen3-32B C  ProjectThenHealLinear: 3.066e-10</title></circle>
+<rect x="830.0" y="116.0" width="470.0" height="494.0" rx="8" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
+<text x="900.0" y="136.0" fill="#fafaf9" font-size="13" font-weight="700" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Trajectory, all 15 models</text>
+<line x1="900.0" y1="570.0" x2="1270.0" y2="570.0" stroke="#2e2d2b" stroke-width="1"/>
+<text x="892.0" y="574.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-11</text>
+<line x1="900.0" y1="493.6" x2="1270.0" y2="493.6" stroke="#2e2d2b" stroke-width="1"/>
+<text x="892.0" y="497.6" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-9</text>
+<line x1="900.0" y1="417.3" x2="1270.0" y2="417.3" stroke="#2e2d2b" stroke-width="1"/>
+<text x="892.0" y="421.3" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-7</text>
+<line x1="900.0" y1="340.9" x2="1270.0" y2="340.9" stroke="#2e2d2b" stroke-width="1"/>
+<text x="892.0" y="344.9" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-5</text>
+<line x1="900.0" y1="264.5" x2="1270.0" y2="264.5" stroke="#2e2d2b" stroke-width="1"/>
+<text x="892.0" y="268.5" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-3</text>
+<line x1="900.0" y1="188.2" x2="1270.0" y2="188.2" stroke="#2e2d2b" stroke-width="1"/>
+<text x="892.0" y="192.2" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1e-1</text>
+<line x1="900.0" y1="150.0" x2="1270.0" y2="150.0" stroke="#2e2d2b" stroke-width="1"/>
+<line x1="900.0" y1="150.0" x2="900.0" y2="570.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="900.0" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">0</text>
+<line x1="1023.3" y1="150.0" x2="1023.3" y2="570.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1023.3" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">20</text>
+<line x1="1146.7" y1="150.0" x2="1146.7" y2="570.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1146.7" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">40</text>
+<line x1="1270.0" y1="150.0" x2="1270.0" y2="570.0" stroke="#2e2d2b" stroke-width="1" stroke-dasharray="2 3"/>
+<text x="1270.0" y="586.0" fill="#a8a29e" font-size="10" font-weight="400" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">60</text>
+<text x="1085.0" y="603.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">AdamW step</text>
+<path d="M900.0,494.1 L961.7,195.1 L1023.3,193.1 L1085.0,192.1 L1146.7,192.8 L1208.3,193.4 L1270.0,192.7" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,504.5 L961.7,223.8 L1023.3,217.2 L1085.0,214.3 L1146.7,211.8 L1208.3,209.3 L1270.0,208.4" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,503.7 L961.7,209.2 L1023.3,206.9 L1085.0,210.9 L1146.7,213.0 L1208.3,213.4 L1270.0,213.1" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.1 L961.7,226.9 L1023.3,216.7 L1085.0,214.7 L1146.7,213.7 L1208.3,213.1 L1270.0,213.5" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.7 L961.7,226.7 L1023.3,216.2 L1085.0,216.8 L1146.7,215.8 L1208.3,214.9 L1270.0,214.5" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.8 L961.7,218.7 L1023.3,217.9 L1085.0,224.2 L1146.7,226.2 L1208.3,227.9 L1270.0,229.6" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.1 L961.7,226.6 L1023.3,214.9 L1085.0,214.3 L1146.7,216.1 L1208.3,217.5 L1270.0,218.7" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.6 L961.7,222.5 L1023.3,217.4 L1085.0,217.6 L1146.7,212.1 L1208.3,212.9 L1270.0,214.7" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,505.6 L961.7,212.4 L1023.3,197.0 L1085.0,192.7 L1146.7,191.4 L1208.3,191.8 L1270.0,190.9" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.4 L961.7,227.0 L1023.3,218.5 L1085.0,217.2 L1146.7,221.2 L1208.3,219.4 L1270.0,217.6" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.5 L961.7,226.5 L1023.3,230.6 L1085.0,229.5 L1146.7,229.9 L1208.3,232.7 L1270.0,228.8" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,505.8 L961.7,216.7 L1023.3,213.8 L1085.0,210.7 L1146.7,209.5 L1208.3,212.6 L1270.0,213.9" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,512.5 L961.7,230.5 L1023.3,222.2 L1085.0,221.7 L1146.7,225.1 L1208.3,221.2 L1270.0,222.9" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,514.6 L961.7,222.0 L1023.3,220.3 L1085.0,218.6 L1146.7,218.0 L1208.3,216.4 L1270.0,215.0" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,509.9 L961.7,214.6 L1023.3,221.4 L1085.0,220.1 L1146.7,216.6 L1208.3,213.3 L1270.0,214.6" fill="none" stroke="#d55181" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.7 L961.7,222.5 L1023.3,217.2 L1085.0,216.8 L1146.7,215.8 L1208.3,213.4 L1270.0,214.6" fill="none" stroke="#d55181" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M900.0,494.1 L961.7,236.1 L1023.3,233.8 L1085.0,234.3 L1146.7,234.7 L1208.3,234.6 L1270.0,234.5" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,504.5 L961.7,242.7 L1023.3,228.6 L1085.0,221.8 L1146.7,219.9 L1208.3,218.9 L1270.0,218.3" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,503.7 L961.7,239.3 L1023.3,232.4 L1085.0,222.3 L1146.7,219.8 L1208.3,219.0 L1270.0,217.9" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.1 L961.7,240.1 L1023.3,230.0 L1085.0,227.7 L1146.7,226.8 L1208.3,227.8 L1270.0,227.7" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.7 L961.7,243.9 L1023.3,242.6 L1085.0,237.3 L1146.7,237.6 L1208.3,240.0 L1270.0,238.3" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.8 L961.7,242.4 L1023.3,232.3 L1085.0,230.1 L1146.7,230.0 L1208.3,229.8 L1270.0,230.0" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.1 L961.7,241.4 L1023.3,238.0 L1085.0,236.5 L1146.7,235.5 L1208.3,235.0 L1270.0,234.9" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.6 L961.7,247.5 L1023.3,252.6 L1085.0,244.6 L1146.7,241.0 L1208.3,238.3 L1270.0,235.5" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,505.6 L961.7,237.3 L1023.3,243.1 L1085.0,242.3 L1146.7,242.5 L1208.3,244.6 L1270.0,243.6" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.4 L961.7,247.9 L1023.3,243.4 L1085.0,241.5 L1146.7,239.9 L1208.3,240.0 L1270.0,239.9" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.5 L961.7,251.5 L1023.3,244.3 L1085.0,242.7 L1146.7,242.3 L1208.3,243.2 L1270.0,245.0" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,505.8 L961.7,254.8 L1023.3,240.2 L1085.0,242.2 L1146.7,239.9 L1208.3,234.0 L1270.0,234.9" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,512.5 L961.7,238.2 L1023.3,235.6 L1085.0,233.0 L1146.7,230.0 L1208.3,231.0 L1270.0,230.7" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,514.6 L961.7,246.2 L1023.3,237.9 L1085.0,230.1 L1146.7,221.7 L1208.3,218.4 L1270.0,221.9" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,509.9 L961.7,240.8 L1023.3,236.7 L1085.0,237.6 L1146.7,232.8 L1208.3,231.1 L1270.0,231.2" fill="none" stroke="#c98500" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,507.7 L961.7,242.4 L1023.3,237.9 L1085.0,236.5 L1146.7,234.7 L1208.3,234.0 L1270.0,234.5" fill="none" stroke="#c98500" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M900.0,495.8 L961.7,496.3 L1023.3,495.9 L1085.0,498.3 L1146.7,502.5 L1208.3,498.3 L1270.0,496.0" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,505.1 L961.7,503.8 L1023.3,507.0 L1085.0,500.5 L1146.7,498.2 L1208.3,494.5 L1270.0,503.8" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,504.4 L961.7,508.7 L1023.3,507.4 L1085.0,508.6 L1146.7,503.2 L1208.3,503.8 L1270.0,502.6" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.9 L961.7,510.0 L1023.3,509.4 L1085.0,512.3 L1146.7,511.1 L1208.3,508.4 L1270.0,511.6" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,508.3 L961.7,509.6 L1023.3,507.9 L1085.0,506.1 L1146.7,507.4 L1208.3,506.2 L1270.0,506.1" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,511.2 L961.7,505.1 L1023.3,513.1 L1085.0,506.1 L1146.7,503.7 L1208.3,512.4 L1270.0,507.4" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.4 L961.7,512.0 L1023.3,509.4 L1085.0,509.0 L1146.7,514.4 L1208.3,508.6 L1270.0,506.9" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,508.5 L961.7,510.3 L1023.3,510.0 L1085.0,505.0 L1146.7,514.8 L1208.3,512.3 L1270.0,512.9" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,506.1 L961.7,513.8 L1023.3,511.7 L1085.0,509.0 L1146.7,506.7 L1208.3,507.6 L1270.0,503.7" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,516.3 L961.7,513.9 L1023.3,510.4 L1085.0,515.3 L1146.7,509.2 L1208.3,516.4 L1270.0,522.3" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.7 L961.7,521.6 L1023.3,519.4 L1085.0,520.3 L1146.7,520.2 L1208.3,507.5 L1270.0,512.2" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,506.6 L961.7,512.2 L1023.3,512.1 L1085.0,513.4 L1146.7,511.8 L1208.3,512.0 L1270.0,515.4" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,513.0 L961.7,509.8 L1023.3,515.7 L1085.0,511.0 L1146.7,502.3 L1208.3,506.3 L1270.0,510.9" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,515.8 L961.7,516.5 L1023.3,507.2 L1085.0,510.8 L1146.7,509.3 L1208.3,509.8 L1270.0,511.1" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.6 L961.7,511.0 L1023.3,509.7 L1085.0,509.7 L1146.7,512.9 L1208.3,513.2 L1270.0,513.2" fill="none" stroke="#199e70" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.38"/>
+<path d="M900.0,510.6 L961.7,510.3 L1023.3,509.7 L1085.0,509.0 L1146.7,509.2 L1208.3,508.4 L1270.0,510.9" fill="none" stroke="#199e70" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<text x="906.0" y="562.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">thin = one model, thick = median</text>
+<circle cx="46.0" cy="642.0" r="5" fill="#d55181" stroke="#1c1b1a" stroke-width="1.5"/>
+<text x="58.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">A  Unconstrained LoRA + AdamW</text>
+<circle cx="346.0" cy="642.0" r="5" fill="#c98500" stroke="#1c1b1a" stroke-width="1.5"/>
+<text x="358.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">B  Gradient-projected AdamW</text>
+<circle cx="646.0" cy="642.0" r="5" fill="#199e70" stroke="#1c1b1a" stroke-width="1.5"/>
+<text x="658.0" y="646.0" fill="#d6d3d1" font-size="12" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">C  ProjectThenHealLinear</text>
+<text x="32.0" y="686.0" fill="#d6d3d1" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Step 60 ranges over 15 models: A 0.82% to 8.51%, B 0.33% to 1.67%, C 1.78e-10 to 8.67e-10. B / C ratio (labels) 6.5e+06 to 3.8e+07. Points below 1e-11 drawn at the axis floor: 0.</text>
+<text x="32.0" y="708.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Local writer-update constraint only; it does not bound later layers or storage rounding. Source: irrefutable-15models-stage1-receipt.json, sha256 00f4fe2a...056f (identical for the 14 models it shares with the public-benchmark receipt).</text>
+</svg>

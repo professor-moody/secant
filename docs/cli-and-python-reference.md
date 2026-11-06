@@ -28,7 +28,7 @@ The C ABI uses a separate five-value return code (Section 4).
 
 ## 2. `secant` CLI Subcommands
 
-The binary has fourteen functional root subcommands: `profiles`, `inspect`, `read`, `analyze`, `compose`, `patch`, `verify-patch`, `sanitize`, `probe`, `heal`, `verify-subspace`, `quant`, `rotation-test` and `fetch-tensor`, plus Clap's `help`. `quant` contains `witness` (alias `verify`), `patch` and `roundtrip`. `rotation-test` and `fetch-tensor` are described in [Native WSP Extensions](native-wsp-extensions.md). The global `--go-arm64-fma` flag selects the arm64 Go oracle's fused multiply-adds; the default is unfused `float64`.
+The binary has sixteen functional root subcommands: `profiles`, `inspect`, `read`, `audit-trojan`, `analyze`, `compose`, `patch`, `verify-patch`, `sanitize`, `scan-sinks`, `probe`, `heal`, `verify-subspace`, `quant`, `rotation-test` and `fetch-tensor`, plus Clap's `help`. `quant` contains `witness` (alias `verify`), `patch` and `roundtrip`. `rotation-test` and `fetch-tensor` are described in [Native WSP Extensions](native-wsp-extensions.md). The global `--go-arm64-fma` flag selects the arm64 Go oracle's fused multiply-adds; the default is unfused `float64`.
 
 ### `secant profiles`
 Lists the five built-in Weight-Space Programming research profiles (`think-loop-fix`, `security-auditor-b1b2b3`, `refusal-ablate`, `adversarial-nan-probe`, `adversarial-moe-router-probe`), their subspace definitions, default target activation shifts, and layer-selection rules.
@@ -54,9 +54,12 @@ secant read \
   [--top-k-singular <0..64, default 4; 0 selects default>] \
   [--vocab-tensor <unembedding tensor>] \
   [--detect-anomalies] \
+  [--marchenko-pastur [--mp-threshold <ratio, default 1.5>]] \
   [--vectors-out <new_dir>] \
   [--json]
 ```
+
+`--marchenko-pastur` adds a per-tensor `marchenko_pastur` block and a report-level `spectral_outliers` ranking (see [Payload Security](payload-security.md), section 5). `secant audit-trojan --model <path> [--tensor <glob>] [--vocab-tensor <name>] [--top-k-singular <k>] [--mp-threshold <r>] [--top <rows>] [--json]` runs the same reader with `--detect-anomalies --marchenko-pastur` and prints the ranking. Both exit `0` whether or not anything is flagged.
 
 ### `secant analyze`
 Combines layer rankings from measurements you already captured. Borda voting assigns points by rank and combines those points across streams; it does not run the model to gather new measurements.
@@ -129,7 +132,7 @@ secant verify-subspace \
 
 `probe` generates header-valid boundary-value fixtures and requires `--out-dir`, `--receipt` and `--attempt-id`; it does not scan a model.
 
-`read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. Rules and exit codes: [Payload Security](payload-security.md). The standalone `secant` CLI has no `scan-sinks` subcommand.
+`sanitize` also scans `Q8_0` / `Q4_K` GGUF scale headers (`quant_scale_*` findings); other quantized types exit `2`. `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. `scan-sinks` ranks C/C++/CUDA/Rust source sites for the four weight-value sink classes. Rules and exit codes: [Payload Security](payload-security.md).
 ```bash
 secant sanitize --model <in_path> --receipt <new.json> --attempt-id <id> \
   [--num-experts <N>] [--routing-tensor <glob>]... [--norm-tensor <glob>]... \
@@ -140,6 +143,8 @@ secant probe --class <class1|class2|class3|class4|all> --format <safetensors|ggu
   --out-dir <new_dir> --receipt <new.json> --attempt-id <id> \
   [--base <model>] [--num-experts <2..1048576, default 8>] [--json]
 secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
+secant scan-sinks --source <dir> [--top <N, default 100>] [--attempt-id <id>] \
+  [--out <new.json>] [--json] [--show <rows, default 25>]
 ```
 
 ---
@@ -148,7 +153,7 @@ secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
 
 Check the schema, producer, and scope before comparing results. Similar field names can measure different objects: the adapter factor, the full weight update, or the error after storage rounding.
 
-Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.analyze.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1` and `secant.wsp.probe.v1` for the corresponding commands. `quant witness` (`verify`) uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Older banked receipts and the Go interface may use a `crucible` prefix; retain the producer identity instead of relabeling those receipts.
+Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.analyze.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1`, `secant.wsp.probe.v1` and `secant.wsp-sink-scan.v1` (`scan-sinks`) for the corresponding commands; `audit-trojan` writes `secant.wsp.read.v1`. `quant witness` (`verify`) uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Older banked receipts and the Go interface may use a `crucible` prefix; retain the producer identity instead of relabeling those receipts.
 
 - `read`: `pre_sha256`, `post_sha256` and `input_unchanged` bracket the model read; a successful command can still contain `status: "nonfinite"` tensors.
 - `verify-patch`: `header_bytes_identical`, `other_tensors_byte_identical` and `ok` test byte invariants. The allowlist permits changes; it does not establish that the intended numerical edit occurred.

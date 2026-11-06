@@ -1055,12 +1055,15 @@ fn sanitize_malformed_and_unsupported_layouts_fail_closed() {
         println!("gguf v{} -> exit {}", v, c.code);
     }
     // Quantized GGUF: the Go scanner rejects the whole file; Secant lists it and the sanitizer must refuse.
+    // Q4_0 (type 2), not Q8_0: Secant scans Q8_0 / Q4_K scale headers (a deliberate
+    // divergence, tested in secant-cli/tests/quant_sanitize_cli.rs); every other
+    // quantized type is still refused on both sides.
     let mut q = gg(&[bt("w", "F32", &[32], raw_bits("F32", &[0; 32]))]);
     // find "w" tensor info: name_len(1) 'w' ndims(1) dim(32) type(0)
     let pat: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 1u32.to_le_bytes().to_vec(), 32u64.to_le_bytes().to_vec()].concat();
     let at = q.windows(pat.len()).position(|w| w == pat.as_slice()).expect("tensor info");
-    q[at + pat.len()..at + pat.len() + 4].copy_from_slice(&8u32.to_le_bytes()); // Q8_0
-    let c = compare_opt("gguf-q8", &go, &rs, &root, &san_args(&put(&root, "q8.gguf", &q), &[]), true);
+    q[at + pat.len()..at + pat.len() + 4].copy_from_slice(&2u32.to_le_bytes()); // Q4_0
+    let c = compare_opt("gguf-q4_0", &go, &rs, &root, &san_args(&put(&root, "q4_0.gguf", &q), &[]), true);
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
     println!("quantized GGUF error go: {}", serde_json::from_str::<Value>(c.go_receipt.as_ref().unwrap()).unwrap()["error"]);
@@ -1566,4 +1569,46 @@ fn extension_cli_flags_and_oracle_equivalence_on_nonfinite_only() {
     let off = secant_core::container::layout_of_bytes(&out, "x").unwrap().tensors[0].offset as usize;
     let got: Vec<u64> = (0..4).map(|i| bits_at("BF16", &out[off..], i)).collect();
     assert_eq!(got, vec![0x447a, 0xc47a, 0x0000, 0x8000]); // 1000.0 rounded down from 1000.5, signs kept, subnormals flushed
+}
+
+/// Milestone S-4, JSON mode (immune to the human-report wording): a Q4_0 GGUF
+/// is refused identically by both tools, while Q8_0 / Q4_K files are a
+/// deliberate, recorded divergence. The oracle refuses them (exit 2, unknown);
+/// Secant scans their scale headers (exit 0, clean, `+quant-scale-headers-v1`).
+#[test]
+fn sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json() {
+    let Some((go, rs)) = bins("sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json") else { return };
+    let root = Scratch::new("sq");
+    let retag = |id: u32| {
+        let mut q = gg(&[bt("w", "F32", &[256], raw_bits("F32", &[0; 256]))]);
+        let pat: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 1u32.to_le_bytes().to_vec(), 256u64.to_le_bytes().to_vec()].concat();
+        let at = q.windows(pat.len()).position(|w| w == pat.as_slice()).expect("tensor info");
+        q[at + pat.len()..at + pat.len() + 4].copy_from_slice(&id.to_le_bytes());
+        q
+    };
+    let p = put(&root, "q4_0.gguf", &retag(2));
+    let mut args = san_args(&p, &[]);
+    args.push("--json");
+    let c = compare_opt("gguf-q4_0-json", &go, &rs, &root, &args, true);
+    assert_eq!(c.code, 2);
+    assert_eq!(status_of(&c), "unknown");
+    for (id, name) in [(8u32, "Q8_0"), (12, "Q4_K")] {
+        let p = put(&root, &format!("{}.gguf", name), &retag(id));
+        let (a, b) = (Side::new(&root, &format!("{}-go", name)), Side::new(&root, &format!("{}-rs", name)));
+        let mut args = san_args(&p, &[]);
+        args.push("--json");
+        let og = run_go(&go, &a.args(&args));
+        let or = run_rs(&rs, &b.args(&args));
+        let gv: Value = serde_json::from_str(&std::fs::read_to_string(a.sub("receipt.json")).unwrap()).unwrap();
+        let rv: Value = serde_json::from_str(&std::fs::read_to_string(b.sub("receipt.json")).unwrap()).unwrap();
+        assert_eq!((og.status.code(), gv["status"].as_str()), (Some(2), Some("unknown")), "{}: oracle refuses", name);
+        assert!(gv["error"].as_str().unwrap().contains("(quantized)"), "{}", gv["error"]);
+        assert_eq!((or.status.code(), rv["status"].as_str()), (Some(0), Some("clean")), "{}: Secant scans", name);
+        assert_eq!(rv["policy_version"], "unquantized-static-values-v1+quant-scale-headers-v1");
+        assert_eq!(rv["before"]["quant_tensors"], 1);
+        println!(
+            "DIVERGENCE {}: oracle exit 2 {:?}; secant exit 0 clean, quant_blocks={}",
+            name, gv["error"], rv["before"]["quant_blocks"]
+        );
+    }
 }

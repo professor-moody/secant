@@ -34,6 +34,7 @@ mod tests {
     use crate::plan::{COMPOSE_SCHEMA, PLAN_SCHEMA, PROFILES_SCHEMA, PROFILE_SCHEMA};
     use crate::read::READ_SCHEMA;
     use crate::security::{PROBE_ARCHITECTURE, PROBE_META_CLASS, PROBE_META_NUM_EXPERTS, PROBE_SCHEMA, SANITIZE_SCHEMA};
+    use crate::sinks::SINK_SCAN_SCHEMA;
 
     fn all_written_ids() -> Vec<&'static str> {
         vec![
@@ -50,6 +51,7 @@ mod tests {
             VERIFY_SUBSPACE_SCHEMA,
             SANITIZE_SCHEMA,
             PROBE_SCHEMA,
+            SINK_SCAN_SCHEMA,
             HEAL_META_KEY,
             HEAL_META_PROTECTED_DIM,
             HEAL_META_PROTECTED_K,

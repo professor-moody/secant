@@ -306,22 +306,24 @@ This profile pins its layers explicitly (`B2` at `L14`, `B3` at `L15`), so the n
 
 **Step 4: `secant patch` writes the edits into a copy of the file.** `B2` changes 3,425,789 of 4,194,304 entries in `model.layers.14.self_attn.o_proj.weight`. `B3` changes only 104,755 of 16,777,216 entries (0.6%) in `model.layers.15.mlp.down_proj.weight`. `shasum` then confirms the output hash.
 
+Copying and hashing 3.4 GB takes time: about 32 s for `patch` and 7 s for `shasum` on the recording machine. The tape pauses the recording while each command works, so the GIF shows no blank wait. Nothing is pre-printed. Both commands really run, and bash `time` prints each real elapsed time on screen as `real ... (wait cut from this recording)`.
+
 ```{figure} assets/secant-patch.gif
 :name: fig-vhs-patch
-:alt: Terminal recording of secant patch editing two tensors and printing the output SHA-256 4d036572
+:alt: Terminal recording of secant patch editing two tensors and printing the output SHA-256 4d036572, with the real elapsed time of each command shown by bash time
 :width: 100%
 
-`secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors`
+`time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors`. The computing time is cut from the recording; the `real` lines give the actual cost.
 ```
 
-**Step 5: `secant verify-patch` proves nothing else moved.** The header is byte-identical, only the two named tensors differ, and the other 216 tensors are byte-identical to the base.
+**Step 5: `secant verify-patch` proves nothing else moved.** The header is byte-identical, only the two named tensors differ, and the other 216 tensors are byte-identical to the base. Reading both files takes several seconds, and as in Step 4 that wait is cut from the recording, with the real time printed by `time`.
 
 ```{figure} assets/secant-verify-patch.gif
 :name: fig-vhs-verify-patch
-:alt: Terminal recording of secant verify-patch reporting an identical header and 216 byte-identical tensors
+:alt: Terminal recording of secant verify-patch reporting an identical header and 216 byte-identical tensors, with its real elapsed time shown by bash time
 :width: 100%
 
-`secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors --expect-changed ...`
+`time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors --expect-changed ...`
 ```
 
 **Step 6: `secant probe` generates the self-test fixtures.** It writes the same NaN/Inf fixture as both `.safetensors` and `.gguf`, then inspects the `.gguf` copy. The `.safetensors` hash, `22ffbb02...d503`, is the one Workflow 5 checks.
@@ -353,8 +355,10 @@ for t in inspect analyze compose patch verify-patch probe; do
 done
 ```
 
+The tapes set `Framerate 30`, type at 35 ms per character, and hold the final screen for 6 s before the GIF loops. Output appears within 0.12 s of the last keystroke in every recording. The three slow commands (`patch`, `shasum`, `verify-patch`) get there because the wait is hidden, not because they run in under a second. The GIF format stores frame delays in hundredths of a second, so the files written by VHS 0.12.1 play at 25 frames per second (4 cs per frame).
+
 The captured direction vectors are not shipped in this repository. With vectors you capture yourself (Workflow 2), the same tapes run end to end, but the plan and patched-file hashes will differ.
 
 > **Takeaway:** Every number in these recordings comes from the shipped binary acting on a real 1.7B checkpoint, and the final file is bit-identical to the original experiment's output.
 
-The [reference](cli-and-python-reference.md) lists all fourteen root commands, including `fetch-tensor` and `rotation-test`, which are outside this walkthrough.
+The [reference](cli-and-python-reference.md) lists all sixteen root commands, including `fetch-tensor`, `rotation-test`, `audit-trojan` and `scan-sinks`, which are outside this walkthrough.

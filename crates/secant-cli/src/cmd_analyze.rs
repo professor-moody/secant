@@ -35,10 +35,9 @@ pub fn run(a: &Args) -> i32 {
             if let Err(e) = builtin_profile(p) {
                 return fail(&e);
             }
-            rep.assignments.notes.push(format!(
-                "profile {} consumes these assignments via `secant compose --profile {} --analysis <this report>`",
-                p, p
-            ));
+            rep.assignments
+                .notes
+                .push(format!("profile {} consumes these assignments via `secant compose --profile {} --analysis <this report>`", p, p));
         }
     }
     if let Some(out) = &a.out {

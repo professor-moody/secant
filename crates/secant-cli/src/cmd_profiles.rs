@@ -38,11 +38,7 @@ pub fn run(a: &Args) -> i32 {
             println!("  default gamma: {:.2} (relative Frobenius norm)", p.default_gamma);
         }
         println!("  layer choice:  {} ({})", p.layer_selection.strategy, p.layer_selection.tool);
-        let slots: Vec<String> = p
-            .slots
-            .iter()
-            .map(|s| format!("{}({}@L{})", s.id, s.role, s.layer))
-            .collect();
+        let slots: Vec<String> = p.slots.iter().map(|s| format!("{}({}@L{})", s.id, s.role, s.layer)).collect();
         println!("  slots:         {}\n", slots.join(", "));
     }
     0

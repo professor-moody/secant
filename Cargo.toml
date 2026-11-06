@@ -14,6 +14,7 @@ sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 clap = { version = "4", features = ["derive"] }
+regex = "1"
 secant-core = { path = "crates/secant-core" }
 
 [profile.release]

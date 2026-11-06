@@ -54,6 +54,21 @@ pub struct ReadOptions {
     pub detect_anomalies: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub vectors_out: String,
+    /// Secant extension (Milestone S-2; omitted when false): report the
+    /// Marchenko-Pastur bulk edge and `sigma_1 / sigma_MP` per 2-D tensor.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub marchenko_pastur: bool,
+    /// Flag threshold on `sigma_1 / sigma_MP`; 0 takes the default. Serialized
+    /// only with `marchenko_pastur`.
+    #[serde(skip_serializing_if = "is_zero_f")]
+    pub mp_threshold: f64,
+}
+
+/// Default `sigma_1 / sigma_MP` flag threshold.
+pub const MP_DEFAULT_THRESHOLD: f64 = 1.5;
+
+fn is_zero_f(v: &f64) -> bool {
+    *v == 0.0
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -148,9 +163,33 @@ pub struct TensorSpectrum {
     pub anomalies: Option<Anomalies>,
     #[serde(rename = "vocab_projection", skip_serializing_if = "Option::is_none")]
     pub vocab: Option<VocabProjection>,
+    /// Secant extension (`--marchenko-pastur`): bulk edge and spike ratio.
+    #[serde(rename = "marchenko_pastur", skip_serializing_if = "Option::is_none")]
+    pub spectral_bulk: Option<crate::mp::SpectralBulk>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
 }
+
+/// One row of the report-level spike ranking (`--marchenko-pastur`).
+#[derive(Debug, Clone, Serialize)]
+pub struct SpectralOutlier {
+    pub tensor: String,
+    pub sigma_1: f64,
+    pub sigma_mp: f64,
+    pub sigma1_over_mp: f64,
+    pub outliers: usize,
+    /// `sigma1_over_mp > threshold`: outside the i.i.d. bulk. Expected for
+    /// trained weights; not a verdict on its own.
+    pub flagged: bool,
+    /// The ratio against the same tensor in the other layers.
+    pub sibling: crate::mp::Sibling,
+    /// Top promoted vocabulary tokens of `u_1` (with `--vocab-tensor`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub promoted_tokens: Vec<VecEntry>,
+}
+
+/// Promoted tokens copied into the spike ranking.
+const OUTLIER_TOKENS: usize = 8;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReadPolicy {
@@ -194,6 +233,10 @@ pub struct ReadReport {
     pub tensors: Vec<TensorSpectrum>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub vector_files: Vec<String>,
+    /// Secant extension (`--marchenko-pastur`): every tensor with a defined
+    /// ratio, by `sigma1_over_mp` descending (ties by name).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spectral_outliers: Option<Vec<SpectralOutlier>>,
 }
 
 // ------------------------------------------------------------------ arithmetic
@@ -423,7 +466,7 @@ struct Analyzed {
     v1: Option<Vec<f64>>,
 }
 
-fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: usize, detect: bool) -> Result<Analyzed> {
+fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: usize, detect: bool, mp: Option<f64>) -> Result<Analyzed> {
     let mut spec = TensorSpectrum {
         name: t.name.clone(),
         dtype: t.dtype.clone(),
@@ -443,6 +486,7 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
         col_l2: None,
         anomalies: None,
         vocab: None,
+        spectral_bulk: None,
         notes: vec![],
     };
     let mut res = Analyzed { spec: spec.clone(), u1: None, v1: None };
@@ -546,6 +590,10 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
     let trips = top_singular(&m, k)?;
     for tr in &trips {
         spec.singular.push(tr.info.clone());
+    }
+    if let Some(threshold) = mp {
+        let sigmas: Vec<f64> = trips.iter().map(|t| t.info.sigma).collect();
+        spec.spectral_bulk = Some(crate::mp::marchenko_pastur(total, m.rows, m.cols, &sigmas, threshold));
     }
     if trips.is_empty() {
         spec.notes.push("all singular values are zero within the rank floor".into());
@@ -815,6 +863,16 @@ fn normalize(mut o: ReadOptions) -> Result<ReadOptions> {
     if !o.tensor.is_empty() {
         path_match(&o.tensor, "")?;
     }
+    if o.marchenko_pastur {
+        if o.mp_threshold == 0.0 {
+            o.mp_threshold = MP_DEFAULT_THRESHOLD;
+        }
+        if o.mp_threshold.is_nan() || o.mp_threshold <= 0.0 || o.mp_threshold.is_infinite() {
+            return Err(Error::msg("mp-threshold must be a finite value > 0"));
+        }
+    } else if o.mp_threshold != 0.0 {
+        return Err(Error::msg("mp-threshold requires marchenko-pastur"));
+    }
     Ok(o)
 }
 
@@ -893,6 +951,7 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
         tensors_analyzed: 0,
         tensors: vec![],
         vector_files: vec![],
+        spectral_outliers: None,
     };
     let mut selected: Vec<&TensorLocation> = Vec::new();
     for t in &layout.tensors {
@@ -945,7 +1004,8 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
     }
     let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
     for t in selected {
-        let mut a = analyze_tensor(model.bytes(), t, o.top_cols, o.top_k_singular, o.detect_anomalies)?;
+        let mp = if o.marchenko_pastur { Some(o.mp_threshold) } else { None };
+        let mut a = analyze_tensor(model.bytes(), t, o.top_cols, o.top_k_singular, o.detect_anomalies, mp)?;
         if a.spec.status == "ok" {
             rep.tensors_analyzed += 1;
         }
@@ -979,6 +1039,9 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
         }
         rep.tensors.push(a.spec);
     }
+    if o.marchenko_pastur {
+        rep.spectral_outliers = Some(spectral_ranking(&rep.tensors));
+    }
     let (post, _) = file_sha256(&o.model)?;
     rep.post_sha256 = post;
     let cur = std::fs::metadata(&o.model);
@@ -990,6 +1053,50 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
         return Err(Error::msg("input changed while it was being read"));
     }
     Ok(rep)
+}
+
+/// The report-level spike ranking: tensors with a defined ratio, highest
+/// first, each compared with its layer family (`mp::family_key`).
+fn spectral_ranking(tensors: &[TensorSpectrum]) -> Vec<SpectralOutlier> {
+    let mut out: Vec<SpectralOutlier> = tensors
+        .iter()
+        .filter_map(|t| {
+            let b = t.spectral_bulk.as_ref()?;
+            let (mp, ratio) = (b.sigma_mp?, b.sigma1_over_mp?);
+            let promoted = match &t.vocab {
+                Some(v) if v.status == "ok" => v.promoted.iter().take(OUTLIER_TOKENS).cloned().collect(),
+                _ => vec![],
+            };
+            Some(SpectralOutlier {
+                tensor: t.name.clone(),
+                sigma_1: t.singular.first()?.sigma,
+                sigma_mp: mp,
+                sigma1_over_mp: ratio,
+                outliers: b.outliers,
+                flagged: b.flagged,
+                sibling: crate::mp::Sibling {
+                    family: crate::mp::family_key(&t.name),
+                    family_size: 0,
+                    family_median: None,
+                    robust_z: None,
+                    sibling_outlier: None,
+                },
+                promoted_tokens: promoted,
+            })
+        })
+        .collect();
+    let mut families: std::collections::BTreeMap<String, Vec<usize>> = std::collections::BTreeMap::new();
+    for (i, o) in out.iter().enumerate() {
+        families.entry(o.sibling.family.clone()).or_default().push(i);
+    }
+    for (fam, idx) in families {
+        let vals: Vec<f64> = idx.iter().map(|&i| out[i].sigma1_over_mp).collect();
+        for (&i, s) in idx.iter().zip(crate::mp::sibling_stats(&fam, &vals)) {
+            out[i].sibling = s;
+        }
+    }
+    out.sort_by(|a, b| b.sigma1_over_mp.partial_cmp(&a.sigma1_over_mp).unwrap_or(std::cmp::Ordering::Equal).then(a.tensor.cmp(&b.tensor)));
+    out
 }
 
 #[allow(dead_code)]

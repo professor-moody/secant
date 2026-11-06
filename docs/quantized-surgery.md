@@ -16,6 +16,14 @@ This page separates two operations: **reordering** whole groups of columns and *
 How the stored blocks fit the 128-column `ssm_out` panels: four 32-element `Q8_0` blocks divide each 128-column panel evenly ($128 = 4 \times 32$), whereas a single 256-element `Q4_K` superblock spans two neighboring heads with a shared `FP16` scale `d` and `dmin`.
 ```
 
+```{figure} assets/secant-pipeline.svg
+:name: fig-quant-pipeline-stage3
+:alt: Four-stage Secant diagram; Stage 3 shows a 256-column weight row split into two 128-column panels, eight 34-byte Q8_0 blocks aligned to the panel boundary, one 144-byte Q4_K superblock cracked at column 128, a toy panel permutation, and the byte layouts of both block types drawn to one scale
+:width: 100%
+
+Where this page sits in the workflow: **Stage 3**. Each `Q8_0` block holds 32 weights in 34 bytes (a 2-byte `f16` scale `d` and 32 `int8` codes), so a 128-column panel is exactly four whole blocks, and moving or editing a panel never touches a neighbor's scale. A `Q4_K` superblock holds 256 weights in 144 bytes: `f16` `d` and `dmin`, 12 bytes of packed sub-block scales, and 128 bytes of 4-bit codes. The boundary at column 128 therefore falls inside it, and $\Pi_{128}$ carries half of its weights away from the scales they share. The arrows show $\pi(k \cdot r + j) = j \cdot n_k + k$ on a toy grid ($n_k = r = 2$); Section 1 gives the `Qwen3.5-4B` case ($n_k = 16$, $r = 2$).
+```
+
 ---
 
 ## 1. How Column Groups Fit Into Stored Blocks

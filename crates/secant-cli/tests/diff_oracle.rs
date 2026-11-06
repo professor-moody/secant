@@ -608,8 +608,7 @@ fn random_geometry_sweep() {
                 "id": "P", "role": "x", "op": "projector-subtract", "tensor": name, "tensor_safetensors": name,
                 "direction": norm(rng.vec(d_out)), "gamma": 0.1 + 0.9 * (rng.unit().abs())}));
         }
-        let plan =
-            serde_json::json!({"schema": legacy_alias(PLAN_SCHEMA).unwrap(), "profile": "sweep", "calibration": {"mode": "gamma"}, "edits": edits});
+        let plan = serde_json::json!({"schema": legacy_alias(PLAN_SCHEMA).unwrap(), "profile": "sweep", "calibration": {"mode": "gamma"}, "edits": edits});
         let pp = s.path(&format!("plan{}.json", case));
         write(&pp, plan.to_string().as_bytes());
         let (go_out, rs_out) = (s.path(&format!("go{}.bin", case)), s.path(&format!("rs{}.bin", case)));

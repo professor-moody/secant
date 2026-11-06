@@ -155,20 +155,14 @@ fn parse_layer_key(k: &str) -> Option<i64> {
 
 fn cell_from_value(v: &Value) -> Option<SnrCell> {
     match v {
-        Value::Number(n) => Some(SnrCell {
-            snr: n.as_f64()?,
-            heldout_margin: 0.0,
-            sigma_ctl: 0.0,
-        }),
+        Value::Number(n) => Some(SnrCell { snr: n.as_f64()?, heldout_margin: 0.0, sigma_ctl: 0.0 }),
         Value::Object(_) => serde_json::from_value::<SnrCell>(v.clone()).ok(),
         _ => None,
     }
 }
 
 fn parse_family_cells(body: &Value) -> Result<BTreeMap<String, BTreeMap<String, SnrCell>>> {
-    let subs = body
-        .as_object()
-        .ok_or_else(|| Error::msg("expected subspace -> layer map"))?;
+    let subs = body.as_object().ok_or_else(|| Error::msg("expected subspace -> layer map"))?;
     let mut cells: BTreeMap<String, BTreeMap<String, SnrCell>> = BTreeMap::new();
     for (sub, layers_val) in subs {
         let Some(layers) = layers_val.as_object() else {
@@ -196,22 +190,9 @@ fn analyze_family(cells: &BTreeMap<String, BTreeMap<String, SnrCell>>) -> Family
         if layer_cells.is_empty() {
             continue;
         }
-        let mut ranked: Vec<RankedLayer> = layer_cells
-            .iter()
-            .filter_map(|(lk, c)| {
-                parse_layer_key(lk).map(|layer| RankedLayer {
-                    layer,
-                    snr: c.snr,
-                    rank: 0,
-                })
-            })
-            .collect();
-        ranked.sort_by(|a, b| {
-            b.snr
-                .partial_cmp(&a.snr)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.layer.cmp(&b.layer))
-        });
+        let mut ranked: Vec<RankedLayer> =
+            layer_cells.iter().filter_map(|(lk, c)| parse_layer_key(lk).map(|layer| RankedLayer { layer, snr: c.snr, rank: 0 })).collect();
+        ranked.sort_by(|a, b| b.snr.partial_cmp(&a.snr).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.layer.cmp(&b.layer)));
         let n = ranked.len();
         for (i, rl) in ranked.iter_mut().enumerate() {
             rl.rank = i;
@@ -221,16 +202,8 @@ fn analyze_family(cells: &BTreeMap<String, BTreeMap<String, SnrCell>>) -> Family
         fam.per_subspace_argmax.insert(sub.to_string(), peak.layer);
         fam.subspaces.insert(sub.to_string(), SubspaceRanking { ranked, peak });
     }
-    let mut scores: Vec<BordaScore> = layer_scores
-        .into_iter()
-        .map(|(layer, score)| BordaScore { layer, score })
-        .collect();
-    scores.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| a.layer.cmp(&b.layer))
-    });
+    let mut scores: Vec<BordaScore> = layer_scores.into_iter().map(|(layer, score)| BordaScore { layer, score }).collect();
+    scores.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.layer.cmp(&b.layer)));
     if let Some(first) = scores.first() {
         fam.borda_winner = first.layer;
     }
@@ -257,11 +230,8 @@ fn hardcoded_diagnostics(rep: &AnalyzeReport) -> Vec<String> {
                     let Some(h) = by_layer.get(&hc) else {
                         continue;
                     };
-                    let ratio = if h.snr > 0.0 && r.peak.snr > 0.0 {
-                        format!("{:.2}x lower", r.peak.snr / h.snr)
-                    } else {
-                        "n/a".to_string()
-                    };
+                    let ratio =
+                        if h.snr > 0.0 && r.peak.snr > 0.0 { format!("{:.2}x lower", r.peak.snr / h.snr) } else { "n/a".to_string() };
                     out.push(format!(
                         "{}.{}: hardcoded L{} snr={:.4} rank {}/{} vs peak L{} snr={:.4} ({}): the banked mid-layer default misses the bottleneck at this scale",
                         alias,
@@ -289,11 +259,8 @@ fn hardcoded_diagnostics(rep: &AnalyzeReport) -> Vec<String> {
 
 pub fn analyze(path: &str) -> Result<AnalyzeReport> {
     let data = std::fs::read(path).map_err(|e| Error::msg(format!("read {}: {}", path, e)))?;
-    let raw_val: Value =
-        serde_json::from_slice(&data).map_err(|e| Error::msg(format!("{} is not a JSON object: {}", path, e)))?;
-    let raw = raw_val
-        .as_object()
-        .ok_or_else(|| Error::msg(format!("{} is not a JSON object", path)))?;
+    let raw_val: Value = serde_json::from_slice(&data).map_err(|e| Error::msg(format!("{} is not a JSON object: {}", path, e)))?;
+    let raw = raw_val.as_object().ok_or_else(|| Error::msg(format!("{} is not a JSON object", path)))?;
 
     let mut families_raw: BTreeMap<String, BTreeMap<String, BTreeMap<String, SnrCell>>> = BTreeMap::new();
     let mut layout = "family-major".to_string();
@@ -311,22 +278,17 @@ pub fn analyze(path: &str) -> Result<AnalyzeReport> {
         for role in ["refusal", "root", "loop"] {
             for alias in family_aliases(role) {
                 if let Some(body) = raw.get(*alias) {
-                    let cells = parse_family_cells(body)
-                        .map_err(|e| Error::msg(format!("family {}: {}", alias, e)))?;
+                    let cells = parse_family_cells(body).map_err(|e| Error::msg(format!("family {}: {}", alias, e)))?;
                     families_raw.insert((*alias).to_string(), cells);
                 }
             }
         }
     } else if let Some(layers_val) = raw.get("layers") {
         layout = "layer-major".to_string();
-        let per_layer = layers_val
-            .as_object()
-            .ok_or_else(|| Error::msg("layers: expected JSON object"))?;
+        let per_layer = layers_val.as_object().ok_or_else(|| Error::msg("layers: expected JSON object"))?;
         let mut cells: BTreeMap<String, BTreeMap<String, SnrCell>> = BTreeMap::new();
         for (lk, subs_val) in per_layer {
-            let subs = subs_val
-                .as_object()
-                .ok_or_else(|| Error::msg("layers entry: expected subspace object"))?;
+            let subs = subs_val.as_object().ok_or_else(|| Error::msg("layers entry: expected subspace object"))?;
             for (sub, cval) in subs {
                 if let Some(c) = cell_from_value(cval) {
                     cells.entry(sub.clone()).or_default().insert(lk.clone(), c);
@@ -386,13 +348,9 @@ pub fn analyze(path: &str) -> Result<AnalyzeReport> {
 
 pub fn load_analyze_report(path: &str) -> Result<AnalyzeReport> {
     let data = std::fs::read(path).map_err(|e| Error::msg(format!("read analysis: {}", e)))?;
-    let rep: AnalyzeReport =
-        serde_json::from_slice(&data).map_err(|e| Error::msg(format!("parse analysis {}: {}", path, e)))?;
+    let rep: AnalyzeReport = serde_json::from_slice(&data).map_err(|e| Error::msg(format!("parse analysis {}: {}", path, e)))?;
     if !crate::namespace::accepts(ANALYZE_SCHEMA, &rep.schema) {
-        return Err(Error::msg(format!(
-            "analysis {}: schema {:?}, want {:?}",
-            path, rep.schema, ANALYZE_SCHEMA
-        )));
+        return Err(Error::msg(format!("analysis {}: schema {:?}, want {:?}", path, rep.schema, ANALYZE_SCHEMA)));
     }
     Ok(rep)
 }
@@ -449,4 +407,3 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
-

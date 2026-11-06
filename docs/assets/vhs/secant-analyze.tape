@@ -11,8 +11,8 @@ Set Width 1560
 Set Height 700
 Set Padding 18
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 22ms
-Set Framerate 20
+Set TypingSpeed 35ms
+Set Framerate 30
 Set PlaybackSpeed 1.0
 
 Hide
@@ -26,4 +26,4 @@ Enter
 Type "secant analyze --in layer_snr.json --out analysis.json"
 Enter
 Wait@20s
-Sleep 5s
+Sleep 6s

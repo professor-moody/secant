@@ -11,8 +11,8 @@ Set Width 1240
 Set Height 620
 Set Padding 18
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 22ms
-Set Framerate 20
+Set TypingSpeed 35ms
+Set Framerate 30
 Set PlaybackSpeed 1.0
 
 Hide
@@ -26,4 +26,4 @@ Enter
 Type "secant inspect --model smollm2-1.7b.safetensors"
 Enter
 Wait@20s
-Sleep 4s
+Sleep 6s

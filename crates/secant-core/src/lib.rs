@@ -9,12 +9,15 @@ pub mod container;
 pub mod dtype;
 pub mod error;
 pub mod heal;
+pub mod mp;
 pub mod namespace;
 pub mod numeric;
 pub mod plan;
 pub mod quant;
+pub mod quant_scale;
 pub mod read;
 pub mod security;
+pub mod sinks;
 pub mod subspace;
 
 pub use error::{Error, Result};

@@ -164,7 +164,7 @@ pub fn dequantize_row_q8_0(b: &[u8], out: &mut [f32]) -> Result<()> {
 
 // ------------------------------------------------------------------ Q4_K
 
-fn get_scale_min_k4(j: usize, q: &[u8]) -> (u8, u8) {
+pub(crate) fn get_scale_min_k4(j: usize, q: &[u8]) -> (u8, u8) {
     if j < 4 {
         (q[j] & 63, q[j + 4] & 63)
     } else {

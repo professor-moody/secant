@@ -537,7 +537,8 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
                         };
                         how = format!("secant analyze {} Borda order ({})", opts.analysis_path, star);
                     } else {
-                        how = "analysis family has no layer with a matching vector file; fell back to sorted vector-file enumeration".to_string();
+                        how = "analysis family has no layer with a matching vector file; fell back to sorted vector-file enumeration"
+                            .to_string();
                     }
                 }
             }
@@ -554,10 +555,7 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
             cursor.insert(slot.direction_token.clone(), idx + 1);
             if let Some(ref mut binding) = analysis_binding {
                 binding.bound_layers.insert(slot.id.clone(), layer);
-                binding.notes.push(format!(
-                    "slot {} (d_{}) bound to L{} via {}",
-                    slot.id, slot.direction_token, layer, how
-                ));
+                binding.notes.push(format!("slot {} (d_{}) bound to L{} via {}", slot.id, slot.direction_token, layer, how));
             }
         }
         let stem = format!("d_{}_L{}", slot.direction_token, layer);

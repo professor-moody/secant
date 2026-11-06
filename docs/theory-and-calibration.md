@@ -18,6 +18,14 @@ A **writer** is a matrix that contributes to a layer's output. The **residual st
 **B.** Every calibrated rank-1 edit in the banked plans: the `B3` target $|\Delta| = 3.8956$ is the same on `Qwen3.5-4B`, `Qwen2.5-1.5B` and `SmolLM2-1.7B`, $\|h_S\|_2$ spans `4.13` to `10.44`, and $\beta$ spans `0.0358` to `0.2286`. Recomputing $\langle q, \Delta W\,h_{\text{ref}}\rangle$ from each plan in `float64` gives $|\text{error}| \le 4.0 \times 10^{-15}$; after the weights are stored in `BF16` the realized shift moves by $1.2 \times 10^{-6}$ to $2.0 \times 10^{-3}$. Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
 ```
 
+```{figure} assets/secant-pipeline.svg
+:name: fig-theory-pipeline
+:alt: Four-stage Secant diagram; Stages 1 and 2 show control and target activation distributions, the per-layer SNR curve with its Borda winner, two-pass Gram-Schmidt orthogonalization, and the sparse top-K input-column support used by Target-Shift Calibration
+:width: 100%
+
+Sections 1 to 4 of this page explain Stages 1 and 2. **Stage 1** shows what an SNR measures: the target prompts' projections onto a direction sit `m = 33.0` away from the control prompts', with control spread `σ = 0.816`, so `SNR = 40.48` at `L12` of `SmolLM2-1.7B`. Below that is the per-layer curve that `secant analyze` ranks. **Stage 2** shows Section 3's two Gram-Schmidt passes, which take a raw cosine of `0.1236` to `1.12e-17`, and Section 2's sparse support. The `B3` edit uses only the 64 of 8,192 input columns where $\lvert h_{\text{ref}}\rvert$ is largest, so $\lVert h_S\rVert_2 = 10.435$ fixes $\beta$ for the requested shift `3.8956`. Stages 3 and 4 are covered in [quantized surgery](quantized-surgery.md) and [Project-Then-Heal](project-then-heal.md).
+```
+
 ---
 
 ## 1. Compare Two Prompt Groups on Held-Out Data
@@ -176,3 +184,13 @@ The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-
 | `R1-Qwen-14B` | `14.8B` | `L28` | `14.66` | `0.0343` | `L35` | `20.44` | `0.0177` | `3.6e-15` |
 | `Gemma-2-27B` | `27.2B` | `L14` | `9.35` | `0.0845` | `L27` | `27.47` | `0.0098` | `8.0e-15` |
 | `Qwen3-32B` | `32.8B` | `L47` | `15.91` | `0.0292` | `L25` | `10.00` | `0.0738` | `3.6e-15` |
+
+**What the same edits do to generated output.** A later public-benchmark receipt (`public-benchmarks/irrefutable-receipt.json`, SHA-256 `9859ef3e...3132`) ran these exact aligned edits on 14 of the 15 models (`Gemma-2-27B` is `HOLD`). Each model answered GSM8K, MATH-500, MMLU-Pro, HumanEval, and 30 crash traces at `1.0x` and `1.5x`. A control set ran with **norm-matched random** directions: the same $\beta$ and support $S$, with $q$ replaced by a random unit vector orthogonal to it. The control is what makes the result readable. A correct reference shift does not by itself say what an edit costs, and comparing against an equal-size random edit separates the effect of direction from the effect of magnitude.
+
+```{figure} assets/benchmark-retention-14models.svg
+:name: fig-theory-benchmark-retention
+:alt: Small multiples of paired change from base for 14 models on GSM8K, MATH-500, MMLU-Pro, HumanEval and ASan-30, comparing calibrated 1.0x edits with norm-matched random 1.0x edits
+:width: 100%
+
+Paired change from base for each model and benchmark, calibrated `1.0x` (blue) against norm-matched random `1.0x` (orange). No calibrated cell survives Holm correction (`0/70`). Pooled over 14 models, calibrated edits move each benchmark by `-2.0` to `+2.1` points, and random edits by `-1.4` to `+0.4`. The one model that moves a lot, `Gemma-2-9B`, has the sweep's largest step, $\beta_{B2} = 3.72$ from $\lVert h_S\rVert_2 = 1.41$, and its random control moves as far as its calibrated edit. A small $\lVert h_S\rVert_2$ makes $\beta = \lvert\Delta\rvert / \lVert h_S\rVert_2^2$ large, so check it before trusting a reference shift as a dose. Method and tables: [paper, Section 4.4](#sec-paper-public-benchmarks).
+```

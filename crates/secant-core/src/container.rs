@@ -442,6 +442,62 @@ pub fn scan_gguf_layout(b: &[u8]) -> Result<Layout> {
 
 // ------------------------------------------------------------ SafeTensors scan
 
+/// Fail on a repeated key in any object of `body`. serde_json::Map keeps the
+/// last duplicate and Go's encoding/json does the same, but a header carrying
+/// one tensor name twice is ambiguous: the two tools could bind different
+/// entries and every verifier would accept both results (wiring audit H18).
+/// The caller has already parsed `body`, which bounds nesting depth.
+fn reject_duplicate_json_keys(body: &[u8]) -> std::result::Result<(), String> {
+    use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
+    struct Walk;
+    impl<'de> DeserializeSeed<'de> for Walk {
+        type Value = ();
+        fn deserialize<D: Deserializer<'de>>(self, d: D) -> std::result::Result<(), D::Error> {
+            d.deserialize_any(self)
+        }
+    }
+    impl<'de> Visitor<'de> for Walk {
+        type Value = ();
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("JSON")
+        }
+        fn visit_bool<E>(self, _: bool) -> std::result::Result<(), E> {
+            Ok(())
+        }
+        fn visit_i64<E>(self, _: i64) -> std::result::Result<(), E> {
+            Ok(())
+        }
+        fn visit_u64<E>(self, _: u64) -> std::result::Result<(), E> {
+            Ok(())
+        }
+        fn visit_f64<E>(self, _: f64) -> std::result::Result<(), E> {
+            Ok(())
+        }
+        fn visit_str<E>(self, _: &str) -> std::result::Result<(), E> {
+            Ok(())
+        }
+        fn visit_unit<E>(self) -> std::result::Result<(), E> {
+            Ok(())
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut a: A) -> std::result::Result<(), A::Error> {
+            while a.next_element_seed(Walk)?.is_some() {}
+            Ok(())
+        }
+        fn visit_map<A: MapAccess<'de>>(self, mut a: A) -> std::result::Result<(), A::Error> {
+            let mut seen = std::collections::BTreeSet::new();
+            while let Some(k) = a.next_key::<String>()? {
+                if !seen.insert(k.clone()) {
+                    return Err(serde::de::Error::custom(format!("duplicate JSON key {:?}", k)));
+                }
+                a.next_value_seed(Walk)?;
+            }
+            Ok(())
+        }
+    }
+    let mut de = serde_json::Deserializer::from_slice(body);
+    Walk.deserialize(&mut de).map_err(|e| e.to_string())
+}
+
 pub fn scan_safetensors_layout(b: &[u8]) -> Result<Layout> {
     if b.len() < 8 {
         return Err(Error::msg("safetensors: reading header length: unexpected EOF"));
@@ -456,6 +512,7 @@ pub fn scan_safetensors_layout(b: &[u8]) -> Result<Layout> {
     let body = &b[8..8 + header_len as usize];
     let raw: serde_json::Map<String, serde_json::Value> =
         serde_json::from_slice(body).map_err(|e| Error::msg(format!("safetensors: header is not JSON: {}", e)))?;
+    reject_duplicate_json_keys(body).map_err(|e| Error::msg(format!("safetensors: {}", e)))?;
     let data_offset = 8 + header_len as i64;
     let mut layout = Layout {
         format: "safetensors".into(),

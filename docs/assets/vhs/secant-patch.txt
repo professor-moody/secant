@@ -1,4 +1,4 @@
->
+
 
 
 
@@ -434,40 +434,50 @@
 
 
 
-────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
 
 
 ────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
 >
 
 
@@ -498,41 +508,19 @@
 
 
 
-────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
 
 
 ────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+
+
+
+
+
 
 
 
@@ -563,8 +551,45 @@
 
 
 ────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
 
 Patch receipt
 =============
@@ -578,6 +603,7 @@ Patch receipt
   Verification gate        [PASS]
 verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
 sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
+real 31.763s (wait cut from this recording)
 >
 
 
@@ -594,9 +620,13 @@ sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
 
 
 
+
+
+
+
 ────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
 
 Patch receipt
 =============
@@ -610,39 +640,12 @@ Patch receipt
   Verification gate        [PASS]
 verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
 sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
-> shasum -a 256 patched.safetensors
+real 31.763s (wait cut from this recording)
+>
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
-
-Patch receipt
-=============
-  Base                     smollm2-1.7b.safetensors
-  Output                   patched.safetensors
-  Output size              3.19 GiB (3422777952 bytes)
-  EDIT  TENSOR                                   ENTRIES CHANGED    DELTA FROBENIUS
-  ----  ---------------------------------------  -----------------  ---------------
-  B2    model.layers.14.self_attn.o_proj.weight  3425789 / 4194304  5.177574e0
-  B3    model.layers.15.mlp.down_proj.weight     104755 / 16777216  3.786445e-1
-  Verification gate        [PASS]
-verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
-sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
-> shasum -a 256 patched.safetensors
 
 
 
@@ -659,8 +662,8 @@ sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
 
 
 ────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
 
 Patch receipt
 =============
@@ -674,9 +677,88 @@ Patch receipt
   Verification gate        [PASS]
 verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
 sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
-> shasum -a 256 patched.safetensors
+real 31.763s (wait cut from this recording)
+> time shasum -a 256 patched.safetensors
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+
+Patch receipt
+=============
+  Base                     smollm2-1.7b.safetensors
+  Output                   patched.safetensors
+  Output size              3.19 GiB (3422777952 bytes)
+  EDIT  TENSOR                                   ENTRIES CHANGED    DELTA FROBENIUS
+  ----  ---------------------------------------  -----------------  ---------------
+  B2    model.layers.14.self_attn.o_proj.weight  3425789 / 4194304  5.177574e0
+  B3    model.layers.15.mlp.down_proj.weight     104755 / 16777216  3.786445e-1
+  Verification gate        [PASS]
+verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
+sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
+real 31.763s (wait cut from this recording)
+> time shasum -a 256 patched.safetensors
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+
+Patch receipt
+=============
+  Base                     smollm2-1.7b.safetensors
+  Output                   patched.safetensors
+  Output size              3.19 GiB (3422777952 bytes)
+  EDIT  TENSOR                                   ENTRIES CHANGED    DELTA FROBENIUS
+  ----  ---------------------------------------  -----------------  ---------------
+  B2    model.layers.14.self_attn.o_proj.weight  3425789 / 4194304  5.177574e0
+  B3    model.layers.15.mlp.down_proj.weight     104755 / 16777216  3.786445e-1
+  Verification gate        [PASS]
+verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
+sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
+real 31.763s (wait cut from this recording)
+> time shasum -a 256 patched.safetensors
 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b  patched.safetensors
+real 7.360s (wait cut from this recording)
 >
+
+
+
 
 
 
@@ -691,8 +773,8 @@ sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
 
 
 ────────────────────────────────────────────────────────────────────────────────
-> # Apply the plan to a copy of the 3.4 GB checkpoint, then hash the output
-> secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
+> # Patch a copy of the 3.4 GB checkpoint, then hash the output
+> time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors
 
 Patch receipt
 =============
@@ -706,9 +788,14 @@ Patch receipt
   Verification gate        [PASS]
 verify: header identical=true, other tensors byte-identical=true (216 tensors), ok=true
 sha256 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b
-> shasum -a 256 patched.safetensors
+real 31.763s (wait cut from this recording)
+> time shasum -a 256 patched.safetensors
 4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b  patched.safetensors
+real 7.360s (wait cut from this recording)
 >
+
+
+
 
 
 

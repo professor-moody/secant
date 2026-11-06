@@ -11,8 +11,8 @@ Set Width 1560
 Set Height 760
 Set Padding 18
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 22ms
-Set Framerate 20
+Set TypingSpeed 35ms
+Set Framerate 30
 Set PlaybackSpeed 1.0
 
 Hide
@@ -32,4 +32,4 @@ Wait@10s
 Type "secant inspect --model fixtures/class3-nan-sort-arrays.gguf"
 Enter
 Wait@10s
-Sleep 5s
+Sleep 6s
