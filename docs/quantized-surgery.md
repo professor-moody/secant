@@ -64,7 +64,7 @@ Consequently, on every touched block, $\big\|Q_B(W + \Delta W) - Q_B(Q_B(W) + \D
 Expand the definitions: $Q_B(W + \Delta W) = W + \Delta W + e_1$ and $Q_B(Q_B(W) + \Delta W) = Q_B(W) + \Delta W + e_2 = W + e_0 + \Delta W + e_2$. Subtracting gives $e_1 - e_0 - e_2$. The norm bound is the triangle inequality. Note that the identity uses no property of $Q_B$ at all; determinism and block-locality are what make the per-block restriction meaningful.
 ```
 
-The decomposition is exact, but it contains **three** quantization errors, not one. A uniform "half-step" bound is not valid for an arbitrary codec, so the size of each term has to be proved per codec.
+The decomposition fixes the **same additive $\Delta W$** in both paths. It is exact under that assumption, but contains three quantization errors, not one. A projector-subtraction edit recomputes its delta from the current weights, so applying it after dequantization generally uses a different delta; the displayed identity alone does not describe that operator's two paths. A uniform "half-step" bound is not valid for an arbitrary codec, so each term needs a codec-specific argument.
 
 ### 2.1 `Q8_0` Componentwise Corollary
 

@@ -1,6 +1,7 @@
 # Direct Multi-Subspace Weight Surgery, Quantized Block-Grid Equivariance, and Subspace-Locked LoRA (`Project-Then-Heal`)
 
-**Author:** Nathan / m00dy  
+**Author:** Nathan / m00dy
+
 **Repository:** [https://github.com/professor-moody/secant](https://github.com/professor-moody/secant)  
 **Date:** November 2026
 

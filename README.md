@@ -5,12 +5,12 @@
 **Deterministic Weight-Space Programming, In-Place Quantized Block Surgery (`Q8_0`), and Subspace-Locked LoRA (`Project-Then-Heal`)**
 
 [![Documentation](https://img.shields.io/badge/Docs-professor--moody.github.io%2Fsecant-0A66C2?style=flat-square)](https://professor-moody.github.io/secant/)
-[![Technical Paper](https://img.shields.io/badge/Paper-MyST_%2F_Quarto-8A2BE2?style=flat-square)](https://professor-moody.github.io/secant/PAPER)
+[![Technical Paper](https://img.shields.io/badge/Paper-MyST_%2F_Quarto-8A2BE2?style=flat-square)](https://professor-moody.github.io/secant/paper)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange?style=flat-square)](https://www.rust-lang.org/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](https://www.python.org/)
 
-**[Documentation](https://professor-moody.github.io/secant/)** · **[Quickstart](https://professor-moody.github.io/secant/quickstart)** · **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal](https://professor-moody.github.io/secant/project-then-heal)** · **[Payload Security](https://professor-moody.github.io/secant/payload-security)** · **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**
+**[Documentation](https://professor-moody.github.io/secant/)** · **[Quickstart](https://professor-moody.github.io/secant/quickstart)** · **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal](https://professor-moody.github.io/secant/project-then-heal)** · **[Payload Security](https://professor-moody.github.io/secant/payload-security)** · **[Technical Paper](https://professor-moody.github.io/secant/paper)**
 
 <br/>
 
@@ -30,7 +30,7 @@ In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural 
 
 ## Core Scientific & Engineering Findings
 
-Full mathematical derivations, regime boundaries, and SHA-256 receipts are published in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/PAPER)**.
+Full mathematical derivations, regime boundaries, and SHA-256 receipts are published in the **[Documentation](https://professor-moody.github.io/secant/)** and **[Technical Paper](https://professor-moody.github.io/secant/paper)**.
 
 ### 1. Sparse Rank-1 Weight Surgery & Multi-Subspace Composition (`secant.capture`, `secant compose`)
 - **Top-K Column-Sparse Rank-1 Surgery:** Instead of modifying every column of an MLP writer matrix `W`, Secant selects the top-`K` (`K = 64` or `128`) columns `S` ordered by reference activation magnitude `|h_ref|` and solves analytically for the step size `beta = shift / ||h_S||_2^2`. Across 15 model architectures (`0.6B` to `32.8B`), sparse updates touch `< 2%` of layer weights while realizing the exact target shift to within `7.99e-15` in `float64`.
@@ -111,7 +111,7 @@ secant verify-subspace --lora lora_locked.safetensors --vectors vec/ --json
 - **[Project-Then-Heal Subspace-Locked LoRA](https://professor-moody.github.io/secant/project-then-heal)**: Formal proof of AdamW diagonal preconditioner rotation and double-idempotent forward-pass projection.
 - **[Container Geometry & Payload Security](https://professor-moody.github.io/secant/payload-security)**: Boundary-3 static auditing (`sanitize`, `probe`) for `.safetensors` and `.gguf` files.
 - **[CLI, Python & C-ABI Reference](https://professor-moody.github.io/secant/cli-and-python-reference)**: Flags, exit codes, JSON schemas, `secant.nn`, and `secant.h` FFI symbols.
-- **[Full Technical Paper](https://professor-moody.github.io/secant/PAPER)**: Self-contained paper with formal propositions, proofs, and limitations.
+- **[Full Technical Paper](https://professor-moody.github.io/secant/paper)**: Self-contained paper with formal propositions, proofs, and limitations.
 
 ---
 

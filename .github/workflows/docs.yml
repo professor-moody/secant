@@ -32,7 +32,9 @@ jobs:
       - name: Build MyST static HTML site
         env:
           BASE_URL: /secant
-        run: myst build --html
+        run: |
+          myst build --html
+          cp -r _build/html/paper _build/html/PAPER
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
