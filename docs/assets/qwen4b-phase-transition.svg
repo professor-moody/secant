@@ -2,14 +2,14 @@
   <rect width="960" height="390" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
 
   <text x="32" y="34" fill="#a8a29e" font-size="11" font-weight="700" letter-spacing="1.4" font-family="ui-monospace, monospace">QWEN3.5-4B (N=30 C++ SANITIZER BENCHMARK, 1,536-TOKEN CAP)</text>
-  <text x="32" y="58" fill="#fafaf9" font-size="17.5" font-weight="700">Target-Shift Calibration Triggers a Sharp Phase Transition in &lt;/think&gt; Closure</text>
+  <text x="32" y="58" fill="#fafaf9" font-size="17.5" font-weight="700">Calibrated Dose Shows a Threshold in &lt;/think&gt; Closure (one greedy run per arm)</text>
 
   <!-- Dedicated Legend Row (Zero overlap with title) -->
   <rect x="32" y="72" width="896" height="26" rx="6" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
   <rect x="46" y="79" width="12" height="12" rx="3" fill="#34d399"/>
   <text x="64" y="89" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">&lt;/think&gt; Loop Closed (%)</text>
   <rect x="280" y="79" width="12" height="12" rx="3" fill="#fbbf24"/>
-  <text x="298" y="89" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">Post-&lt;/think&gt; Bug Class &amp; Stack Frame (%)</text>
+  <text x="298" y="89" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">Strict Culprit Frame, post-&lt;/think&gt; (%)</text>
 
   <!-- Grid lines (x=280 to 880, width=600) -->
   <line x1="280" y1="118" x2="880" y2="118" stroke="#2e2d2b" stroke-width="1"/>
@@ -28,7 +28,7 @@
 
   <!-- Row 1: Base / Random / g030 -->
   <text x="32" y="140" fill="#fafaf9" font-size="12.5" font-weight="600">0.0x Base &amp; Controls</text>
-  <text x="32" y="156" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">base, rand1, b2only, b3only</text>
+  <text x="32" y="156" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">base, rand1, rand2, g030</text>
   <rect x="280" y="128" width="6" height="14" rx="2" fill="#fb7185"/>
   <text x="294" y="140" fill="#fb7185" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 closed; trapped at 1,536 tokens)</text>
 
@@ -36,29 +36,29 @@
   <text x="32" y="184" fill="#fafaf9" font-size="12.5" font-weight="600">0.5x Half Calibrated Dose</text>
   <text x="32" y="200" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">a05 (Delta = -3.69)</text>
   <rect x="280" y="172" width="6" height="14" rx="2" fill="#fb7185"/>
-  <text x="294" y="184" fill="#fb7185" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30; below attractor escape threshold)</text>
+  <text x="294" y="184" fill="#fb7185" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 closed)</text>
 
   <!-- Row 3: B1 Only (1.0x) -->
   <text x="32" y="230" fill="#fafaf9" font-size="12.5" font-weight="600">1.0x Loop Edit Only (B1)</text>
   <text x="32" y="246" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">b1only (L13+L8, 1,044 tok)</text>
   <rect x="280" y="216" width="340" height="13" rx="3" fill="#34d399"/>
   <text x="628" y="227" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">56.7% (17/30 closed)</text>
-  <rect x="280" y="232" width="340" height="13" rx="3" fill="#fbbf24"/>
-  <text x="628" y="243" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">56.7% (17/30 class &amp; frame)</text>
+  <rect x="280" y="232" width="260" height="13" rx="3" fill="#fbbf24"/>
+  <text x="548" y="243" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">43.3% (13/30 frame)</text>
 
   <!-- Row 4: 1.0x Composed (cal738) -->
   <text x="32" y="276" fill="#fafaf9" font-size="12.5" font-weight="600">1.0x Composed (B1+B2+B3)</text>
   <text x="32" y="292" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">cal738 (Delta = -7.38, 954 tok)</text>
   <rect x="280" y="262" width="420" height="13" rx="3" fill="#34d399"/>
   <text x="708" y="273" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">70.0% (21/30 closed)</text>
-  <rect x="280" y="278" width="360" height="13" rx="3" fill="#fbbf24"/>
-  <text x="648" y="289" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">60.0% (18/30 class &amp; frame)</text>
+  <rect x="280" y="278" width="300" height="13" rx="3" fill="#fbbf24"/>
+  <text x="588" y="289" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">50.0% (15/30 frame)</text>
 
   <!-- Row 5: 1.5x Composed (a15) -->
-  <text x="32" y="322" fill="#34d399" font-size="12.5" font-weight="700">1.5x Composed (a15 Tipping)</text>
-  <text x="32" y="338" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">a15 (Delta = -11.07, 742 tok)</text>
+  <text x="32" y="322" fill="#34d399" font-size="12.5" font-weight="700">1.5x Composed (B1+B2+B3)</text>
+  <text x="32" y="338" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">a15 (Delta = -11.07, 789 tok)</text>
   <rect x="280" y="308" width="600" height="13" rx="3" fill="#34d399"/>
   <text x="752" y="303" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">100.0% (30/30 closed)</text>
   <rect x="280" y="324" width="460" height="13" rx="3" fill="#fbbf24"/>
-  <text x="748" y="335" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">76.7% (23/30 class &amp; frame)</text>
+  <text x="748" y="335" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">76.7% (23/30 frame)</text>
 </svg>

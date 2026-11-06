@@ -1,6 +1,6 @@
 //! `secant heal`: project-then-heal. Lock a LoRA's B matrices out of the
 //! protected output directions, optionally merging the locked update into a
-//! copy of a base model. Port of `crucible wsp heal`.
+//! copy of a base model. Port of the reference oracle's `wsp heal`.
 //!
 //! Exit: 0 healed; 1 a leakage gate failed; 2 usage, I/O or unsupported input.
 use crate::util::{emit_json, fail, usage};

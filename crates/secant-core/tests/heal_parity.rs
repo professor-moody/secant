@@ -1,12 +1,16 @@
-//! Differential parity of `secant_core::heal` against the Go oracle
-//! (`crucible wsp heal` / `crucible wsp verify-subspace`).
+//! Differential parity of `secant_core::heal` against the reference Go oracle
+//! (`wsp heal` / `wsp verify-subspace` subcommands of the oracle binary at
+//! `SECANT_ORACLE_BIN`).
 //!
-//! Run: `SECANT_ORACLE_BIN=/path/to/crucible cargo test -p secant-core --test heal_parity -- --nocapture`
+//! Run: `SECANT_ORACLE_BIN=/path/to/oracle cargo test -p secant-core --test heal_parity -- --nocapture`
 //!
 //! Every scenario builds identical inputs on disk, runs the oracle CLI and the
 //! Rust library on separate output paths, then compares exit class, the full
 //! `--json` report (floats bit-exact, path-valued keys ignored) and the SHA-256
-//! of every file written. The Rust side is first run with the portable unfused
+//! of every file written. The oracle stamps the healed adapter with legacy-
+//! namespace metadata keys: its output file is hashed after mapping them to the
+//! `secant.wsp.heal*` keys (`common::canon_container`; tensor bytes verbatim),
+//! and the report's `out_sha256` is mapped the same way. The Rust side is first run with the portable unfused
 //! policy; if (and only if) that differs, it is re-run with the arm64-FMA
 //! policy so a divergence can be attributed.
 mod common;
@@ -142,12 +146,28 @@ struct Run {
     files: Vec<(String, Option<String>)>, // (label, sha256 if the file exists)
 }
 
+/// Secant side: raw SHA-256 of an output; a legacy spelling in it is a failure.
 fn sha_if_exists(p: &str) -> Option<String> {
     if std::path::Path::new(p).exists() {
-        Some(sha256_file(p))
+        let (raw, canon) = canon_sha256_file(p);
+        assert_eq!(raw, canon, "{}: Secant wrote a legacy namespace spelling", p);
+        Some(raw)
     } else {
         None
     }
+}
+
+/// Oracle side: SHA-256 after legacy-namespace normalization; records
+/// raw -> normalized in `map` when they differ.
+fn oracle_sha_if_exists(p: &str, map: &mut std::collections::BTreeMap<String, String>) -> Option<String> {
+    if !std::path::Path::new(p).exists() {
+        return None;
+    }
+    let (raw, canon) = canon_sha256_file(p);
+    if raw != canon {
+        map.insert(raw, canon.clone());
+    }
+    Some(canon)
 }
 
 struct HealCase<'a> {
@@ -181,11 +201,36 @@ fn oracle_heal(c: &HealCase, out: &str, merge: &str) -> Option<Run> {
     let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let o = run_oracle(&refs)?;
     let report = if o.stdout.is_empty() { Value::Null } else { parse_json(&o.stdout) };
-    Some(Run {
-        code: o.status.code().unwrap_or(-1),
-        report,
-        files: vec![("out".into(), sha_if_exists(out)), ("merge".into(), if merge.is_empty() { None } else { sha_if_exists(merge) })],
-    })
+    let mut map = std::collections::BTreeMap::new();
+    let files = vec![
+        ("out".into(), oracle_sha_if_exists(out, &mut map)),
+        ("merge".into(), if merge.is_empty() { None } else { oracle_sha_if_exists(merge, &mut map) }),
+    ];
+    // A failed gate leaves no adapter on disk, but the report still carries the
+    // staged adapter's `out_sha256`. Re-derive those bytes with a heal-only run
+    // (the adapter does not depend on --base/--merge-out) and map the hash ONLY
+    // if the re-derived raw SHA-256 equals the reported one, i.e. the bytes are
+    // proven identical; otherwise nothing is mapped and the comparison fails.
+    if let Some(reported) = report["out_sha256"].as_str() {
+        if !reported.is_empty() && files[0].1.is_none() {
+            let tmp = Scratch::new("heal-rederive");
+            let again = tmp.path("adapter.safetensors");
+            let mut a: Vec<String> = vec!["heal".into(), "--lora".into(), c.lora.into(), "--vectors".into(), c.vectors.into()];
+            a.extend(["--out".into(), again.clone(), "--json".into()]);
+            if let Some(t) = c.tol {
+                a.extend(["--tol".into(), format!("{:?}", t)]);
+            }
+            let r: Vec<&str> = a.iter().map(|s| s.as_str()).collect();
+            run_oracle(&r)?;
+            if std::path::Path::new(&again).exists() {
+                let (raw, canon) = canon_sha256_file(&again);
+                if raw == reported && raw != canon {
+                    map.insert(raw, canon);
+                }
+            }
+        }
+    }
+    Some(Run { code: o.status.code().unwrap_or(-1), report: subst_strings(&report, &map), files })
 }
 
 fn rust_heal(c: &HealCase, out: &str, merge: &str) -> Run {
@@ -279,6 +324,7 @@ fn heal_lora_f32_directory_vectors() {
     assert_eq!(r.code, 0, "{:?}", r.report);
     let rep = &r.report;
     assert_eq!(rep["status"], "healed");
+    assert_eq!(rep["schema"], HEAL_SCHEMA);
     assert!(rep["max_leak_after_f64"].as_f64().unwrap() < 1e-12);
     assert!(rep["max_leak_after_serialized"].as_f64().unwrap() < 1e-6);
     for p in rep["pairs"].as_array().unwrap() {
@@ -286,6 +332,16 @@ fn heal_lora_f32_directory_vectors() {
         assert_eq!(p["serialized_b_dtype"], "F32");
         assert_eq!(p["a_bytes_unchanged"], true);
     }
+    // the healed adapter is stamped with the secant.wsp.heal metadata keys
+    let b = std::fs::read(sc.path("heal_f32-rs-out.safetensors")).unwrap();
+    let n = u64::from_le_bytes(b[..8].try_into().unwrap()) as usize;
+    let h: Value = serde_json::from_slice(&b[8..8 + n]).unwrap();
+    let m = &h["__metadata__"];
+    assert_eq!(m[HEAL_META_KEY], "v1", "{}", m);
+    assert_eq!(m[HEAL_META_PROTECTED_DIM], D.to_string(), "{}", m);
+    assert_eq!(m[HEAL_META_PROTECTED_K], "3", "{}", m);
+    assert_eq!(m["format"], "pt");
+    assert_eq!(m.as_object().unwrap().len(), 4, "{}", m);
 }
 
 #[test]

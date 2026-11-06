@@ -1,5 +1,5 @@
 //! `secant probe`: generate header-valid boundary-value weight fixtures.
-//! Port of `crucible wsp probe` (cmd/crucible/wsp_phase2.go).
+//! Port of the reference oracle's `wsp probe`.
 //!
 //!   class1  NaN and -Inf router/gate floats (sentinel comparisons)
 //!   class2  NaN, +1e38, -1e38 scale/bias floats (float-to-int saturation vs overflow)
@@ -34,7 +34,7 @@ pub struct Args {
     /// NEW directory for the fixtures (must not exist)
     #[arg(long, default_value = "")]
     pub out_dir: String,
-    /// New crucible.wsp.probe.v1 JSON receipt path
+    /// New secant.wsp.probe.v1 JSON receipt path
     #[arg(long, default_value = "")]
     pub receipt: String,
     /// Required pipeline attempt identity

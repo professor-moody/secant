@@ -7,8 +7,10 @@ use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PLAN_SCHEMA: &str = "crucible.wsp.plan.v1";
-pub const PROFILE_SCHEMA: &str = "crucible.wsp.profile.v1";
+pub const PLAN_SCHEMA: &str = "secant.wsp.plan.v1";
+pub const PROFILE_SCHEMA: &str = "secant.wsp.profile.v1";
+/// `secant compose --json` report.
+pub const COMPOSE_SCHEMA: &str = "secant.wsp.compose.v1";
 
 fn is_zero_f64(v: &f64) -> bool {
     *v == 0.0
@@ -131,10 +133,11 @@ pub struct Plan {
 impl Plan {
     pub fn load(path: &str) -> Result<Plan> {
         let data = std::fs::read(path).map_err(|e| Error::msg(format!("read plan {}: {}", path, e)))?;
-        let plan: Plan = serde_json::from_slice(&data).map_err(|e| Error::msg(format!("parse plan {}: {}", path, e)))?;
-        if plan.schema != PLAN_SCHEMA {
+        let mut plan: Plan = serde_json::from_slice(&data).map_err(|e| Error::msg(format!("parse plan {}: {}", path, e)))?;
+        if !crate::namespace::accepts(PLAN_SCHEMA, &plan.schema) {
             return Err(Error::msg(format!("plan {}: schema {:?}, want {:?}", path, plan.schema, PLAN_SCHEMA)));
         }
+        plan.schema = PLAN_SCHEMA.into();
         if plan.edits.is_empty() {
             return Err(Error::msg(format!("plan {}: no edits", path)));
         }
@@ -345,7 +348,7 @@ fn common_subspaces() -> Vec<SubspaceDef> {
 fn selection_by_snr(banked: &str) -> LayerSelectionRule {
     LayerSelectionRule {
         strategy: "argmax of precomputed per-subspace SNR (captured upstream, supplied via layer_snr.json) with Borda aggregation across subspaces; the native tool ranks supplied numbers and does not itself compute or split held-out statistics".into(),
-        tool: "crucible wsp analyze --in <layer_snr.json> | crucible wsp compose --analysis <analysis.json>".into(),
+        tool: "secant read --model <gguf|safetensors> | secant compose --vectors <dir>".into(),
         banked: banked.into(),
     }
 }
@@ -457,7 +460,7 @@ pub fn builtin_profiles() -> Vec<Profile> {
             default_gamma: 0.0,
             layer_selection: LayerSelectionRule {
                 strategy: "token-id driven (output.head); no layer sweep".into(),
-                tool: "crucible wsp inspect --model <gguf|safetensors>".into(),
+                tool: "secant inspect --model <gguf|safetensors>".into(),
                 banked: "token ids 2..9 (first content tokens) as the default probe set".into(),
             },
             slots: vec![
@@ -480,7 +483,7 @@ pub fn builtin_profiles() -> Vec<Profile> {
             default_gamma: 0.0,
             layer_selection: LayerSelectionRule {
                 strategy: "hash-MoE layers (layer indices below the hash_moe count)".into(),
-                tool: "crucible wsp inspect --model <safetensors>".into(),
+                tool: "secant inspect --model <safetensors>".into(),
                 banked: "layers 0 and 1 of a small hash-MoE CPU fixture".into(),
             },
             slots: vec![
@@ -509,9 +512,10 @@ pub fn builtin_profile(name: &str) -> Result<Profile> {
     let mut names: Vec<String> = all.iter().map(|p| p.name.clone()).collect();
     names.sort();
     Err(Error::msg(format!(
-        "unknown profile {:?}; built-ins: {} (or pass a path to a crucible.wsp.profile.v1 JSON file)",
+        "unknown profile {:?}; built-ins: {} (or pass a path to a {} JSON file)",
         name,
-        names.join(", ")
+        names.join(", "),
+        PROFILE_SCHEMA
     )))
 }
 

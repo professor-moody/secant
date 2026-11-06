@@ -1,5 +1,5 @@
 //! `secant verify-subspace`: verify a healed model's weight difference is
-//! orthogonal to the protected directions. Port of `crucible wsp verify-subspace`.
+//! orthogonal to the protected directions. Port of the reference oracle's `wsp verify-subspace`.
 //!
 //! For each named tensor compute dW = W_healed - W_base from the stored payload
 //! bytes of both files and report max over directions k and input columns c of

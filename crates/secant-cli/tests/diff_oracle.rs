@@ -1,8 +1,8 @@
-//! CLI-level differential conformance: `secant` vs the Go oracle
-//! (`crucible wsp`) on synthetic SafeTensors and GGUF (Qwen3.5 `ssm_out`,
-//! F32 / BF16 / Q8_0) fixtures.
+//! CLI-level differential conformance: `secant` vs the reference Go oracle
+//! (`wsp` subcommands of the oracle binary at `SECANT_ORACLE_BIN`) on synthetic
+//! SafeTensors and GGUF (Qwen3.5 `ssm_out`, F32 / BF16 / Q8_0) fixtures.
 //!
-//! Run: `SECANT_ORACLE_BIN=/path/to/crucible cargo test -p secant-cli --test diff_oracle -- --nocapture`
+//! Run: `SECANT_ORACLE_BIN=/path/to/oracle cargo test -p secant-cli --test diff_oracle -- --nocapture`
 //! Without SECANT_ORACLE_BIN the test prints NOT_RUN and passes vacuously by
 //! design (the oracle may be unavailable); the evidence table is only
 //! meaningful when it prints `ORACLE`.
@@ -12,12 +12,20 @@
 //! `go-arm64-fma` (reproduces the fused multiply-adds the arm64 Go compiler
 //! emits). The host-matching policy must be bit-exact; the other policy's
 //! result is reported, not asserted.
+//!
+//! Plans and profiles fed to BOTH tools carry the legacy schema id (the only
+//! one the oracle reads; Secant accepts it on input). The oracle's outputs
+//! carry legacy schema ids too; `common::json_diff` maps them to the
+//! `secant.wsp.*` ids before comparing and fails on any legacy id in Secant's
+//! output.
 
 #[path = "../../secant-core/tests/common/mod.rs"]
 mod common;
 
 use common::*;
 use secant_core::builder::*;
+use secant_core::namespace::legacy_alias;
+use secant_core::plan::{PLAN_SCHEMA, PROFILE_SCHEMA};
 use secant_core::quant::{quantize_row_q8_0, Q8_0_BLOCK_BYTES};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -128,7 +136,7 @@ fn build_fixtures() -> Fx {
     // custom profile: rank1 + projector on the explicit ffn_down tensors, explicit layers
     let profile = dir.path("profile.json");
     let prof = serde_json::json!({
-        "schema": "crucible.wsp.profile.v1", "name": "diff-profile", "description": "differential test profile",
+        "schema": legacy_alias(PROFILE_SCHEMA).unwrap(), "name": "diff-profile", "description": "differential test profile",
         "subspaces": [], "default_target_shift": -3.0, "default_gamma": 0.25,
         "layer_selection": {"strategy": "x", "tool": "x", "banked": "x"},
         "slots": [
@@ -198,7 +206,7 @@ fn stdout_json(o: &Output) -> Result<Value, String> {
         .map_err(|e| format!("not JSON ({}): {:?}", e, String::from_utf8_lossy(&o.stdout[..o.stdout.len().min(200)])))
 }
 
-/// Compare `secant <args> --json` with `crucible wsp <args> --json`.
+/// Compare `secant <args> --json` with the oracle's `wsp <args> --json`.
 fn cmp_cmd(t: &mut Table, name: &str, args: &[&str], ignore_extra: &[&str]) {
     let go = oracle(args);
     for (vname, fma) in variants() {
@@ -476,7 +484,7 @@ fn differential_conformance() {
     {
         let dir8 = vec![0.5, -0.25, 0.125, 1.0, -1.0, 0.75, 0.0, 0.3];
         let plan = serde_json::json!({
-        "schema": "crucible.wsp.plan.v1", "profile": "hand", "calibration": {"mode": "gamma"},
+        "schema": legacy_alias(PLAN_SCHEMA).unwrap(), "profile": "hand", "calibration": {"mode": "gamma"},
         "edits": [
           {"id":"S1","role":"x","op":"rank1-columns","tensor":"blk.0.ssm_out.weight","layout":"qwen35-ssm-out-128",
            "direction": dir8, "cols":[0,1,130,257,511], "coeffs":[0.5,-0.25,1.5,0.125,2.0]},
@@ -601,7 +609,7 @@ fn random_geometry_sweep() {
                 "direction": norm(rng.vec(d_out)), "gamma": 0.1 + 0.9 * (rng.unit().abs())}));
         }
         let plan =
-            serde_json::json!({"schema": "crucible.wsp.plan.v1", "profile": "sweep", "calibration": {"mode": "gamma"}, "edits": edits});
+            serde_json::json!({"schema": legacy_alias(PLAN_SCHEMA).unwrap(), "profile": "sweep", "calibration": {"mode": "gamma"}, "edits": edits});
         let pp = s.path(&format!("plan{}.json", case));
         write(&pp, plan.to_string().as_bytes());
         let (go_out, rs_out) = (s.path(&format!("go{}.bin", case)), s.path(&format!("rs{}.bin", case)));

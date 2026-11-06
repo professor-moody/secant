@@ -5,7 +5,8 @@ mod common;
 use common::*;
 use secant_core::builder::*;
 use secant_core::container::*;
-use secant_core::plan::Plan;
+use secant_core::namespace::legacy_alias;
+use secant_core::plan::{Plan, PLAN_SCHEMA, PROFILE_SCHEMA};
 use secant_core::subspace::*;
 use std::collections::BTreeMap;
 
@@ -175,7 +176,7 @@ fn permute_hf_to_gguf_then_back_is_identity_and_verify_catches_tampering() {
     let s = Scratch::new("perm");
     let (base, name) = small_model(&s);
     let mk = |perm: &str| {
-        serde_json::json!({"schema":"crucible.wsp.plan.v1","profile":"p","calibration":{"mode":"gamma"},
+        serde_json::json!({"schema":PLAN_SCHEMA,"profile":"p","calibration":{"mode":"gamma"},
             "edits":[{"id":"P","role":"x","op":"permute-columns","tensor":name,"permutation":perm}]})
     };
     let (p1, p2) = (s.path("p1.json"), s.path("p2.json"));
@@ -209,6 +210,66 @@ fn permute_hf_to_gguf_then_back_is_identity_and_verify_catches_tampering() {
 }
 
 #[test]
+fn plan_and_profile_inputs_accept_canonical_and_legacy_schema_ids() {
+    let s = Scratch::new("schema-alias");
+    assert_eq!(PLAN_SCHEMA, "secant.wsp.plan.v1");
+    assert_eq!(PROFILE_SCHEMA, "secant.wsp.profile.v1");
+    let legacy_plan = legacy_alias(PLAN_SCHEMA).unwrap();
+    let plan_with = |schema: &str| {
+        serde_json::json!({"schema":schema,"profile":"p","calibration":{"mode":"gamma"},
+            "edits":[{"id":"P","role":"x","op":"permute-columns","tensor":"w","permutation":"qwen35-ssm-out-128-hf-to-gguf"}]})
+    };
+    for (tag, schema, ok) in [
+        ("canonical", PLAN_SCHEMA.to_string(), true),
+        ("legacy", legacy_plan.clone(), true),
+        ("profile-id", PROFILE_SCHEMA.to_string(), false),
+        ("unknown", "other.wsp.plan.v1".to_string(), false),
+    ] {
+        let p = s.path(&format!("plan-{}.json", tag));
+        write(&p, plan_with(&schema).to_string().as_bytes());
+        match Plan::load(&p) {
+            Ok(plan) => {
+                assert!(ok, "{}: {:?} must be rejected", tag, schema);
+                // whatever was read, the in-memory (and any re-written) plan carries the canonical id
+                assert_eq!(plan.schema, PLAN_SCHEMA, "{}", tag);
+            }
+            Err(e) => assert!(!ok, "{}: {:?} rejected: {}", tag, schema, e),
+        }
+    }
+    // a profile file read by compose: canonical and legacy ids both load, others do not
+    let vdir = s.path("vectors");
+    std::fs::create_dir_all(&vdir).unwrap();
+    write(&format!("{}/d_loop_L0.npy", vdir), &npy_bytes_f64(&[1.0, 0.0, 0.0, 0.0], &[4]).unwrap());
+    let legacy_profile = legacy_alias(PROFILE_SCHEMA).unwrap();
+    for (tag, schema, ok) in [
+        ("canonical", PROFILE_SCHEMA.to_string(), true),
+        ("legacy", legacy_profile, true),
+        ("plan-id", PLAN_SCHEMA.to_string(), false),
+    ] {
+        let prof = serde_json::json!({
+            "schema": schema, "name": "alias-profile", "description": "schema alias test",
+            "subspaces": [], "default_target_shift": 0.0, "default_gamma": 0.25,
+            "layer_selection": {"strategy": "x", "tool": "x", "banked": "x"},
+            "slots": [{"id":"P1","role":"x","direction_token":"loop","op":"projector-subtract","tensor_pattern":"blk.%d.w",
+                       "tensor_st_pattern":"m.%d.w","layer":0,"sign":-1,"needs_direction":true,"gamma":0.5}]
+        });
+        let pp = s.path(&format!("profile-{}.json", tag));
+        write(&pp, prof.to_string().as_bytes());
+        let opts = ComposeOptions { profile_path: pp.clone(), vectors_dir: vdir.clone(), gamma: 0.25, has_gamma: true, ..Default::default() };
+        match compose(opts) {
+            Ok(plan) => {
+                assert!(ok, "{}: profile {:?} must be rejected", tag, schema);
+                assert_eq!(plan.schema, PLAN_SCHEMA, "{}: composed plan must carry the canonical id", tag);
+            }
+            Err(e) => {
+                assert!(!ok, "{}: profile {:?} rejected: {}", tag, schema, e);
+                assert!(e.message().contains("schema"), "{}: rejected for the wrong reason: {}", tag, e);
+            }
+        }
+    }
+}
+
+#[test]
 fn layout_rejects_truncated_and_garbage_files() {
     let s = Scratch::new("trunc");
     let (base, _) = small_model(&s);
@@ -231,7 +292,7 @@ fn rank1_on_quantized_float_edit_is_refused() {
     let t = BuildTensor { name: "w".into(), dtype: "Q8_0".into(), shape: vec![4, 32], data: bytes };
     let p = s.path("q.gguf");
     write(&p, &build_gguf(&[], &[t], 32).unwrap());
-    let plan = serde_json::json!({"schema":"crucible.wsp.plan.v1","profile":"p","calibration":{"mode":"gamma"},
+    let plan = serde_json::json!({"schema":PLAN_SCHEMA,"profile":"p","calibration":{"mode":"gamma"},
         "edits":[{"id":"E","role":"x","op":"projector-subtract","tensor":"w","direction":[1.0,0.0,0.0,0.0],"gamma":1.0}]});
     let pp = s.path("plan.json");
     write(&pp, plan.to_string().as_bytes());

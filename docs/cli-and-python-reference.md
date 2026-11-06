@@ -100,12 +100,15 @@ secant verify-subspace \
   [--json]
 ```
 
-### `secant probe`, `secant sanitize` & `secant scan-sinks`
-Audits and sanitizes container structural anomalies, non-zero GGUF alignment gaps, NaN/Inf weights, and MoE router sink bias.
+### `secant sanitize`, `secant probe` & `secant read --detect-anomalies`
+`sanitize` scans static weight values (NaN, Inf, extreme finite, subnormal, zero or tiny-norm vectors, out-of-range and duplicate routing ids) and can publish a repaired copy; `probe` generates boundary-value test fixtures (it does not scan a model); `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. Rules and exit codes: [Payload Security](payload-security.md). The standalone `secant` CLI has no `scan-sinks` subcommand.
 ```bash
-secant probe --model <path> [--out <receipt.json>] [--json]
-secant sanitize --model <in_path> --out <clean_path> [--receipt <receipt.json>] [--json]
-secant scan-sinks --model <path> [--json]
+secant sanitize --model <in_path> --receipt <new.json> --attempt-id <id> \
+  [--clamp-nonfinite] [--dedup-routing-rows] [--clamp-extreme] [--flush-subnormal] \
+  [--num-experts <N>] [--out <new_clean_path>] [--json]
+secant probe --class <class1|class2|class3|class4|all> --format <safetensors|gguf|both> \
+  --out-dir <new_dir> --receipt <new.json> --attempt-id <id> [--base <model>] [--json]
+secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
 ```
 
 ---

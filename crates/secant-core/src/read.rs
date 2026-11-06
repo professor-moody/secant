@@ -23,7 +23,7 @@ use crate::subspace::{npy_bytes_f64, top_k_abs_indices};
 use serde::Serialize;
 use std::os::unix::fs::MetadataExt;
 
-pub const READ_SCHEMA: &str = "crucible.wsp.read.v1";
+pub const READ_SCHEMA: &str = "secant.wsp.read.v1";
 
 const MAX_TENSOR_BYTES: i64 = 2 << 30;
 const MAX_ITERS: usize = 1000;

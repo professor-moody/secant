@@ -6,7 +6,7 @@ use serde_json::json;
 
 #[derive(ClapArgs, Debug)]
 pub struct Args {
-    /// Built-in profile name or path to a crucible.wsp.profile.v1 JSON file
+    /// Built-in profile name or path to a secant.wsp.profile.v1 JSON file
     #[arg(long)]
     profile: Option<String>,
     /// Directory holding d_*/h_* vectors as .npy or .json
@@ -24,7 +24,7 @@ pub struct Args {
     /// Base model used to measure ||W||_F for --gamma
     #[arg(long, default_value = "")]
     base: String,
-    /// Output plan path (crucible.wsp.plan.v1)
+    /// Output plan path (secant.wsp.plan.v1)
     #[arg(long)]
     out: Option<String>,
     #[arg(long)]
@@ -33,7 +33,7 @@ pub struct Args {
 
 pub fn run(a: &Args) -> i32 {
     let Some(profile) = &a.profile else {
-        return usage("--profile is required (built-in name or a crucible.wsp.profile.v1 file)");
+        return usage(&format!("--profile is required (built-in name or a {} file)", plan::PROFILE_SCHEMA));
     };
     let Some(out) = &a.out else { return usage("--out is required (the plan path)") };
     if a.analysis.is_some() {
@@ -62,7 +62,7 @@ pub fn run(a: &Args) -> i32 {
     }
     if a.json {
         let v = json!({
-            "schema": "crucible.wsp.compose.v1",
+            "schema": plan::COMPOSE_SCHEMA,
             "profile": plan.profile,
             "plan_path": out,
             "edits": plan.edits.len(),

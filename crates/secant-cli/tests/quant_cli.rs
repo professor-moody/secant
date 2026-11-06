@@ -8,6 +8,8 @@ mod common;
 
 use common::*;
 use secant_core::builder::*;
+use secant_core::namespace::legacy_alias;
+use secant_core::plan::PLAN_SCHEMA;
 use secant_core::quant::*;
 use secant_core::subspace::npy_bytes_f64;
 use serde_json::Value;
@@ -48,7 +50,7 @@ fn q8_0_surgery_rewrites_only_touched_blocks() {
     let dir: Vec<f64> = rng.vec(D_OUT);
     // rank-1 on two HF columns (mapped through the interleave) of layer 0 only
     let plan = serde_json::json!({
-      "schema": "crucible.wsp.plan.v1", "profile": "q8", "calibration": {"mode": "gamma"},
+      "schema": PLAN_SCHEMA, "profile": "q8", "calibration": {"mode": "gamma"},
       "edits": [{"id":"E1","role":"x","op":"rank1-columns","tensor":"blk.0.ssm_out.weight","layout":"qwen35-ssm-out-128",
                  "direction": dir, "cols":[3, 300], "coeffs":[0.5, -0.75]}]});
     let pp = s.path("plan.json");
@@ -107,8 +109,9 @@ fn q8_0_projector_leaves_other_tensors_untouched_and_witness_reports_leakage() {
     let mut d = rng.vec(D_OUT);
     let n = d.iter().map(|x| x * x).sum::<f64>().sqrt();
     d.iter_mut().for_each(|x| *x /= n);
+    // the legacy plan id is still accepted on input (files written by older tools)
     let plan = serde_json::json!({
-      "schema": "crucible.wsp.plan.v1", "profile": "q8p", "calibration": {"mode": "gamma"},
+      "schema": legacy_alias(PLAN_SCHEMA).unwrap(), "profile": "q8p", "calibration": {"mode": "gamma"},
       "edits": [{"id":"P1","role":"x","op":"projector-subtract","tensor":"blk.0.ssm_out.weight","direction": d, "gamma": 1.0}]});
     let pp = s.path("plan.json");
     write(&pp, serde_json::to_string(&plan).unwrap().as_bytes());

@@ -34,8 +34,12 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-pub const HEAL_SCHEMA: &str = "crucible.wsp.heal.v1";
-pub const VERIFY_SUBSPACE_SCHEMA: &str = "crucible.wsp.verify-subspace.v1";
+pub const HEAL_SCHEMA: &str = "secant.wsp.heal.v1";
+pub const VERIFY_SUBSPACE_SCHEMA: &str = "secant.wsp.verify-subspace.v1";
+/// SafeTensors `__metadata__` keys stamped on a healed adapter.
+pub const HEAL_META_KEY: &str = "secant.wsp.heal";
+pub const HEAL_META_PROTECTED_DIM: &str = "secant.wsp.heal.protected_dim";
+pub const HEAL_META_PROTECTED_K: &str = "secant.wsp.heal.protected_k";
 
 /// Bounds `max|D^T B_locked|` in float64 before serialization.
 pub const HEAL_F64_TOL: f64 = 1e-12;
@@ -935,9 +939,9 @@ fn heal_inner(o: &HealOptions, rep: &mut HealReport, cleanup: &mut Vec<PathBuf>)
     out_tensors.sort_by(|x, y| x.name.cmp(&y.name));
     let mut meta: BTreeMap<String, String> = BTreeMap::new();
     meta.insert("format".into(), "pt".into());
-    meta.insert("crucible.wsp.heal".into(), "v1".into());
-    meta.insert("crucible.wsp.heal.protected_dim".into(), ps.dim.to_string());
-    meta.insert("crucible.wsp.heal.protected_k".into(), ps.k.to_string());
+    meta.insert(HEAL_META_KEY.into(), "v1".into());
+    meta.insert(HEAL_META_PROTECTED_DIM.into(), ps.dim.to_string());
+    meta.insert(HEAL_META_PROTECTED_K.into(), ps.k.to_string());
     let healed = build_safetensors(&out_tensors, &meta)?;
     let out_dir = parent_dir(&o.out);
     std::fs::create_dir_all(&out_dir)?;

@@ -2,70 +2,55 @@
 
 Before diving into the equations, here is the core intuition behind Secant's mathematical pipeline:
 
-1. **Finding where a behavior lives (`SNR_proj`):** A transformer layer writes into a shared residual stream of width $d_{\text{model}}$ (`1,024` to `5,120` dimensions). If you measure variance across all `5,120` dimensions at once (`SNR_trace`), background language variance across the other $d_{\text{model}} - 1$ axes dilutes a single behavioral direction (`snr_trace` typically sits around `0.4` to `1.8`). Measuring signal-to-noise ratio **projected onto the candidate direction (`SNR_proj`)** on held-out prompts isolates the exact layer and writer (`attn_out` vs. `mlp_out`) where the behavior is sharpest (`21.9` to `199.4` across standard models).
-2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors can overlap when they share residual coordinates. Two-pass modified Gram-Schmidt orthogonalization in `float64` removes all pairwise overlap ($\|D D^\top - I_k\|_{\mathrm{F}} < 10^{-14}$) before compiling the weight patch.
-3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model produces a `-0.90` activation shift instead of the `-7.38` shift needed to exit `<think>`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
-
-```{figure} assets/fig-phase-surface-3d.svg
-:name: fig-theory-phase-surface-3d
-:alt: 3D phase-transition surface over layer depth and calibrated dose alpha
-:width: 100%
-
-Why calibration and layer selection jointly govern attractor escape: **(A)** 3D phase-transition surface over target layer index $\ell \in [8, 28]$ and calibrated dose multiplier $\alpha \in [0, 1.75]$ on `Qwen3.5-4B`. **(B)** Observed vs. sigmoid-fitted phase transition (`n = 30`, `1,536`-token cap), showing `0%` closure at uncalibrated $\gamma = 0.30$ and half-dose $\alpha = 0.5\times$, `70%` at $\alpha = 1.0\times$, and `100%` (`30/30`) at $\alpha = 1.5\times$.
-```
-
-```{figure} assets/fig-snr-heatmap.svg
-:name: fig-theory-snr-heatmap
-:alt: Sub-stream SNR field heatmap and cross-architecture subspace concentration
-:width: 100%
-
-**(A)** Sub-stream contrastive projection SNR field across all 24 layers of `Qwen3.5-0.8B`, showing why empirical SNR profiling (`L12`, $\mathrm{SNR}_{\text{proj}} = 2.12$) succeeds whereas a rule-of-thumb middle-layer guess (`L15`, $\mathrm{SNR}_{\text{proj}} = 0.23$, $9.2\times$ weaker) lands in a trough on `ssm_out`. **(B)** Cross-architecture subspace concentration (`7.2B` to `32.8B`), plotting held-out $\mathrm{SNR}_{\text{proj}}$ against split-half cosine stability.
-```
+1. **Finding where a behavior lives (`SNR_proj`):** A transformer layer writes into a shared residual stream of width $d_{\text{model}}$ (`1,024` to `8,192` dimensions in the checkpoints we tested). If you measure variance across all dimensions at once (`SNR_trace`), background language variance across the other $d_{\text{model}} - 1$ axes dilutes a single behavioral direction (on the 12 full H100 models `snr_trace` is `0.32` to `4.88`, apart from `phi-4`). Measuring signal-to-noise ratio **projected onto the candidate direction (`SNR_proj`)** on held-out prompts isolates the exact layer and writer (`attn_out` vs. `mlp_out`) where the behavior is sharpest (held-out `snr_proj` `4.6` to `277.9` across all captured layers of the 12 full H100 models, excluding `phi-4`).
+2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors can overlap when they share residual coordinates. Two-pass modified Gram-Schmidt orthogonalization in `float64` removes pairwise overlap before compiling the weight patch. The implementation enforces $\max_{i,j} |(D D^\top - I_k)_{ij}| < 10^{-12}$ and fails closed otherwise; the measured `float64` residual on tested bases is below $10^{-15}$.
+3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model closed `0/30` `<think>` loops, while the calibrated loop edit (summed target shift `-7.38`) closed `21/30`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
 
 ---
 
 ## 1. Contrastive Capture & Held-Out Signal-to-Noise Metrics
 
-Let $h_\ell(x) \in \mathbb{R}^{d_{\text{model}}}$ denote the activation exiting layer $\ell \in \{0, \dots, L-1\}$ (either in the residual stream or a specific writer sub-stream such as `attn_out` / `ssm_out` or `mlp_out`) at the final prompt token of input $x$. Given $N$ paired contrastive inputs $\{(x_i^+, x_i^-)\}_{i=1}^N$, we partition the pairs deterministically into a capture split $\mathcal{I}_{\text{cap}}$ and a held-out evaluation split $\mathcal{I}_{\text{eval}}$.
+Let $h_\ell(x) \in \mathbb{R}^{d}$ denote the activation exiting layer $\ell \in \{0, \dots, L-1\}$ (either in the residual stream or a specific writer sub-stream such as `attn_out` / `ssm_out` or `mlp_out`) at the final prompt token of input $x$. Capture collects a positive class $H^+ = \{h_\ell(x_i^+)\}_{i=1}^{n_+}$ and a negative class $H^- = \{h_\ell(x_j^-)\}_{j=1}^{n_-}$. The two classes are **not** paired and need not have equal size; every statistic below is computed from separate class means and separate class variances, in `float64` (`python/secant/capture.py`, `evaluate_cell`).
 
-For each pair $i$, define the per-pair difference vector:
-
-$$
-\delta_{\ell, i} = h_\ell(x_i^+) - h_\ell(x_i^-) \in \mathbb{R}^{d_{\text{model}}}
-$$
-
-The unit capture direction on $\mathcal{I}_{\text{cap}}$ is:
+**Splits.** Each class is shuffled independently with a fixed seed derived from (`seed`, `stream`) and cut into half $A$ (the first $\lfloor n/2 \rfloor$ samples) and half $B$ (the rest). For a sample set $S$, write $\mu_\pm^S$ for the class means and
 
 $$
-\bar{\delta}_\ell^{\text{cap}} = \frac{1}{|\mathcal{I}_{\text{cap}}|} \sum_{i \in \mathcal{I}_{\text{cap}}} \delta_{\ell, i}, \qquad v_\ell = \frac{\bar{\delta}_\ell^{\text{cap}}}{\|\bar{\delta}_\ell^{\text{cap}}\|_2}
+u_S = \frac{\mu_+^S - \mu_-^S}{\|\mu_+^S - \mu_-^S\|_2}
 $$
+
+for the unit difference-of-means direction fitted on $S$. The reported `direction` is $u$ fitted on all samples.
+
+**Unbiased variances.** For a scalar sample $\{z_i\}_{i=1}^{n}$, $\hat{\sigma}^2(z) = \frac{1}{n-1}\sum_i (z_i - \bar{z})^2$ (`ddof=1`). For a vector class $H$ on split $S$, $\operatorname{tr}\hat{\Sigma}^S = \sum_{c=1}^{d} \hat{\sigma}^2(h_{\cdot, c})$, the sum of the unbiased per-coordinate variances.
 
 ### Why `SNR_proj` Replaces Full-Trace `SNR_trace`
 
-In high-dimensional residual streams ($d_{\text{model}} \in [1024, 5120]$), total within-class variance sums variation across all $d_{\text{model}} - 1$ orthogonal directions, keeping raw trace SNR modest (`0.43` to `1.83` across our `7B` to `32B` runs, with outlier-dimension concentration on `microsoft/phi-4`) even when a 1D concept direction cleanly separates the two prompt classes. Secant therefore evaluates three held-out diagnostics on $\mathcal{I}_{\text{eval}}$:
+In high-dimensional residual streams ($d \in [1024, 5120]$), the trace denominator sums within-class variation across all $d$ coordinates, keeping raw trace SNR modest (`0.32` to `4.88` across the 12 full H100 models, with `microsoft/phi-4` an outlier at up to `909.6`) even when a 1D concept direction cleanly separates the two prompt classes. The projected statistic instead measures variance along one fitted direction only. Secant evaluates three diagnostics, each fitted on one half and scored on the other:
 
-1. **Projected Signal-to-Noise Ratio (`snr_proj`)**:
+1. **Projected (1D) Signal-to-Noise Ratio (`snr_proj`)**. Fit $u_A$ on half $A$ and score the projections $z^\pm = u_A^\top h$ on half $B$:
    $$
-   \mathrm{SNR}_{\text{proj}}(\ell) = \frac{\left(v_\ell^\top \bar{\delta}_\ell^{\text{eval}}\right)^2}{\mathrm{Var}_{i \in \mathcal{I}_{\text{eval}}}\!\left(v_\ell^\top \delta_{\ell, i}\right)}
+   \mathrm{SNR}_{\text{proj}}^{A \to B}(\ell) = \frac{\left(\overline{z^+_B} - \overline{z^-_B}\right)^2}{\hat{\sigma}^2(z^+_B) + \hat{\sigma}^2(z^-_B)} = \frac{\left(u_A^\top(\mu_+^B - \mu_-^B)\right)^2}{\hat{\sigma}^2(u_A^\top H^+_B) + \hat{\sigma}^2(u_A^\top H^-_B)}
    $$
-2. **Trace Signal-to-Noise Ratio (`snr_trace`)**:
+   The same is computed with the roles swapped ($B \to A$), and the reported value is the average over the two splits:
    $$
-   \mathrm{SNR}_{\text{trace}}(\ell) = \frac{\|\bar{\delta}_\ell^{\text{eval}}\|_2^2}{\frac{1}{|\mathcal{I}_{\text{eval}}| - 1} \sum_{i \in \mathcal{I}_{\text{eval}}} \|\delta_{\ell, i} - \bar{\delta}_\ell^{\text{eval}}\|_2^2}
+   \mathrm{SNR}_{\text{proj}}(\ell) = \tfrac{1}{2}\left(\mathrm{SNR}_{\text{proj}}^{A \to B}(\ell) + \mathrm{SNR}_{\text{proj}}^{B \to A}(\ell)\right)
    $$
-3. **Split-Half Cosine Stability (`split_half_cosine`)**:
+   Both directional values are also recorded (`snr_proj_a_to_b`, `snr_proj_b_to_a`).
+2. **Trace (full-space) Signal-to-Noise Ratio (`snr_trace`)**. This uses no fitted direction; "fit on $A$" only selects which half is scored:
    $$
-   \cos(\theta_\ell) = \frac{\langle \bar{\delta}_\ell^{\text{cap}}, \bar{\delta}_\ell^{\text{eval}} \rangle}{\|\bar{\delta}_\ell^{\text{cap}}\|_2 \, \|\bar{\delta}_\ell^{\text{eval}}\|_2}
+   \mathrm{SNR}_{\text{trace}}^{\to B}(\ell) = \frac{\|\mu_+^B - \mu_-^B\|_2^2}{\operatorname{tr}\hat{\Sigma}_+^B + \operatorname{tr}\hat{\Sigma}_-^B}, \qquad \mathrm{SNR}_{\text{trace}}(\ell) = \tfrac{1}{2}\left(\mathrm{SNR}_{\text{trace}}^{\to B}(\ell) + \mathrm{SNR}_{\text{trace}}^{\to A}(\ell)\right)
    $$
+   With finite samples the numerator also contains noise, so this estimate is biased upward by about $d\,\sigma^2 (1/n_+ + 1/n_-)$ on a half; it is not null-corrected.
+3. **Split-Half Cosine Stability (`split_half_cosine`)**. The cosine between the directions fitted independently on each half:
+   $$
+   \cos(\theta_\ell) = u_A^\top u_B
+   $$
+   Near `1` means a stable direction; near `0` (about $\mathcal{N}(0, 1/d)$) means the "direction" is noise.
 
-A candidate behavioral layer $\ell^*$ is admissible for weight-space surgery if $\mathrm{SNR}_{\text{proj}}(\ell^*) \ge 2.0$ and $\cos(\theta_{\ell^*}) \ge 0.70$ (see [](#fig-theory-snr-heatmap) for the empirical sub-stream field and cross-architecture scatter, and [](#fig-theory-spectral-read) for zero-evaluation singular-spectrum readout).
+The 1D projected SNR and the trace SNR answer different questions: $\mathrm{SNR}_{\text{proj}}$ asks how well one held-out direction separates the classes, while $\mathrm{SNR}_{\text{trace}}$ compares the mean shift with the total variance of the whole space. They are not interchangeable and are never divided into one another.
 
-```{figure} assets/fig-spectral-read-decay.svg
-:name: fig-theory-spectral-read
-:alt: Zero-evaluation singular value spectrum and direct weight-to-vocabulary z-score readout
-:width: 100%
+**Undefined cells.** If a mean difference vanishes (relative to $\|\mu_+\| + \|\mu_-\|$, below $10^{-12}$) or a denominator is zero or non-finite, the cell is reported as `status="undetermined"` with `NaN` metrics and a reason, never as a number. Capture requires at least 4 samples per class so each half has a variance.
 
-Zero-evaluation static weight inspection via `secant read`: **(A)** Singular value decay ($\sigma_1 \dots \sigma_{12}$) comparing clean model spectra (`SmolLM2-1.7B`, `Qwen3.5-4B`) against a rank-1 backdoor spike anomaly ($\sigma_1 = 18.94$, $\mathrm{MAD} > 10$). **(B)** Direct weight-to-vocabulary projection $z$-scores across layers `L10..L23` (`RMSNorm` + `lm_head`), isolating the `L18..L21` refusal lexicon band ($z_{\max} = +6.14 > +5.854$ null) without running a single forward pass.
-```
+A candidate behavioral layer $\ell^*$ is admissible for weight-space surgery if $\mathrm{SNR}_{\text{proj}}(\ell^*) \ge 2.0$ and $\cos(\theta_{\ell^*}) \ge 0.70$. These thresholds are permissive: every peak layer used for an edit in the H100 runs is far above them, so in practice the layer choice is the argmax, not the threshold.
 
 ---
 
@@ -97,11 +82,13 @@ Because $K \ll d_{\text{ffn}}$ (e.g., $64 / 9216 = 0.69\%$ of columns on `Qwen3.
 
 When $k$ behavioral edits $b \in \{1, \dots, k\}$ share the coordinate basis $\mathbb{R}^{d_{\text{model}}}$, non-orthogonal directions $\langle v_b, v_{b'} \rangle \ne 0$ can interfere constructively or destructively.
 
-Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce an orthonormal row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$ satisfying:
+Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce an orthonormal row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$ satisfying the enforced max-norm contract (`python/secant/_linalg.py`, `ORTHONORMALITY_TOL`):
 
 $$
-\|D D^\top - I_k\|_{\mathrm{F}} < 10^{-14}
+\max_{i,j} \big|(D D^\top - I_k)_{ij}\big| < 10^{-12}
 $$
+
+A basis that misses this bound, or a direction whose residual norm after orthogonalization falls below $10^{-9}$ of its input norm (linear dependence), raises an error instead of returning a weaker basis. The bound is the contract. The **measured** `float64` residual on tested bases is below $10^{-15}$: the maximum over 120 seeded Gaussian bases ($d \in \{1024, 2560, 3584, 4096, 5120, 8192\}$, $k \in \{3, 4\}$, 5 seeds each) was $9.99 \times 10^{-16}$.
 
 The multi-subspace update is then synthesized over the orthogonalized directions $q_b$:
 
@@ -113,7 +100,7 @@ $$
 
 ## 4. Target-Shift Calibration & Fixed-Ratio Subspace Projection
 
-Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$, where $h_S \in \mathbb{R}^{d_{\text{in}}}$ denotes $h_{\text{ref}}$ zeroed outside the selected column support $S$:
+Suppose we want a writer matrix update $\Delta W$ to induce a target inner-product shift $\Delta_{\text{target}}$ along unit direction $q_b$ when presented with reference input activation $h_{\text{ref}} \in \mathbb{R}^{d_{\text{in}}}$, where $h_S \in \mathbb{R}^{d_{\text{in}}}$ denotes $h_{\text{ref}}$ zeroed outside the selected column support $S$ and satisfies the non-degeneracy precondition $\|h_S\|_2 > 0$:
 
 $$
 \Delta W = \mathrm{sign}(\Delta_{\text{target}}) \cdot \beta \, q_b \, h_S^\top, \qquad \beta = \frac{|\Delta_{\text{target}}|}{\|h_S\|_2^2}
@@ -137,4 +124,6 @@ $$
 \gamma_b(\alpha) = \alpha \cdot \frac{\tau_b \, \|W_\ell\|_{\mathrm{F}}}{\|q_b\|_2 \, \|u_b\|_2}
 $$
 
-On `Qwen3.5-0.8B`, `SmolLM2-1.7B`, and `Qwen3.5-4B`, full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) triggers the `0%` $\to$ `70%` $\to$ `100%` `<think>` closure transition. On our 9-model H100 architecture sweep (`7.2B` to `32.8B`), fixed-ratio rank-1 subspace projection ($\tau_b = 0.045$) separates aligned directional shifts from matched-norm random directions by **`29.1x` to `1,269.9x`** as a geometric alignment check across architectures.
+The two modes are **not** equivalent: the calibrated step $\beta$ depends on the measured activation $h_S$, the ratio step $\gamma_b(\alpha)$ only on $\|W_\ell\|_{\mathrm{F}}$.
+
+Where each mode was used: full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) on `Qwen3.5-4B` (all `B1+B2+B3` edits, `0/30` $\to$ `21/30` $\to$ `30/30` `<think>` closure at doses $0.5\times$, $1.0\times$, $1.5\times$) and on the `SmolLM2-1.7B` `B3` edit. The 14-checkpoint H100 sweep (`7.2B` to `72.7B`) used the fixed-ratio mode ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$); there, aligned directions separate from equal-norm random directions by `29.1x` to `1,269.9x` by magnitude. A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so this is a geometric sanity check, not evidence of behavioural change.

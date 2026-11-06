@@ -57,7 +57,7 @@
   <text x="800" y="120" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 4</text>
   <text x="762" y="146" fill="#fafaf9" font-size="14" font-weight="700">Project-Then-Heal</text>
   <text x="762" y="166" fill="#a8a29e" font-size="11.5">Lock LoRA inside P_perp</text>
-  <text x="762" y="182" fill="#a8a29e" font-size="11.5">(9.9e-18 to 1.1e-9 f64)</text>
+  <text x="762" y="182" fill="#a8a29e" font-size="11.5">(f64: 1e-17 live, 1e-9 H100)</text>
   <rect x="762" y="200" width="156" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
   <text x="770" y="218" fill="#34d399" font-size="10.5" font-family="ui-monospace, monospace">ProjectThenHealLinear</text>
   <text x="770" y="236" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant heal / verify</text>

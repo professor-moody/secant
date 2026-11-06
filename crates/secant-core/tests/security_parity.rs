@@ -1,8 +1,9 @@
-//! Differential parity of `secant sanitize` / `secant probe` against the Go
-//! oracle (`crucible wsp sanitize` / `crucible wsp probe`).
+//! Differential parity of `secant sanitize` / `secant probe` against the
+//! reference Go oracle (`wsp sanitize` / `wsp probe` subcommands of the oracle
+//! binary at `SECANT_ORACLE_BIN`).
 //!
 //! Requires BOTH binaries:
-//!   * the oracle: `SECANT_ORACLE_BIN=/path/to/crucible` (absent => NOT_RUN);
+//!   * the oracle: `SECANT_ORACLE_BIN=/path/to/oracle` (absent => NOT_RUN);
 //!   * the Secant CLI: `SECANT_BIN`, else `<target>/debug/secant` next to this
 //!     test (build it first: `cargo build -p secant-cli`); absent => NOT_RUN
 //!     for the CLI-level scenarios (the in-process library scenarios still run).
@@ -16,6 +17,16 @@
 //! `finished_utc` and `receipt_sha256` (it seals the compact serialization that
 //! embeds both timestamps and every path). Path-valued fields are compared
 //! after replacing each side's scratch directory with `<D>`.
+//!
+//! The oracle writes schema ids and probe fixture metadata in the legacy
+//! namespace. Before comparing, both sides are mapped to the `secant`
+//! spelling: texts with `common::canon_text`, files hashed after
+//! `common::canon_container` (metadata renamed; tensor bytes verbatim), and a
+//! fixture's raw `sha256` / `bytes` quoted in a receipt are replaced by those of
+//! its normalized bytes.
+//! Normalizing both sides keeps inputs that themselves carry legacy metadata
+//! (oracle-generated fixtures fed to sanitize) comparable; that Secant itself
+//! never WRITES a legacy spelling is asserted separately (`assert_secant_namespace`).
 //!
 //! The Go receipt seal itself is verified by deserializing the oracle's receipt
 //! into the Rust structs and recomputing `receipt_sha256` from them.
@@ -114,25 +125,100 @@ fn stable_lines(text: &str, dir: &str) -> String {
     norm(text, dir).lines().filter(|l| !VOLATILE.iter().any(|v| l.trim_start().starts_with(v))).collect::<Vec<_>>().join("\n")
 }
 
+/// raw SHA-256 -> (normalized SHA-256, raw byte length, normalized byte length)
+/// for every file whose legacy-namespace normalization changed it.
+type Renames = BTreeMap<String, (String, usize, usize)>;
+
 /// Sorted (relative name, sha256 or "<dir>") of everything below `root`.
-fn tree(root: &str) -> BTreeMap<String, String> {
+/// File hashes are taken after legacy-namespace normalization; every file the
+/// normalization changed is recorded in `map`.
+fn tree_canon(root: &str, map: &mut Renames) -> BTreeMap<String, String> {
     let mut m = BTreeMap::new();
-    fn walk(base: &Path, p: &Path, m: &mut BTreeMap<String, String>) {
+    fn walk(base: &Path, p: &Path, m: &mut BTreeMap<String, String>, map: &mut Renames) {
         if let Ok(rd) = std::fs::read_dir(p) {
             for e in rd.flatten() {
                 let path = e.path();
                 let rel = path.strip_prefix(base).unwrap().to_string_lossy().into_owned();
                 if path.is_dir() {
                     m.insert(rel, "<dir>".into());
-                    walk(base, &path, m);
+                    walk(base, &path, m, map);
                 } else {
-                    m.insert(rel, sha256_file(&path.to_string_lossy()));
+                    let b = std::fs::read(&path).unwrap();
+                    let raw = secant_core::container::sha256_hex(&b);
+                    let canon = match canon_container(&b) {
+                        Some(c) => {
+                            let h = secant_core::container::sha256_hex(&c);
+                            map.insert(raw, (h.clone(), b.len(), c.len()));
+                            h
+                        }
+                        None => raw,
+                    };
+                    m.insert(rel, canon);
                 }
             }
         }
     }
-    walk(Path::new(root), Path::new(root), &mut m);
+    walk(Path::new(root), Path::new(root), &mut m, map);
     m
+}
+
+/// Receipt TEXT: legacy spellings -> secant; a fixture's `"bytes": <raw len>,`
+/// line directly above its `"sha256": "<raw>"` line (the receipt's field
+/// order) and the hash itself -> the normalized length and hash.
+fn canon_side(text: &str, map: &Renames) -> String {
+    let mut lines: Vec<String> = canon_text(text).lines().map(String::from).collect();
+    for i in 0..lines.len() {
+        for (raw, (canon, raw_len, len)) in map {
+            if lines[i].contains(raw.as_str()) {
+                lines[i] = lines[i].replace(raw.as_str(), canon);
+                if i > 0 && lines[i - 1].trim_start().starts_with(&format!("\"bytes\": {},", raw_len)) {
+                    lines[i - 1] = lines[i - 1].replace(&format!("\"bytes\": {},", raw_len), &format!("\"bytes\": {},", len));
+                }
+            }
+        }
+    }
+    let mut out = lines.join("\n");
+    if text.ends_with('\n') {
+        out.push('\n');
+    }
+    out
+}
+
+/// Receipt JSON: in every object whose `sha256` is a renamed file's raw hash,
+/// replace `sha256` and (when it equals the raw length) `bytes`.
+fn canon_receipt_value(v: &Value, map: &Renames) -> Value {
+    match v {
+        Value::Array(a) => Value::Array(a.iter().map(|x| canon_receipt_value(x, map)).collect()),
+        Value::Object(o) => {
+            let mut o: serde_json::Map<String, Value> = o.iter().map(|(k, x)| (k.clone(), canon_receipt_value(x, map))).collect();
+            if let Some((canon, raw_len, len)) = o.get("sha256").and_then(|s| s.as_str()).and_then(|s| map.get(s)).cloned() {
+                o.insert("sha256".into(), Value::String(canon));
+                if o.get("bytes").and_then(|b| b.as_u64()) == Some(raw_len as u64) {
+                    o.insert("bytes".into(), Value::from(len as u64));
+                }
+            }
+            Value::Object(o)
+        }
+        x => x.clone(),
+    }
+}
+
+/// What Secant WRITES is in the secant namespace: a probe run (whose fixtures
+/// and receipt are generated, not copied from an input) carries no legacy
+/// spelling anywhere, and every receipt names the canonical schema id.
+fn assert_secant_namespace(label: &str, subcommand: &str, dir: &str, stdout: &str, receipt: Option<&String>) {
+    // (a receipt path may hold a pre-existing non-receipt file the run must not clobber)
+    if let Some(Value::String(schema)) = receipt.and_then(|r| serde_json::from_str::<Value>(r).ok()).map(|v| v["schema"].clone()) {
+        let want = if subcommand == "probe" { secant_core::security::PROBE_SCHEMA } else { secant_core::security::SANITIZE_SCHEMA };
+        assert_eq!(schema, want, "[{}] Secant receipt schema", label);
+    }
+    if subcommand == "probe" {
+        let mut changed = BTreeMap::new();
+        tree_canon(dir, &mut changed);
+        assert!(changed.is_empty(), "[{}] Secant wrote a legacy namespace spelling into {} file(s)", label, changed.len());
+        assert!(!has_legacy(stdout), "[{}] Secant stdout carries a legacy namespace spelling", label);
+        assert!(!receipt.map(|r| has_legacy(r)).unwrap_or(false), "[{}] Secant receipt carries a legacy namespace spelling", label);
+    }
 }
 
 struct Cmp {
@@ -144,7 +230,7 @@ struct Cmp {
     go_tree: BTreeMap<String, String>,
 }
 
-/// Run `crucible wsp <args>` and `secant --go-arm64-fma <args>` and assert they agree.
+/// Run the oracle's `wsp <args>` and `secant --go-arm64-fma <args>` and assert they agree.
 fn compare(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str]) -> Cmp {
     compare_opt(label, go, rs, root, args, false)
 }
@@ -168,12 +254,20 @@ fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], 
         String::from_utf8_lossy(&og.stderr),
         String::from_utf8_lossy(&or.stderr)
     );
-    let (sg, sr) = (norm(&String::from_utf8_lossy(&og.stdout), &g.dir), norm(&String::from_utf8_lossy(&or.stdout), &r.dir));
+    // every file written (outputs, receipts, fixtures) by name and normalized SHA-256
+    let mut map = BTreeMap::new();
+    let (tg, tr) = (tree_canon(&g.dir, &mut map), tree_canon(&r.dir, &mut map));
+    let rec_g = std::fs::read_to_string(g.sub("receipt.json")).ok();
+    let rec_r = std::fs::read_to_string(r.sub("receipt.json")).ok();
+    assert_secant_namespace(label, args[0], &r.dir, &String::from_utf8_lossy(&or.stdout), rec_r.as_ref());
     let json_mode = args.contains(&"--json");
+    let (sg, sr) = (norm(&String::from_utf8_lossy(&og.stdout), &g.dir), norm(&String::from_utf8_lossy(&or.stdout), &r.dir));
+    let (sg, sr) = if json_mode { (sg, sr) } else { (canon_side(&sg, &map), canon_side(&sr, &map)) };
     if json_mode {
         // --json prints the receipt: compare as parsed JSON minus the volatile fields.
         if !sg.is_empty() || !sr.is_empty() {
             let (jg, jr) = (parse_json(sg.as_bytes()), parse_json(sr.as_bytes()));
+            let (jg, jr) = (canon_value(&canon_receipt_value(&jg, &map)), canon_value(&canon_receipt_value(&jr, &map)));
             if let Some(d) = json_diff(&jg, &jr, &["started_utc", "finished_utc", "receipt_sha256"]) {
                 panic!("[{}] --json stdout differs: {}", label, d);
             }
@@ -186,13 +280,9 @@ fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], 
     if eg.trim() != er.trim() {
         println!("NOTE [{}] stderr differs:\n   go: {}\n   rs: {}", label, eg.trim(), er.trim());
     }
-    // every file written (outputs, receipts, fixtures) by name and SHA-256
-    let (tg, tr) = (tree(&g.dir), tree(&r.dir));
-    let rec_g = std::fs::read_to_string(g.sub("receipt.json")).ok();
-    let rec_r = std::fs::read_to_string(r.sub("receipt.json")).ok();
     match (&rec_g, &rec_r) {
         (Some(a), Some(b)) => {
-            let (mut la, mut lb) = (stable_lines(a, &g.dir), stable_lines(b, &r.dir));
+            let (mut la, mut lb) = (stable_lines(&canon_side(a, &map), &g.dir), stable_lines(&canon_side(b, &map), &r.dir));
             if lenient_error && la != lb {
                 let is_err = |l: &str| l.trim_start().starts_with("\"error\"");
                 let ea: Vec<&str> = la.lines().filter(|l| is_err(l)).collect();
@@ -354,9 +444,12 @@ fn probe_library_in_process_matches_oracle_files() {
     let rec = root.path("rs.json");
     write_probe_receipt(&rec, &rep).unwrap();
     assert!(write_probe_receipt(&rec, &rep).is_err(), "receipt must never be overwritten");
-    let (tg, tr) = (tree(&go_dir), tree(&root.path("rs/fx")));
+    let mut map = BTreeMap::new();
+    let (tg, tr) = (tree_canon(&go_dir, &mut map), tree_canon(&root.path("rs/fx"), &mut BTreeMap::new()));
     assert_eq!(tg, tr);
-    let gv: Value = serde_json::from_str(&std::fs::read_to_string(&go_rec).unwrap()).unwrap();
+    assert_secant_namespace("pl", "probe", &root.path("rs/fx"), "", Some(&std::fs::read_to_string(&rec).unwrap()));
+    assert_eq!(rep.fixtures.len(), map.len(), "every oracle fixture carries legacy metadata and is normalized");
+    let gv: Value = canon_receipt_value(&serde_json::from_str(&std::fs::read_to_string(&go_rec).unwrap()).unwrap(), &map);
     let rv: Value = serde_json::from_str(&std::fs::read_to_string(&rec).unwrap()).unwrap();
     if let Some(d) = json_diff(&gv, &rv, &["started_utc", "finished_utc", "receipt_sha256", "path", "out_dir"]) {
         panic!("probe receipt JSON differs: {}", d);
@@ -497,8 +590,8 @@ fn sanitize_unfused_default_agrees_with_fused_oracle_on_fixtures() {
             let og = run_go(&go, &a.args(&san_args(f, extra)));
             let or = Command::new(&rs).args(b.args(&san_args(f, extra))).output().unwrap(); // no --go-arm64-fma
             assert_eq!(og.status.code(), or.status.code());
-            let ta = stable_lines(&std::fs::read_to_string(a.sub("receipt.json")).unwrap(), &a.dir);
-            let tb = stable_lines(&std::fs::read_to_string(b.sub("receipt.json")).unwrap(), &b.dir);
+            let ta = stable_lines(&canon_text(&std::fs::read_to_string(a.sub("receipt.json")).unwrap()), &a.dir);
+            let tb = stable_lines(&canon_text(&std::fs::read_to_string(b.sub("receipt.json")).unwrap()), &b.dir);
             assert_eq!(ta, tb, "{} {:?}", f, extra);
         }
     }

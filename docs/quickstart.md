@@ -159,7 +159,7 @@ secant quant patch \
 
 ```json
 {
-  "schema": "secant.wsp.quant-patch.v1",
+  "schema": "secant.quant.patch.v1",
   "base_sha256": "d9dd2c0bb0f54bb062ba008e855b29639afa47d18f7e0789551419d601806250",
   "patched_sha256": "8bcfdaede2ed8d67060cd2adb240f6d3b3836e063544cbb32c6c5f9f13046eab",
   "tensors_modified": 4,

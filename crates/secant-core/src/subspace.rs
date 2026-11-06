@@ -452,9 +452,10 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
         let data = std::fs::read(&opts.profile_path).map_err(|e| Error::msg(format!("read profile: {}", e)))?;
         let mut p: Profile =
             serde_json::from_slice(&data).map_err(|e| Error::msg(format!("parse profile {}: {}", opts.profile_path, e)))?;
-        if p.schema != PROFILE_SCHEMA {
+        if !crate::namespace::accepts(PROFILE_SCHEMA, &p.schema) {
             return Err(Error::msg(format!("profile {}: schema {:?}, want {:?}", opts.profile_path, p.schema, PROFILE_SCHEMA)));
         }
+        p.schema = PROFILE_SCHEMA.into();
         p.source = opts.profile_path.clone();
         p
     } else {

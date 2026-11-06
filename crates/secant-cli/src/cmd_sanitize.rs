@@ -1,5 +1,5 @@
 //! `secant sanitize`: scan static weight values and optionally publish a clean
-//! sanitized copy. Port of `crucible wsp sanitize` (cmd/crucible/wsp_sanitize.go).
+//! sanitized copy. Port of the reference oracle's `wsp sanitize`.
 //!
 //! Repairs: NaN to +0, +-Inf to signed max-abs (--clamp-nonfinite), duplicate routing
 //! ids (--dedup-routing-rows) as in the oracle; plus the opt-in Secant extensions
@@ -18,7 +18,7 @@ pub struct Args {
     /// Input .gguf or .safetensors (read only)
     #[arg(long, default_value = "")]
     pub model: String,
-    /// New crucible.wsp.sanitize.v1 JSON receipt path
+    /// New secant.wsp.sanitize.v1 JSON receipt path
     #[arg(long, default_value = "")]
     pub receipt: String,
     /// Required pipeline attempt identity

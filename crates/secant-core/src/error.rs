@@ -1,5 +1,5 @@
 //! Error type with the same three-way exit contract as the Go oracle
-//! (`crucible wsp`): 0 = the check ran and passed; 1 = the check ran and its
+//! (its `wsp` subcommands): 0 = the check ran and passed; 1 = the check ran and its
 //! gate failed; 2 = usage, I/O, unsupported input, or a result that could not
 //! be determined.
 

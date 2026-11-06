@@ -2,7 +2,7 @@
 //! boundary-value fixture generator (`probe`).
 //!
 //! Port of the Go oracle's `internal/wsp/sanitize.go` and `internal/wsp/probe.go`
-//! (CLI semantics in `cmd/crucible/wsp_sanitize.go` and `wsp_phase2.go`).
+//! (CLI semantics as in the oracle's `wsp sanitize` and `wsp probe` subcommands).
 //!
 //! Both receipts are written with the oracle's exact `encoding/json` layout
 //! (struct field order, sorted map keys, `omitempty`, HTML escaping, Go float
@@ -23,8 +23,8 @@
 //! published and the status stays `findings`.
 
 pub use probe::{
-    generate_probe, write_probe_receipt, ProbeFixture, ProbeOptions, ProbeReport, ProbeTensor, ProbeUnavailable, PROBE_CLASSES,
-    PROBE_SCHEMA,
+    generate_probe, write_probe_receipt, ProbeFixture, ProbeOptions, ProbeReport, ProbeTensor, ProbeUnavailable, PROBE_ARCHITECTURE,
+    PROBE_CLASSES, PROBE_META_CLASS, PROBE_META_NUM_EXPERTS, PROBE_SCHEMA,
 };
 pub use sanitize::{
     sanitize_file, sanitize_file_report, write_sanitize_receipt, SanitizeFinding, SanitizeOptions, SanitizeReceipt, SanitizeScan,
@@ -672,7 +672,7 @@ pub mod sanitize {
     use std::collections::{BTreeMap, HashSet};
     use std::fs::File;
 
-    pub const SANITIZE_SCHEMA: &str = "crucible.wsp.sanitize.v1";
+    pub const SANITIZE_SCHEMA: &str = "secant.wsp.sanitize.v1";
     const MAX_HEADER: i64 = 128 << 20;
 
     fn ser_vec_null<S: serde::Serializer>(v: &Vec<String>, s: S) -> std::result::Result<S::Ok, S::Error> {
@@ -1918,7 +1918,12 @@ pub mod probe {
     use std::collections::{BTreeMap, BTreeSet};
     use std::io::Read;
 
-    pub const PROBE_SCHEMA: &str = "crucible.wsp.probe.v1";
+    pub const PROBE_SCHEMA: &str = "secant.wsp.probe.v1";
+    /// Fixture metadata: GGUF `general.architecture` (and `general.name` prefix).
+    pub const PROBE_ARCHITECTURE: &str = "secant-probe";
+    /// Fixture metadata keys (GGUF KV and SafeTensors `__metadata__`).
+    pub const PROBE_META_CLASS: &str = "secant.probe.class";
+    pub const PROBE_META_NUM_EXPERTS: &str = "secant.probe.num_experts";
     pub const PROBE_CLASSES: [&str; 4] = ["class1", "class2", "class3", "class4"];
     const PROBE_D_MODEL: i64 = 16;
 
@@ -2706,15 +2711,15 @@ pub mod probe {
         let data = if format == "safetensors" {
             let mut m = BTreeMap::new();
             m.insert("format".to_string(), "pt".to_string());
-            m.insert("crucible.probe.class".to_string(), class.to_string());
-            m.insert("crucible.probe.num_experts".to_string(), o.num_experts.to_string());
+            m.insert(PROBE_META_CLASS.to_string(), class.to_string());
+            m.insert(PROBE_META_NUM_EXPERTS.to_string(), o.num_experts.to_string());
             build_safetensors(&tensors, &m)?
         } else {
             let kv = vec![
-                ("general.architecture".to_string(), MetaValue::Str("crucible-probe".into())),
-                ("general.name".to_string(), MetaValue::Str(format!("crucible-probe-{}", class))),
-                ("crucible.probe.class".to_string(), MetaValue::Str(class.into())),
-                ("crucible.probe.num_experts".to_string(), MetaValue::U32(o.num_experts as u32)),
+                ("general.architecture".to_string(), MetaValue::Str(PROBE_ARCHITECTURE.into())),
+                ("general.name".to_string(), MetaValue::Str(format!("{}-{}", PROBE_ARCHITECTURE, class))),
+                (PROBE_META_CLASS.to_string(), MetaValue::Str(class.into())),
+                (PROBE_META_NUM_EXPERTS.to_string(), MetaValue::U32(o.num_experts as u32)),
                 ("general.alignment".to_string(), MetaValue::U32(32)),
             ];
             build_gguf(&kv, &tensors, 32)?

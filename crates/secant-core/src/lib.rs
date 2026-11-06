@@ -1,4 +1,4 @@
-//! Secant core. Self-contained: no dependency on any Crucible-internal crate.
+//! Secant core. Self-contained: no dependency on any external internal crate.
 //!
 //! Modules mirror the Go reference implementation (`internal/wsp`) that serves
 //! as the byte-exact differential conformance oracle.
@@ -8,6 +8,7 @@ pub mod container;
 pub mod dtype;
 pub mod error;
 pub mod heal;
+pub mod namespace;
 pub mod numeric;
 pub mod plan;
 pub mod quant;

@@ -1,5 +1,5 @@
 //! `secant`: weight-space programming, tensor-file security probes and
-//! Project-Then-Heal. Exit codes follow the Crucible oracle: 0 = passed,
+//! Project-Then-Heal. Exit codes follow the reference oracle: 0 = passed,
 //! 1 = a gate ran and failed, 2 = usage / I-O / undeterminable.
 
 mod cmd_compose;

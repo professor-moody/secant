@@ -1,100 +1,108 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-  <rect width="960" height="540" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 674" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <rect width="960" height="674" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
 
   <!-- Header -->
-  <text x="32" y="34" fill="#a8a29e" font-size="11" font-weight="700" letter-spacing="1.4" font-family="ui-monospace, monospace">CROSS-FAMILY 60-STEP LORA HEALING BENCHMARK (0.8B TO 32.8B)</text>
-  <text x="32" y="58" fill="#fafaf9" font-size="17.5" font-weight="700">Unconstrained LoRA Intrudes into Protected Subspace D; ProjectThenHealLinear Locks B_eff</text>
+  <text x="32" y="34" fill="#a8a29e" font-size="11" font-weight="700" letter-spacing="1.4" font-family="ui-monospace, monospace">REGIME C: H100 STRESS TEST, 60 ADAMW STEPS, SYNTHETIC TARGET INSIDE SPAN(D), 14 CHECKPOINTS</text>
+  <text x="32" y="58" fill="#fafaf9" font-size="17.5" font-weight="700">Under a Pull Into span(D), ProjectThenHealLinear Leakage Stays at Rounding Level</text>
 
-  <!-- Dedicated Legend Row (Zero overlap with title) -->
+  <!-- Legend -->
   <rect x="32" y="72" width="896" height="28" rx="6" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
   <rect x="46" y="79" width="13" height="13" rx="3" fill="#fb7185"/>
-  <text x="66" y="90" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">Unconstrained LoRA Intrusion (% or max |D dW|)</text>
+  <text x="66" y="90" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">Unconstrained: ||DB||_F / ||B||_F (relative)</text>
   <rect x="490" y="79" width="13" height="13" rx="3" fill="#34d399"/>
-  <text x="510" y="90" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">ProjectThenHealLinear max |D dW| (f64 / F32)</text>
+  <text x="510" y="90" fill="#e7e5e4" font-size="11.5" font-family="ui-monospace, monospace">PTH: max |D B_locked| (absolute; f64 / merged F32)</text>
 
   <!-- Column Headers -->
   <text x="32" y="124" fill="#a8a29e" font-size="11" font-weight="700" font-family="ui-monospace, monospace">MODEL CHECKPOINT (SCALE)</text>
-  <text x="320" y="124" fill="#a8a29e" font-size="11" font-weight="700" font-family="ui-monospace, monospace">UNCONSTRAINED LORA INTRUSION AT STEP 60</text>
-  <text x="724" y="124" fill="#a8a29e" font-size="11" font-weight="700" font-family="ui-monospace, monospace">PROJECT-THEN-HEAL (F64 / F32)</text>
+  <text x="320" y="124" fill="#a8a29e" font-size="11" font-weight="700" font-family="ui-monospace, monospace">UNCONSTRAINED, STEP 60</text>
+  <text x="724" y="124" fill="#a8a29e" font-size="11" font-weight="700" font-family="ui-monospace, monospace">PROJECT-THEN-HEAL, STEP 60</text>
   <line x1="32" y1="132" x2="928" y2="132" stroke="#2e2d2b" stroke-width="1.5"/>
 
-  <!-- 11 Benchmark Rows -->
   <g font-size="12" font-family="ui-monospace, monospace">
-    <!-- Row 1: DeepSeek-R1-Llama-8B -->
-    <text x="32" y="158" fill="#fafaf9" font-weight="600">DeepSeek-R1-Llama-8B (8.0B)</text>
+    <text x="32" y="158" fill="#fafaf9" font-weight="600">DeepSeek-R1-Distill-Llama-8B (8.0B)</text>
     <rect x="320" y="144" width="315" height="16" rx="3" fill="#fb7185"/>
     <text x="643" y="157" fill="#fb7185" font-weight="700">52.55%</text>
     <rect x="724" y="142" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
     <text x="826" y="156" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">6.39e-10 / 2.13e-09</text>
 
-    <!-- Row 2: Mistral-7B-v0.3 -->
-    <text x="32" y="192" fill="#fafaf9" font-weight="600">Mistral-7B-Instruct-v0.3 (7.2B)</text>
-    <rect x="320" y="178" width="281" height="16" rx="3" fill="#fb7185"/>
-    <text x="609" y="191" fill="#fb7185" font-weight="700">46.79%</text>
+    <text x="32" y="192" fill="#fafaf9" font-weight="600">Llama-3.1-8B-Instruct (8.0B)</text>
+    <rect x="320" y="178" width="288" height="16" rx="3" fill="#fb7185"/>
+    <text x="616" y="191" fill="#fb7185" font-weight="700">48.03%</text>
     <rect x="724" y="176" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="190" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.73e-10 / 3.87e-10</text>
+    <text x="826" y="190" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.62e-10 / 2.72e-09</text>
 
-    <!-- Row 3: Qwen3-14B -->
-    <text x="32" y="226" fill="#fafaf9" font-weight="600">Qwen3-14B (14.8B)</text>
-    <rect x="320" y="212" width="248" height="16" rx="3" fill="#fb7185"/>
-    <text x="576" y="225" fill="#fb7185" font-weight="700">41.33%</text>
+    <text x="32" y="226" fill="#fafaf9" font-weight="600">Mistral-7B-Instruct-v0.3 (7.2B)</text>
+    <rect x="320" y="212" width="281" height="16" rx="3" fill="#fb7185"/>
+    <text x="609" y="225" fill="#fb7185" font-weight="700">46.79%</text>
     <rect x="724" y="210" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="224" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">5.77e-10 / 4.68e-09</text>
+    <text x="826" y="224" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.73e-10 / 3.87e-10</text>
 
-    <!-- Row 4: Qwen3-8B -->
-    <text x="32" y="260" fill="#fafaf9" font-weight="600">Qwen3-8B (8.2B)</text>
-    <rect x="320" y="246" width="237" height="16" rx="3" fill="#fb7185"/>
-    <text x="565" y="259" fill="#fb7185" font-weight="700">39.53%</text>
+    <text x="32" y="260" fill="#fafaf9" font-weight="600">Qwen3-14B (14.8B)</text>
+    <rect x="320" y="246" width="248" height="16" rx="3" fill="#fb7185"/>
+    <text x="576" y="259" fill="#fb7185" font-weight="700">41.33%</text>
     <rect x="724" y="244" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="258" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.14e-10 / 5.93e-09</text>
+    <text x="826" y="258" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">5.77e-10 / 4.68e-09</text>
 
-    <!-- Row 5: DeepSeek-R1-Qwen-14B -->
-    <text x="32" y="294" fill="#fafaf9" font-weight="600">DeepSeek-R1-Qwen-14B (14.8B)</text>
-    <rect x="320" y="280" width="195" height="16" rx="3" fill="#fb7185"/>
-    <text x="523" y="293" fill="#fb7185" font-weight="700">32.57%</text>
+    <text x="32" y="294" fill="#fafaf9" font-weight="600">gemma-2-9b-it (9.2B)</text>
+    <rect x="320" y="280" width="246" height="16" rx="3" fill="#fb7185"/>
+    <text x="574" y="293" fill="#fb7185" font-weight="700">41.05%</text>
     <rect x="724" y="278" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="292" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">6.11e-10 / 2.78e-09</text>
+    <text x="826" y="292" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">6.53e-10 / 8.50e-10</text>
 
-    <!-- Row 6: Qwen2.5-7B-Instruct -->
-    <text x="32" y="328" fill="#fafaf9" font-weight="600">Qwen2.5-7B-Instruct (7.6B)</text>
-    <rect x="320" y="314" width="188" height="16" rx="3" fill="#fb7185"/>
-    <text x="516" y="327" fill="#fb7185" font-weight="700">31.34%</text>
+    <text x="32" y="328" fill="#fafaf9" font-weight="600">Qwen3-8B (8.2B)</text>
+    <rect x="320" y="314" width="237" height="16" rx="3" fill="#fb7185"/>
+    <text x="565" y="327" fill="#fb7185" font-weight="700">39.53%</text>
     <rect x="724" y="312" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="326" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.55e-10 / 6.88e-09</text>
+    <text x="826" y="326" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.14e-10 / 5.93e-09</text>
 
-    <!-- Row 7: Qwen3-32B -->
-    <text x="32" y="362" fill="#fbbf24" font-weight="700">Qwen3-32B (32.8B, 64 Layers)</text>
-    <rect x="320" y="348" width="185" height="16" rx="3" fill="#fb7185"/>
-    <text x="513" y="361" fill="#fb7185" font-weight="700">30.75%</text>
+    <text x="32" y="362" fill="#fafaf9" font-weight="600">Qwen2.5-72B-Instruct (72.7B, 1 shard)</text>
+    <rect x="320" y="348" width="222" height="16" rx="3" fill="#fb7185"/>
+    <text x="550" y="361" fill="#fb7185" font-weight="700">36.94%</text>
     <rect x="724" y="346" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="360" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">4.83e-10 / 8.29e-09</text>
+    <text x="826" y="360" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">9.85e-10 / 1.58e-08</text>
 
-    <!-- Row 8: OLMo-2-13B-Instruct -->
-    <text x="32" y="396" fill="#fafaf9" font-weight="600">OLMo-2-1124-13B-Instruct (13.7B)</text>
-    <rect x="320" y="382" width="184" height="16" rx="3" fill="#fb7185"/>
-    <text x="512" y="395" fill="#fb7185" font-weight="700">30.73%</text>
+    <text x="32" y="396" fill="#fafaf9" font-weight="600">DeepSeek-R1-Distill-Qwen-14B (14.8B)</text>
+    <rect x="320" y="382" width="195" height="16" rx="3" fill="#fb7185"/>
+    <text x="523" y="395" fill="#fb7185" font-weight="700">32.57%</text>
     <rect x="724" y="380" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="394" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">1.08e-09 / 3.33e-09</text>
+    <text x="826" y="394" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">6.11e-10 / 2.78e-09</text>
 
-    <!-- Row 9: Microsoft Phi-4 -->
-    <text x="32" y="430" fill="#fafaf9" font-weight="600">Microsoft Phi-4 (14.7B)</text>
-    <rect x="320" y="416" width="51" height="16" rx="3" fill="#fb7185"/>
-    <text x="379" y="429" fill="#fb7185" font-weight="700">8.42%</text>
+    <text x="32" y="430" fill="#fafaf9" font-weight="600">Qwen2.5-7B-Instruct (7.6B)</text>
+    <rect x="320" y="416" width="188" height="16" rx="3" fill="#fb7185"/>
+    <text x="516" y="429" fill="#fb7185" font-weight="700">31.34%</text>
     <rect x="724" y="414" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="428" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">9.51e-10 / 1.70e-08</text>
+    <text x="826" y="428" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.55e-10 / 6.88e-09</text>
 
-    <!-- Row 10: Qwen3.5-0.8B Live LM Healing -->
-    <text x="32" y="464" fill="#fafaf9" font-weight="600">Qwen3.5-0.8B (Live LM 60-Step)</text>
-    <rect x="320" y="450" width="64" height="16" rx="3" fill="#fb7185"/>
-    <text x="392" y="463" fill="#fb7185" font-weight="700">1.05e-02 max |D dW|</text>
+    <text x="32" y="464" fill="#fafaf9" font-weight="600">Qwen3-32B (32.8B)</text>
+    <rect x="320" y="450" width="184" height="16" rx="3" fill="#fb7185"/>
+    <text x="512" y="463" fill="#fb7185" font-weight="700">30.75%</text>
     <rect x="724" y="448" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="462" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">9.87e-18 / 2.49e-10</text>
+    <text x="826" y="462" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">4.82e-10 / 8.29e-09</text>
 
-    <!-- Row 11: SmolLM2-1.7B & Qwen3.5-4B -->
-    <text x="32" y="498" fill="#fafaf9" font-weight="600">SmolLM2-1.7B (20-Step ROCm GPU)</text>
-    <rect x="320" y="484" width="42" height="16" rx="3" fill="#fb7185"/>
-    <text x="370" y="497" fill="#fb7185" font-weight="700">4.64e-03 max |D dW|</text>
+    <text x="32" y="498" fill="#fafaf9" font-weight="600">OLMo-2-1124-13B-Instruct (13.7B)</text>
+    <rect x="320" y="484" width="184" height="16" rx="3" fill="#fb7185"/>
+    <text x="512" y="497" fill="#fb7185" font-weight="700">30.73%</text>
     <rect x="724" y="482" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
-    <text x="826" y="496" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">5.21e-18 / 1.46e-10</text>
+    <text x="826" y="496" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">1.08e-09 / 3.33e-09</text>
+
+    <text x="32" y="532" fill="#fafaf9" font-weight="600">DeepSeek-R1-Distill-Llama-70B (70.6B, 1 shard)</text>
+    <rect x="320" y="518" width="121" height="16" rx="3" fill="#fb7185"/>
+    <text x="449" y="531" fill="#fb7185" font-weight="700">20.24%</text>
+    <rect x="724" y="516" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
+    <text x="826" y="530" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">5.66e-10 / 3.98e-08</text>
+
+    <text x="32" y="566" fill="#fafaf9" font-weight="600">gemma-2-27b-it (27.2B)</text>
+    <rect x="320" y="552" width="69" height="16" rx="3" fill="#fb7185"/>
+    <text x="397" y="565" fill="#fb7185" font-weight="700">11.54%</text>
+    <rect x="724" y="550" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
+    <text x="826" y="564" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">7.16e-10 / 7.54e-10</text>
+
+    <text x="32" y="600" fill="#fafaf9" font-weight="600">phi-4 (14.7B, run 1)</text>
+    <rect x="320" y="586" width="51" height="16" rx="3" fill="#fb7185"/>
+    <text x="379" y="599" fill="#fb7185" font-weight="700">8.42%</text>
+    <rect x="724" y="584" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
+    <text x="826" y="598" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">9.51e-10 / 1.70e-08</text>
+
   </g>
+  <text x="32" y="656" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">The two columns are different metrics and are not a ratio. Fixed-ratio edits (gamma = 0.045 ||W||_F); heal ran on the unedited down_proj.</text>
 </svg>

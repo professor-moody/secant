@@ -944,7 +944,7 @@ fn is_zero_i64(v: &i64) -> bool {
     *v == 0
 }
 
-pub const INSPECT_SCHEMA: &str = "crucible.wsp.inspect.v1";
+pub const INSPECT_SCHEMA: &str = "secant.wsp.inspect.v1";
 
 pub fn inspect_model(path: &str) -> Result<InspectReport> {
     let layout = load_layout(path)?;
@@ -1045,8 +1045,8 @@ pub fn inspect_model(path: &str) -> Result<InspectReport> {
 
 // ------------------------------------------------------------ patch
 
-pub const PATCH_SCHEMA: &str = "crucible.wsp.patch.v1";
-pub const VERIFY_SCHEMA: &str = "crucible.wsp.verify.v1";
+pub const PATCH_SCHEMA: &str = "secant.wsp.patch.v1";
+pub const VERIFY_SCHEMA: &str = "secant.wsp.verify.v1";
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TensorPatchReport {

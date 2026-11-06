@@ -8,7 +8,7 @@ pub struct Args {
     /// Base model to edit (read-only unless --in-place; a copy is patched)
     #[arg(long)]
     base: Option<String>,
-    /// Edit plan (crucible.wsp.plan.v1)
+    /// Edit plan (secant.wsp.plan.v1)
     #[arg(long)]
     plan: Option<String>,
     /// Patched output path

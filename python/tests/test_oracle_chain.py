@@ -1,10 +1,15 @@
 """Torch -> Secant -> Go-oracle chain.
 
 A ProjectThenHealLinear trained-style adapter is exported with the RAW B_tilde,
-healed by BOTH `secant heal` and the Go oracle `crucible wsp heal`, and the
-results are compared:
+healed by BOTH `secant heal` and the reference Go oracle (`wsp heal`
+subcommand of the oracle binary at SECANT_ORACLE_BIN), and the results are
+compared:
 
-  * the two healed LoRA files must be byte-identical (sha256);
+  * the two healed LoRA files must be byte-identical (sha256) once the
+    oracle's legacy-namespace heal metadata keys are mapped to the
+    `secant.wsp.heal*` keys Secant writes (`_canon_heal_adapter`: only the
+    `__metadata__` keys and the header padding change; tensor bytes are
+    compared verbatim);
   * B_locked read back from the file must equal the module's own float64
     P(P B_tilde) rounded to float32 (the torch module and the Rust CLI compute
     the same lock independently).
@@ -17,6 +22,7 @@ header): arm64 oracles fuse multiply-adds, so they are compared with
 """
 
 import hashlib
+import json
 import os
 import subprocess
 
@@ -55,6 +61,35 @@ def _sha(p):
     return hashlib.sha256(open(p, "rb").read()).hexdigest()
 
 
+def _heal_key_rest(k):
+    """`<namespace>.wsp.heal[...]` -> `wsp.heal[...]`; None for any other key."""
+    ns, _, rest = k.partition(".")
+    return rest if ns and (rest == "wsp.heal" or rest.startswith("wsp.heal.")) else None
+
+
+def _canon_heal_adapter(raw):
+    """Map the heal metadata keys of a SafeTensors adapter to the `secant`
+    namespace, re-deriving only what the rename moves: the sorted compact
+    `__metadata__` object and the 8-byte space padding of the header. Raises
+    (never guesses) if the input does not round-trip under those rules."""
+    n = int.from_bytes(raw[:8], "little")
+    header = raw[8 : 8 + n].decode("utf-8")
+    body = header.rstrip(" ")
+    assert (body + " " * (-len(body) % 8)) == header, "header padding is not the 8-byte space rule"
+    meta = json.loads(body).get("__metadata__", {})
+    orig = json.dumps(meta, separators=(",", ":"), sort_keys=True)
+    assert body.count(orig) == 1, "__metadata__ is not the sorted compact form"
+    renamed = {("secant." + _heal_key_rest(k)) if _heal_key_rest(k) else k: v for k, v in meta.items()}
+    new = body.replace(orig, json.dumps(renamed, separators=(",", ":"), sort_keys=True), 1)
+    new += " " * (-len(new) % 8)
+    return len(new).to_bytes(8, "little") + new.encode("utf-8") + raw[8 + n :]
+
+
+def _heal_meta(raw):
+    n = int.from_bytes(raw[:8], "little")
+    return json.loads(raw[8 : 8 + n]).get("__metadata__", {})
+
+
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_heal_chain_matches_oracle_and_module(tmp_path, dtype):
     binary = real_binary_or_skip()
@@ -81,7 +116,12 @@ def test_heal_chain_matches_oracle_and_module(tmp_path, dtype):
     assert rs.exit_code == 0, rs.stderr
     go = subprocess.run([oracle, "wsp", "heal", "--lora", lora, "--vectors", str(vec_dir), "--out", out_go, "--json"], capture_output=True, text=True)
     assert go.returncode == 0, go.stderr
-    assert _sha(out_rs) == _sha(out_go), f"healed LoRA differs from the Go oracle (oracle arch {arch}, fma={fma})"
+    rs_bytes, go_bytes = open(out_rs, "rb").read(), open(out_go, "rb").read()
+    heal_keys = [k for k in _heal_meta(rs_bytes) if _heal_key_rest(k)]
+    assert heal_keys and all(k.startswith("secant.wsp.heal") for k in heal_keys), heal_keys
+    assert _sha(out_rs) == hashlib.sha256(_canon_heal_adapter(go_bytes)).hexdigest(), (
+        f"healed LoRA differs from the Go oracle (oracle arch {arch}, fma={fma})"
+    )
 
     tensors, _ = read_safetensors(out_rs)
     name = mod.module_name
