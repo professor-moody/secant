@@ -29,7 +29,7 @@ Whether a quantized format commutes with $\Pi_{128}$ depends on how its block si
 | **Block size & byte footprint** | **32 weights** (`34` bytes: `2B` `f16` scale + `32B` `int8` codes) | **256 weights** (`144` bytes: shared `f16` `d, dmin` + `8` sub-blocks) |
 | **Alignment with 128-col `ssm_out` panels** | **Exact ($128 = 4 \times 32$)**: `0` straddling blocks | **Fails ($256 = 2 \times 128$)**: straddles 2 value heads (`8` per 2048-col row, `16` per 4096-col row) |
 | **Refusal (`B2`) removed by direct block surgery** | **`98.5%` removed** (`0.5172` $\to$ `0.0079`) | **Fails: `67%` of refusal survives** (`0.5172` $\to$ `0.346`) |
-| **Secant default behavior** | Supported in-place (`secant quant patch`) | Refused by default (`superblockStraddleError`) |
+| **Secant default behavior** | Supported in-place (`secant quant patch`) | Refused (`block-aligned surgery needs Q8_0`) |
 
 - **In `Q8_0` (`32` elements per block):** Every 128-column value-head panel is an exact union of 4 complete `Q8_0` blocks. Editing or permuting a panel never touches a neighboring panel's scale factor.
 - **In `Q4_K` (`256` elements per superblock):** Every superblock spans two adjacent 128-column panels and shares a single top-level `FP16` scale `d` and minimum `dmin`. Editing one panel shifts the shared superblock scale and corrupts the neighboring value head, leaving `67%` of the unwanted refusal component intact.
@@ -92,7 +92,7 @@ The bound is linear in the block's own magnitude, which is why `Q8_0` Path 2 sta
 
 ### 2.2 `Q4_K` Superblock Straddling (Empirical)
 
-`Q4_K` is not a single uniform scalar quantizer: each 256-element superblock has an `FP16` super-scale `d` and super-minimum `dmin`, plus eight 6-bit sub-block scales and minimums. On `Qwen3.5` `ssm_out`, each superblock straddles two 128-column value heads, so an edit to one head changes the shared fit of the neighboring head. We do **not** claim a proved per-element bound for `Q4_K`. Its behavior is characterized empirically: observed Path 1 vs. Path 2 `max_abs_diff` $= 2.38 \times 10^{-2}$ (about $11\times$ the `Q8_0` value), `8` straddling superblocks per 2048-column row (`16` per 4096-column row), and `67%` of the removed refusal direction surviving direct `Q4_K` surgery (`0.5172` $\to$ `0.346`, Section 1). This is why `secant quant patch` refuses `Q4_K` by default.
+`Q4_K` is not a single uniform scalar quantizer: each 256-element superblock has an `FP16` super-scale `d` and super-minimum `dmin`, plus eight 6-bit sub-block scales and minimums. On `Qwen3.5` `ssm_out`, each superblock straddles two 128-column value heads, so an edit to one head changes the shared fit of the neighboring head. We do **not** claim a proved per-element bound for `Q4_K`. Its behavior is characterized empirically: observed Path 1 vs. Path 2 `max_abs_diff` $= 2.38 \times 10^{-2}$ (about $11\times$ the `Q8_0` value), `8` straddling superblocks per 2048-column row (`16` per 4096-column row), and `67%` of the removed refusal direction surviving direct `Q4_K` surgery (`0.5172` $\to$ `0.346`, Section 1). This is why `secant quant patch` accepts only `Q8_0` tensors and refuses `Q4_K` (and every other dtype) with `tensor <name> is <dtype>, block-aligned surgery needs Q8_0`.
 
 ---
 

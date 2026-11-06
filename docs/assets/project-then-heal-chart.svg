@@ -85,7 +85,7 @@
     <rect x="724" y="482" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>
     <text x="826" y="496" fill="#34d399" font-size="11" font-weight="700" text-anchor="middle">1.08e-09 / 3.33e-09</text>
 
-    <text x="32" y="532" fill="#fafaf9" font-weight="600">DeepSeek-R1-Distill-Llama-70B (70.6B, 1 shard)</text>
+    <text x="32" y="532" fill="#fafaf9" font-weight="600">R1-Distill-Llama-70B (70.6B, 1 shard)</text>
     <rect x="320" y="518" width="121" height="16" rx="3" fill="#fb7185"/>
     <text x="449" y="531" fill="#fb7185" font-weight="700">20.24%</text>
     <rect x="724" y="516" width="204" height="20" rx="4" fill="#064e3b" stroke="#10b981"/>

@@ -12,7 +12,7 @@
   <text x="80" y="120" fill="#d6d3d1" font-size="10" font-weight="700" text-anchor="middle" font-family="ui-monospace, monospace">STAGE 1</text>
   <text x="42" y="146" fill="#fafaf9" font-size="14" font-weight="700">Read &amp; Sanitize</text>
   <text x="42" y="166" fill="#a8a29e" font-size="11.5">Zero-eval SVD spectrum &amp;</text>
-  <text x="42" y="182" fill="#a8a29e" font-size="11.5">Boundary-3 kernel checks</text>
+  <text x="42" y="182" fill="#a8a29e" font-size="11.5">Boundary-value fixtures</text>
   <rect x="42" y="200" width="178" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
   <text x="50" y="218" fill="#e7e5e4" font-size="10.5" font-family="ui-monospace, monospace">secant inspect / read</text>
   <text x="50" y="236" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">secant sanitize / probe</text>
@@ -43,9 +43,10 @@
   <text x="522" y="146" fill="#fafaf9" font-size="14" font-weight="700">Zero-Copy Patch</text>
   <text x="522" y="166" fill="#a8a29e" font-size="11.5">mmap SafeTensors/GGUF &amp;</text>
   <text x="522" y="182" fill="#a8a29e" font-size="11.5">34B Q8_0 block surgery</text>
-  <rect x="522" y="200" width="178" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
-  <text x="530" y="218" fill="#fbbf24" font-size="10.5" font-family="ui-monospace, monospace">secant patch / verify</text>
-  <text x="530" y="236" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant quant patch</text>
+  <rect x="522" y="198" width="178" height="56" rx="6" fill="#141413" stroke="#2e2d2b"/>
+  <text x="530" y="214" fill="#fbbf24" font-size="10.5" font-family="ui-monospace, monospace">secant patch</text>
+  <text x="530" y="230" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant quant patch (Q8_0)</text>
+  <text x="530" y="246" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant verify-patch</text>
 
   <!-- Arrow 3->4 -->
   <path d="M 718 178 L 736 178" stroke="#78716c" stroke-width="1.8" fill="none"/>
@@ -58,7 +59,8 @@
   <text x="762" y="146" fill="#fafaf9" font-size="14" font-weight="700">Project-Then-Heal</text>
   <text x="762" y="166" fill="#a8a29e" font-size="11.5">Lock LoRA inside P_perp</text>
   <text x="762" y="182" fill="#a8a29e" font-size="11.5">(f64: 1e-17 live, 1e-9 H100)</text>
-  <rect x="762" y="200" width="156" height="48" rx="6" fill="#141413" stroke="#2e2d2b"/>
-  <text x="770" y="218" fill="#34d399" font-size="10.5" font-family="ui-monospace, monospace">ProjectThenHealLinear</text>
-  <text x="770" y="236" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant heal / verify</text>
+  <rect x="762" y="198" width="160" height="56" rx="6" fill="#141413" stroke="#2e2d2b"/>
+  <text x="770" y="214" fill="#34d399" font-size="10.5" font-family="ui-monospace, monospace">ProjectThenHealLinear</text>
+  <text x="770" y="230" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant heal</text>
+  <text x="770" y="246" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">secant verify-subspace</text>
 </svg>

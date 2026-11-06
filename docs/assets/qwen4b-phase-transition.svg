@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 390" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-  <rect width="960" height="390" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 436" width="100%" height="auto" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+  <rect width="960" height="436" rx="14" fill="#141413" stroke="#2e2d2b" stroke-width="1.5"/>
 
   <text x="32" y="34" fill="#a8a29e" font-size="11" font-weight="700" letter-spacing="1.4" font-family="ui-monospace, monospace">QWEN3.5-4B (N=30 C++ SANITIZER BENCHMARK, 1,536-TOKEN CAP)</text>
-  <text x="32" y="58" fill="#fafaf9" font-size="17.5" font-weight="700">Calibrated Dose Shows a Threshold in &lt;/think&gt; Closure (one greedy run per arm)</text>
+  <text x="32" y="58" fill="#fafaf9" font-size="17.5" font-weight="700">&lt;/think&gt; Closure Changes Sharply Between Sampled Arms (one greedy run per arm)</text>
 
   <!-- Dedicated Legend Row (Zero overlap with title) -->
   <rect x="32" y="72" width="896" height="26" rx="6" fill="#1c1b1a" stroke="#2e2d2b" stroke-width="1"/>
@@ -13,52 +13,58 @@
 
   <!-- Grid lines (x=280 to 880, width=600) -->
   <line x1="280" y1="118" x2="880" y2="118" stroke="#2e2d2b" stroke-width="1"/>
-  <line x1="280" y1="342" x2="880" y2="342" stroke="#44403c" stroke-width="1.5"/>
+  <line x1="280" y1="388" x2="880" y2="388" stroke="#44403c" stroke-width="1.5"/>
 
   <!-- X-axis ticks -->
-  <text x="280" y="362" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">0%</text>
-  <line x1="430" y1="118" x2="430" y2="342" stroke="#2e2d2b" stroke-dasharray="4,4"/>
-  <text x="430" y="362" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">25%</text>
-  <line x1="580" y1="118" x2="580" y2="342" stroke="#2e2d2b" stroke-dasharray="4,4"/>
-  <text x="580" y="362" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">50%</text>
-  <line x1="730" y1="118" x2="730" y2="342" stroke="#2e2d2b" stroke-dasharray="4,4"/>
-  <text x="730" y="362" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">75%</text>
-  <line x1="880" y1="118" x2="880" y2="342" stroke="#2e2d2b" stroke-dasharray="4,4"/>
-  <text x="880" y="362" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">100%</text>
+  <text x="280" y="408" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">0%</text>
+  <line x1="430" y1="118" x2="430" y2="388" stroke="#2e2d2b" stroke-dasharray="4,4"/>
+  <text x="430" y="408" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">25%</text>
+  <line x1="580" y1="118" x2="580" y2="388" stroke="#2e2d2b" stroke-dasharray="4,4"/>
+  <text x="580" y="408" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">50%</text>
+  <line x1="730" y1="118" x2="730" y2="388" stroke="#2e2d2b" stroke-dasharray="4,4"/>
+  <text x="730" y="408" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">75%</text>
+  <line x1="880" y1="118" x2="880" y2="388" stroke="#2e2d2b" stroke-dasharray="4,4"/>
+  <text x="880" y="408" fill="#a8a29e" font-size="11" text-anchor="middle" font-family="ui-monospace, monospace">100%</text>
 
-  <!-- Row 1: Base / Random / g030 -->
-  <text x="32" y="140" fill="#fafaf9" font-size="12.5" font-weight="600">0.0x Base &amp; Controls</text>
-  <text x="32" y="156" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">base, rand1, rand2, g030</text>
+  <!-- Row 1: Base / Random (no calibrated edit) -->
+  <text x="32" y="140" fill="#fafaf9" font-size="12.5" font-weight="600">No edit &amp; random controls</text>
+  <text x="32" y="156" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">base, rand1, rand2</text>
   <rect x="280" y="128" width="6" height="14" rx="2" fill="#fb7185"/>
   <text x="294" y="140" fill="#fb7185" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 closed; trapped at 1,536 tokens)</text>
 
-  <!-- Row 2: 0.5x Half Dose -->
-  <text x="32" y="184" fill="#fafaf9" font-size="12.5" font-weight="600">0.5x Half Calibrated Dose</text>
-  <text x="32" y="200" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">a05 (Delta = -3.69)</text>
+  <!-- Row 2: g030 (uncalibrated ratio edit, not a 0.0x dose) -->
+  <text x="32" y="184" fill="#fafaf9" font-size="12.5" font-weight="600">Uncalibrated ratio edit</text>
+  <text x="32" y="200" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">g030 (gamma = 0.30)</text>
   <rect x="280" y="172" width="6" height="14" rx="2" fill="#fb7185"/>
   <text x="294" y="184" fill="#fb7185" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 closed)</text>
 
-  <!-- Row 3: B1 Only (1.0x) -->
-  <text x="32" y="230" fill="#fafaf9" font-size="12.5" font-weight="600">1.0x Loop Edit Only (B1)</text>
-  <text x="32" y="246" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">b1only (L13+L8, 1,044 tok)</text>
-  <rect x="280" y="216" width="340" height="13" rx="3" fill="#34d399"/>
-  <text x="628" y="227" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">56.7% (17/30 closed)</text>
-  <rect x="280" y="232" width="260" height="13" rx="3" fill="#fbbf24"/>
-  <text x="548" y="243" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">43.3% (13/30 frame)</text>
+  <!-- Row 3: a05 (only B1 scaled) -->
+  <text x="32" y="230" fill="#fafaf9" font-size="12.5" font-weight="600">B1 at 0.5x; B2, B3 at 1.0x</text>
+  <text x="32" y="246" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">a05 (B1 Delta = -3.69)</text>
+  <rect x="280" y="218" width="6" height="14" rx="2" fill="#fb7185"/>
+  <text x="294" y="230" fill="#fb7185" font-size="11.5" font-weight="700" font-family="ui-monospace, monospace">0.0% (0/30 closed)</text>
 
-  <!-- Row 4: 1.0x Composed (cal738) -->
-  <text x="32" y="276" fill="#fafaf9" font-size="12.5" font-weight="600">1.0x Composed (B1+B2+B3)</text>
-  <text x="32" y="292" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">cal738 (Delta = -7.38, 954 tok)</text>
-  <rect x="280" y="262" width="420" height="13" rx="3" fill="#34d399"/>
-  <text x="708" y="273" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">70.0% (21/30 closed)</text>
-  <rect x="280" y="278" width="300" height="13" rx="3" fill="#fbbf24"/>
-  <text x="588" y="289" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">50.0% (15/30 frame)</text>
+  <!-- Row 4: B1 Only (1.0x) -->
+  <text x="32" y="276" fill="#fafaf9" font-size="12.5" font-weight="600">1.0x Loop Edit Only (B1)</text>
+  <text x="32" y="292" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">b1only (L13+L8, 1,044 tok)</text>
+  <rect x="280" y="262" width="340" height="13" rx="3" fill="#34d399"/>
+  <text x="628" y="273" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">56.7% (17/30 closed)</text>
+  <rect x="280" y="278" width="260" height="13" rx="3" fill="#fbbf24"/>
+  <text x="548" y="289" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">43.3% (13/30 frame)</text>
 
-  <!-- Row 5: 1.5x Composed (a15) -->
-  <text x="32" y="322" fill="#34d399" font-size="12.5" font-weight="700">1.5x Composed (B1+B2+B3)</text>
-  <text x="32" y="338" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">a15 (Delta = -11.07, 789 tok)</text>
-  <rect x="280" y="308" width="600" height="13" rx="3" fill="#34d399"/>
-  <text x="752" y="303" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">100.0% (30/30 closed)</text>
-  <rect x="280" y="324" width="460" height="13" rx="3" fill="#fbbf24"/>
-  <text x="748" y="335" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">76.7% (23/30 frame)</text>
+  <!-- Row 5: 1.0x Composed (cal738) -->
+  <text x="32" y="322" fill="#fafaf9" font-size="12.5" font-weight="600">1.0x Composed (B1+B2+B3)</text>
+  <text x="32" y="338" fill="#a8a29e" font-size="10.5" font-family="ui-monospace, monospace">cal738 (Delta = -7.38, 954 tok)</text>
+  <rect x="280" y="308" width="420" height="13" rx="3" fill="#34d399"/>
+  <text x="708" y="319" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">70.0% (21/30 closed)</text>
+  <rect x="280" y="324" width="300" height="13" rx="3" fill="#fbbf24"/>
+  <text x="588" y="335" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">50.0% (15/30 frame)</text>
+
+  <!-- Row 6: 1.5x Composed (a15); full closure at sampled 1.5x -->
+  <text x="32" y="368" fill="#34d399" font-size="12.5" font-weight="700">B1 at 1.5x; B2, B3 at 1.0x</text>
+  <text x="32" y="384" fill="#d6d3d1" font-size="10.5" font-family="ui-monospace, monospace">a15 (B1 Delta = -11.07, 789 tok)</text>
+  <rect x="280" y="354" width="600" height="13" rx="3" fill="#34d399"/>
+  <text x="752" y="349" fill="#34d399" font-size="11" font-weight="700" font-family="ui-monospace, monospace">100.0% (30/30 closed)</text>
+  <rect x="280" y="370" width="460" height="13" rx="3" fill="#fbbf24"/>
+  <text x="748" y="381" fill="#fbbf24" font-size="11" font-weight="700" font-family="ui-monospace, monospace">76.7% (23/30 frame)</text>
 </svg>

@@ -2,7 +2,7 @@
 
 Because model weights (`SafeTensors` and `GGUF`) are frequently exchanged across untrusted hubs and fine-tuning pipelines, **Secant treats every container file as an untrusted binary input**. Before any weight-space read or edit, Secant validates payload extents in checked 64-bit arithmetic. Three commands then audit weight **values**: `secant sanitize` (static value scan and optional repaired copy), `secant probe` (boundary-value test fixtures), and `secant read --detect-anomalies` (row and column norm anomalies).
 
-This page describes only what the standalone `secant` CLI implements. The router-sink audit sometimes associated with this topic is `crucible wsp scan-sinks`, a command of the separate Crucible toolchain; the `secant` CLI has no `scan-sinks` subcommand.
+This page describes only what the standalone `secant` CLI implements.
 
 ---
 

@@ -78,6 +78,14 @@ Every arm is scored with the **same** metric: $\mathrm{lk}_W = \|D\,\Delta W\|_{
 
 **Learning rate: this table is post-hoc.** The preregistered learning rate (`1e-2`, chosen once on Arm A) failed the preregistered loss-parity prediction for Arm C on `Qwen2.5-7B`. The `3e-3` run below was added **after** seeing that result and is reported beside, not instead of, the preregistered run. The preregistered `1e-2` run gives the same ordering: on the orthogonal target, Arm B leaks `1.24%` to `2.58%` at step 60 and Arm C $6.40 \times 10^{-10}$ to $1.12 \times 10^{-9}$.
 
+```{figure} assets/adamw-3arm-rotation.svg
+:name: fig-adamw-3arm-rotation
+:alt: Log-scale leakage over 60 AdamW steps for unconstrained, gradient-projected and ProjectThenHealLinear LoRA on Qwen3.5-0.8B, Qwen3.5-4B and Qwen2.5-7B, a step-60 dot plot across targets and weight decays, and a step-60 dot plot of all three arms on the 15-model H100 Stage-1 run
+:width: 100%
+
+Top: $\mathrm{lk}_W$ per AdamW step on the orthogonal target at weight decay `0.0` (line = 3-seed mean, band = seed min to max). Arms A and B coincide at step 1 because the gradient already lies outside $\operatorname{span}(D)$; Arm B then settles at `1.56%` to `2.98%` while Arm C stays at $6.05 \times 10^{-10}$ to $1.02 \times 10^{-9}$. Bottom left: step-60 means for both targets and both weight decays (filled = `0.0`, ring = `0.01`; the two coincide, so weight decay is not the source). Bottom right: all three arms at step 60 on the 15-model H100 Stage-1 run (one seed per model, one metric for every arm; see the subsection below). Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
+```
+
 | Model ($d_{\text{out}}$) | Target | Arm | wd | Final loss (min..max, 3 seeds) | Final loss minus floor (mean) | $\mathrm{lk}_W$ step 1 (mean) | $\mathrm{lk}_W$ step 60 (mean) | $\max_t \mathrm{lk}_W$ | Output energy in $\operatorname{span}(D)$ at step 60 (mean) | Merged `F32` $\max \lvert D\,\Delta W\rvert$ (max) |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `Qwen3.5-0.8B` (1024) | orth | A | 0.01 | 0.00122..0.00128 | +0.00125 | 3.29e-02 | 8.18e-03 | 3.47e-02 | 2.86e-06 | 3.95e-03 |
@@ -125,3 +133,29 @@ Every arm is scored with the **same** metric: $\mathrm{lk}_W = \|D\,\Delta W\|_{
 4. **On the mixed target, Arm C stops exactly at the floor.** It cannot fit $R_D$ by construction, so its final loss sits at `0.25` plus the same excess it shows on the orthogonal task. Arm A goes below the floor by writing about `45%` of its delta norm into $\operatorname{span}(D)$; that is the behavior the lock exists to prevent.
 
 **Limits.** This is a single-layer synthetic regression with random protected directions, not a measurement on real edit directions or on LM fine-tuning quality; Regimes A and C (Section 2 and the [overview](index.md)) cover those. The learning rate in the table is post-hoc, as stated above. Raw per-seed trajectories, the runner (`adamw3arm.py`) and the mechanism check (`signcheck.py`) are retained with SHA-256 receipts in the lab evidence bank and are not yet published in this repository.
+
+### H100 Stage-1: the three-arm test on 15 models (`0.8B` to `32.8B`)
+
+The same three arms were run on the H100 on 15 models (receipt `irrefutable-15models-stage1-receipt.json`, SHA-256 `00f4fe2afc4ff630c7c9ac55b5b2c0a85342477a5b32a0b0c455abd5b4c5056f`). Each starts from the **surgically edited** writer $W_{\text{surg}}$ at the layer below, from a common initialization (initial relative leakage below $10^{-16}$), and trains for 60 AdamW steps on a synthetic target $Y_{\text{target}}$ with $Y_{\text{target}} - W_{\text{surg}} X \in \operatorname{span}(D)^\perp$ plus a real-token cross-entropy term (weight `0.1`).
+
+All three arms use one metric, $\lVert D\,\Delta W\rVert_{\mathrm{F}} / \lVert\Delta W\rVert_{\mathrm{F}}$, at step 60. Arm A (unconstrained) leaks `0.82% to 8.51%`; Arm B (gradient-projected, $P_\perp \nabla_B$ applied after backward and immediately before `AdamW.step`) leaks `0.33% to 1.67%`; Arm C (`ProjectThenHealLinear`) stays at `1.78e-10 to 8.67e-10`. Arm B is nonzero on all 15 models, as the AdamW argument in Section 1 and in the [paper, Section 3.1](PAPER.md) predicts for gradient projection, and stays at least `3.8e6` times above Arm C. Unlike the three-model strix test, Arm B sits **below** Arm A here on 15 of 15 models; the task differs (orthogonal synthetic MSE plus real-token cross-entropy), so the A-versus-B ordering is task-dependent and only the B-versus-C gap is common to both runs.
+
+| Model | Size | Layer | A: unconstrained | B: gradient-projected | C: `ProjectThenHealLinear` | C: max abs |
+|---|---:|---:|---:|---:|---:|---:|
+| `Qwen3.5-0.8B` | `0.8B` | `17` | `7.60%` | `0.61%` | `8.67e-10` | `4.00e-10` |
+| `SmolLM2-1.7B` | `1.7B` | `17` | `2.95%` | `1.62%` | `5.41e-10` | `1.97e-10` |
+| `Qwen3.5-4B` | `4B` | `23` | `2.22%` | `1.67%` | `5.81e-10` | `2.25e-10` |
+| `Mistral-7B-v0.3` | `7.2B` | `12` | `2.17%` | `0.92%` | `3.38e-10` | `2.21e-10` |
+| `Qwen2.5-7B` | `7.6B` | `8` | `2.04%` | `0.49%` | `4.71e-10` | `2.43e-10` |
+| `Llama-3.1-8B` | `8B` | `23` | `0.82%` | `0.80%` | `4.36e-10` | `3.51e-10` |
+| `R1-Llama-8B` | `8B` | `23` | `1.59%` | `0.60%` | `4.50e-10` | `2.32e-10` |
+| `Qwen3-8B` | `8.2B` | `14` | `2.02%` | `0.58%` | `3.14e-10` | `2.14e-10` |
+| `Gemma-2-9B` | `9.2B` | `16` | `8.51%` | `0.35%` | `5.46e-10` | `6.67e-10` |
+| `OLMo-2-13B` | `13.7B` | `16` | `1.70%` | `0.44%` | `1.78e-10` | `1.87e-10` |
+| `Phi-4` | `14.7B` | `12` | `0.86%` | `0.33%` | `3.26e-10` | `3.64e-10` |
+| `Qwen3-14B` | `14.8B` | `16` | `2.13%` | `0.60%` | `2.69e-10` | `1.81e-10` |
+| `R1-Qwen-14B` | `14.8B` | `28` | `1.23%` | `0.77%` | `3.53e-10` | `2.06e-10` |
+| `Gemma-2-27B` | `27.2B` | `14` | `1.98%` | `1.31%` | `3.49e-10` | `1.03e-10` |
+| `Qwen3-32B` | `32.8B` | `47` | `2.04%` | `0.75%` | `3.07e-10` | `1.22e-10` |
+
+**Limits.** One seed (`20261105`) per model and one edited layer per model; no confidence interval across seeds. The receipt marks public benchmarks `NOT_RUN`, so it says nothing about task quality after healing. Its standalone `secant` CLI cross-check (`read` and `sanitize` on one shard) is `PASS` on 2 of 15 models and `HOLD` on the rest (13: exit `2` or a 120 s timeout in `read`); that cross-check is separate from the healing and calibration numbers above, which are all `PASS`.

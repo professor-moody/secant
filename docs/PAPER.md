@@ -11,7 +11,7 @@
 Before presenting the formal propositions, here is what this paper establishes in plain words:
 
 1. **Why we built Secant:** In *Sparks of Weight-Space Programming* (MIT CSAIL, Nov 2026), Takehi, Teoh, Zhang, and Khattab showed that editing `0.016%` of `Qwen3.5-0.8B`'s weights can suppress `<think>` reasoning loops, and called for turning ad-hoc weight inspection into a reproducible engineering discipline and auditing models directly from their weights. Secant is our answer to that challenge.
-2. **Why scale calibration is necessary:** A fixed Frobenius-norm edit percentage that works on a `0.8B` model fails (`0/30` `<think>` loops closed) on `Qwen3.5-4B` because wider layers have different internal activation norms. Solving for the weight update that induces a specific inner-product shift ($\Delta_{\text{target}}$) restores closure on `Qwen3.5-4B` (`0/30` at $0.5\times$, `21/30` at $1.0\times$, `30/30` at $1.5\times$; one greedy run per arm).
+2. **Why scale calibration is necessary:** A fixed Frobenius-norm edit percentage that works on a `0.8B` model fails (`0/30` `<think>` loops closed) on `Qwen3.5-4B` because wider layers have different internal activation norms. Solving for the weight update that induces a specific inner-product shift ($\Delta_{\text{target}}$) restores closure on `Qwen3.5-4B` (`B1` loop edit at $0.5\times$, $1.0\times$, $1.5\times$ with `B2` and `B3` held at $1.0\times$: `0/30`, `21/30`, `30/30`; one greedy run per arm).
 3. **Why `Q8_0` GGUF files can be edited in place while `Q4_K` superblocks cannot:** Each `Qwen3.5` `ssm_out` value head spans 128 columns. Four 32-weight `Q8_0` blocks divide 128 columns evenly ($128 = 4 \times 32$), so `Q8_0` quantization commutes byte-for-byte with 128-column head permutations and allows direct 34-byte block surgery (`98.5%` refusal removal). A 256-weight `Q4_K` superblock straddles two adjacent 128-column heads with a shared scale factor, leaving `67%` of the refusal direction intact when re-encoded in place.
 4. **Why LoRA must be locked inside the forward pass (`Project-Then-Heal`):** Standard LoRA fine-tuning can write back into a surgical subspace whenever the task gradient has a component along the excised basis $D$, and projecting only the gradient is not enough under AdamW (Section 3.1). Parameterizing $B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$ inside the forward graph holds writer-level leakage at $9.87 \times 10^{-18}$ (`float64`) / $2.49 \times 10^{-10}$ (merged `F32`) during live 60-step LM fine-tuning on `Qwen3.5-0.8B`. In a separate H100 stress test on 14 checkpoints (`7.2B` to `72.7B`), where the training target deliberately lies inside the protected subspace, leakage stayed at $4.82 \times 10^{-10}$ to $1.08 \times 10^{-9}$ (`float64`) at step 60. That stress test edits with a fixed ratio rather than calibration, trains on the unedited writer, and does not measure learning quality; Section 4 states its limits.
 
@@ -25,7 +25,7 @@ Recent advances in weight-space programming demonstrate that specific behavioral
 3. **Post-surgical fine-tuning drift:** When a surgically edited model is subsequently fine-tuned with LoRA and AdamW, task gradients and per-coordinate adaptive second-moment scaling push weight updates back into the excised behavioral subspace, undoing the surgery at the edited writer.
 
 We resolve all three problems in **Secant**:
-- First, we derive **inner-product target-shift calibration** ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) and prove the exact 32-block bijection across all 24 Gated DeltaNet layers of `Qwen3.5-4B` (`24/24` bit-exact match). In a 6-arm controlled ablation on `Qwen3.5-4B` (`n = 30`), calibrated multi-subspace surgery (`cal738`) raises strict post-`</think>` completion from `0/30` (`0.0%`) to `21/30` (`70.0%`, exact two-sided McNemar $p = 9.54 \times 10^{-7}$ vs. base and equal-norm random controls), reaching `30/30` (`100.0%`, $p = 1.86 \times 10^{-9}$) at a $1.5\times$ dose (`a15`).
+- First, we derive **inner-product target-shift calibration** ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) and prove the exact 32-block bijection across all 24 Gated DeltaNet layers of `Qwen3.5-4B` (`24/24` bit-exact match). In a 6-arm controlled ablation on `Qwen3.5-4B` (`n = 30`), calibrated multi-subspace surgery (`cal738`) raises strict post-`</think>` completion from `0/30` (`0.0%`) to `21/30` (`70.0%`, exact two-sided McNemar $p = 9.54 \times 10^{-7}$ vs. base and equal-norm random controls), reaching `30/30` (`100.0%`, $p = 1.86 \times 10^{-9}$) with the `B1` edit at $1.5\times$ and `B2`, `B3` held at $1.0\times$ (`a15`).
 - Second, we prove that $\Pi_{128}$ is block-grid equivariant for any quantization block size $B \mid 128$ (`Q8_0`, $B = 32$) and fails for superblock codecs with $B \nmid 128$ (`Q4_K`, $B = 256$). Empirically, direct block surgery on `Q8_0` removes `98.5%` of the target component (`0.5172` $\to$ `0.0079`) while preserving bit-identity across all untouched 34-byte blocks, whereas `Q4_K` superblock re-encoding leaves `67.0%` of the component intact (`0.346`).
 - Third, we introduce **`Project-Then-Heal`** (`secant.nn.ProjectThenHealLinear`), which parameterizes the LoRA output factor structurally inside the orthogonal complement $P_\perp = I_{d_{\text{out}}} - D^\top D$ ($B = P_\perp \tilde{B}$, where $D \in \mathbb{R}^{k \times d_{\text{out}}}$ has orthonormal rows $D D^\top = I_k$). Across 60 live AdamW steps on surgically edited `Qwen3.5-0.8B` (`L15..L17`) and 20 ROCm GPU steps on `SmolLM2-1.7B-Instruct` (`L14..L16`), `Project-Then-Heal` matches unconstrained LoRA task learning (`-89.0%` training loss on `0.8B`, minimum held-out perplexity `5.435` vs. `5.423` at step 20) while holding writer-level weight leakage $\max |D \Delta W|$ at $5.21 \times 10^{-18}$ to $9.87 \times 10^{-18}$ in `float64` and $1.46 \times 10^{-10}$ to $2.49 \times 10^{-10}$ in merged `F32` (over $4 \times 10^{7}\times$ lower than unconstrained LoRA's $1.05 \times 10^{-2}$ in `F32`).
 
@@ -90,7 +90,7 @@ If one projects only the gradient $g_t = P_\perp \nabla_B \mathcal{L}_t$ ($P_\pe
 
 $$\Delta B_t = -\eta \left( \operatorname{diag}\!\left(\frac{1}{\sqrt{\hat{v}_t} + \epsilon}\right) \hat{m}_t + \lambda B_{t-1} \right)$$
 
-Because a diagonal matrix $\Lambda_t = \operatorname{diag}((\sqrt{\hat{v}_t} + \epsilon)^{-1})$ with non-constant diagonal entries does not commute with a non-axis-aligned projector $P_\perp$ ($D \Lambda_t P_\perp \neq 0$), AdamW's step can rotate $B_t$ back into $\operatorname{span}(D^\top)$. This is an argument about the gradient-projection variant. Regimes A and C in Section 4 include no gradient-projection-only arm; a separate 3-arm synthetic-regression test on real layer-16 `down_proj` weights (`Qwen3.5-0.8B`, `Qwen3.5-4B`, `Qwen2.5-7B`; seeded random $D$, $k = 3$; 3 seeds) does, and is reported in [Project-Then-Heal, Section 3](project-then-heal.md). There the gradient-projected arm put `1.56%` to `2.98%` of $\|\Delta W\|_{\mathrm{F}}$ into $\operatorname{span}(D)$ at step 60 on the orthogonal target, unchanged between weight decay `0.01` and `0.0`, while `ProjectThenHealLinear` stayed at $5.42 \times 10^{-10}$ to $1.05 \times 10^{-9}$ (post-hoc learning rate `3e-3`; the preregistered `1e-2` run gives the same ordering).
+Because a diagonal matrix $\Lambda_t = \operatorname{diag}((\sqrt{\hat{v}_t} + \epsilon)^{-1})$ with non-constant diagonal entries does not commute with a non-axis-aligned projector $P_\perp$ ($D \Lambda_t P_\perp \neq 0$), AdamW's step can rotate $B_t$ back into $\operatorname{span}(D^\top)$. This is an argument about the gradient-projection variant. Regimes A and C in Section 4 include no gradient-projection-only arm; a separate 3-arm synthetic-regression test on real layer-16 `down_proj` weights (`Qwen3.5-0.8B`, `Qwen3.5-4B`, `Qwen2.5-7B`; seeded random $D$, $k = 3$; 3 seeds) does, and is reported in [Project-Then-Heal, Section 3](project-then-heal.md). There the gradient-projected arm put `1.56%` to `2.98%` of $\|\Delta W\|_{\mathrm{F}}$ into $\operatorname{span}(D)$ at step 60 on the orthogonal target, unchanged between weight decay `0.01` and `0.0`, while `ProjectThenHealLinear` stayed at $5.42 \times 10^{-10}$ to $1.05 \times 10^{-9}$ (post-hoc learning rate `3e-3`; the preregistered `1e-2` run gives the same ordering). On the 15-model H100 Stage-1 run (Section 4.4) the gradient-projected arm again leaks on every model (`0.33% to 1.67%`) while `ProjectThenHealLinear` stays at `1.78e-10 to 8.67e-10`.
 
 ### 3.2 Structural Parameterization ($B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$)
 `ProjectThenHealLinear` instead applies $P_\perp$ twice in `float64` inside the forward graph:
@@ -115,6 +115,7 @@ Building on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>` reasonin
 - **Regime A (live LM fine-tuning after real surgery):** `Qwen3.5-0.8B` (60 AdamW steps) and `SmolLM2-1.7B` (20 steps). Both LoRA arms train on real completions; leakage is $\max |D \Delta W|$ for both arms.
 - **Regime B (generative benchmark):** `Qwen3.5-4B`, calibrated edits at several doses, `n = 30` crash-triage cases. No healing run.
 - **Regime C (H100 stress test):** 12 full models (`7.2B` to `32.8B`) and 2 single-shard runs (`70.6B`, `72.7B`). The edit is a **fixed-ratio** rank-1 update ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$, not Target-Shift Calibration) scored against an equal-norm random direction. Healing trains for 60 AdamW steps on the **unedited** `down_proj` toward a **synthetic target** $Y_{\text{target}} = Y + 1.5\,v_{B2}$ that lies inside $\operatorname{span}(D)$.
+- **H100 Stage-1 (Section 4.4):** 15 full models (`0.8B` to `32.8B`, every checkpoint above except the two single-shard runs). Full Target-Shift Calibration on `B2` and `B3`, and the three-arm healing test (unconstrained, gradient-projected, `ProjectThenHealLinear`) on the **surgically edited** writer with an orthogonal synthetic target plus real-token cross-entropy, all arms scored with $\lVert D\,\Delta W\rVert_{\mathrm{F}} / \lVert\Delta W\rVert_{\mathrm{F}}$. One seed per model; benchmarks `NOT_RUN`.
 
 ### 4.1 Regime B: dose-response on `Qwen3.5-4B`
 
@@ -122,12 +123,12 @@ Building on Takehi, Teoh, Zhang, and Khattab's `Qwen3.5-0.8B` `<think>` reasonin
 |---|---:|---:|---:|---:|---:|---:|
 | **`base`** / **`rand1`** / **`rand2`** (equal-norm random) | n/a | `0/30` | `0/30` | `0/30` | `0/30` | `1,536` |
 | **`g030`** (uncalibrated $\gamma = 0.30$) | n/a | `0/30` | `0/30` | `0/30` | `0/30` | `1,536` |
-| **`a05`** ($\alpha = 0.5\times$) | `-3.691` | `0/30` | `0/30` | `0/30` | `0/30` | `1,536` |
+| **`a05`** (`B1` at $0.5\times$; `B2` and `B3` held at $1.0\times$) | `-3.691` | `0/30` | `0/30` | `0/30` | `0/30` | `1,536` |
 | **`b1only`** ($\alpha = 1.0\times$, loop edit only) | `-7.382` | `17/30` (`56.7%`) | `15/30` (`50.0%`) | `13/30` (`43.3%`) | `11/30` (`36.7%`) | `1,044` |
 | **`cal738`** ($\alpha = 1.0\times$, composed `B1+B2+B3`) | `-7.382` | **`21/30` (`70.0%`)** | **`18/30` (`60.0%`)** | **`15/30` (`50.0%`)** | **`14/30` (`46.7%`)** | `954` |
-| **`a15`** ($\alpha = 1.5\times$, composed `B1+B2+B3`) | **`-11.073`** | **`30/30` (`100.0%`)** | **`23/30` (`76.7%`)** | **`23/30` (`76.7%`)** | **`19/30` (`63.3%`)** | `789` |
+| **`a15`** (`B1` at $1.5\times$; `B2` and `B3` held at $1.0\times$) | **`-11.073`** | **`30/30` (`100.0%`)** | **`23/30` (`76.7%`)** | **`23/30` (`76.7%`)** | **`19/30` (`63.3%`)** | `789` |
 
-Exact two-sided McNemar tests against `base`: `cal738` closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant), `a15` closure $p = 1.86 \times 10^{-9}$ (30 vs. 0). `a15` vs. `cal738`: closure $p = 0.0039$, frame $p = 0.0078$, bug class $p = 0.125$ (not significant). In the `a05` arm only the `B1` edit was scaled; `B2` and `B3` were held at their `cal738` values.
+Exact two-sided McNemar tests against `base`: `cal738` closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant), `a15` closure $p = 1.86 \times 10^{-9}$ (30 vs. 0). `a15` vs. `cal738`: closure $p = 0.0039$, frame $p = 0.0078$, bug class $p = 0.125$ (not significant). In both the `a05` and `a15` arms only the `B1` edits (`B1a`, `B1b`) were scaled; `B2` and `B3` were held at their `cal738` ($1.0\times$) values in every arm (`a05`, `a10` and `a15` plans checked edit by edit).
 
 Doses between $0.5\times$ and $1.0\times$ were not sampled.
 
@@ -169,7 +170,51 @@ Notes:
 - Parameter counts are from the model cards, not from the receipts.
 - `ProjectThenHealLinear` leakage over all 60 steps (not only step 60) stayed within $4.82 \times 10^{-10}$ to $1.60 \times 10^{-9}$ (`float64`) and up to $6.98 \times 10^{-8}$ (merged `F32`, `phi-4` step 0).
 
-### 4.4 What the evaluation supports
+### 4.4 H100 Stage-1: calibration and the three-arm test on 15 models
+
+The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-stage1-receipt.json`, SHA-256 `00f4fe2afc4ff630c7c9ac55b5b2c0a85342477a5b32a0b0c455abd5b4c5056f`) applied full Target-Shift Calibration to `B2` and `B3` on every model, with $\lvert\Delta_{\text{target}}\rvert = 7.382$ and 128 selected input columns. Across `B2`, $\lVert h_S\rVert_2$ spans `1.41 to 15.91` and $\beta$ spans `0.0292 to 3.7192`; across `B3`, `2.53 to 27.47` and `0.0098 to 1.1508`. Every one of the 30 edits realizes its target at $h_{\text{ref}}$ to within `7.99e-15` in `float64` (10 of them exactly 0). Each random control is norm-matched. This run has no `BF16`-storage witness and its behavioral benchmarks are `NOT_RUN`, so it establishes that the step is solved correctly at every width tested, not what the edit does to generated output.
+
+| Model | Size | `B2` layer | `B2` $\lVert h_S\rVert_2$ | `B2` $\beta$ | `B3` layer | `B3` $\lVert h_S\rVert_2$ | `B3` $\beta$ | max float64 shift error |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `Qwen3.5-0.8B` | `0.8B` | `L17` | `3.57` | `0.5801` | `L14` | `4.53` | `0.3595` | `8.9e-16` |
+| `SmolLM2-1.7B` | `1.7B` | `L17` | `14.14` | `0.0369` | `L12` | `5.20` | `0.2727` | `1.8e-15` |
+| `Qwen3.5-4B` | `4B` | `L23` | `12.35` | `0.0484` | `L16` | `4.40` | `0.3805` | `3.6e-15` |
+| `Mistral-7B-v0.3` | `7.2B` | `L12` | `2.81` | `0.9352` | `L19` | `12.03` | `0.0510` | `3.6e-15` |
+| `Qwen2.5-7B` | `7.6B` | `L8` | `7.77` | `0.1224` | `L14` | `7.05` | `0.1484` | `2.7e-15` |
+| `Llama-3.1-8B` | `8B` | `L23` | `4.03` | `0.4556` | `L16` | `3.82` | `0.5070` | `1.8e-15` |
+| `R1-Llama-8B` | `8B` | `L23` | `4.12` | `0.4343` | `L16` | `3.96` | `0.4701` | `5.3e-15` |
+| `Qwen3-8B` | `8.2B` | `L14` | `4.33` | `0.3931` | `L21` | `9.82` | `0.0766` | `5.3e-15` |
+| `Gemma-2-9B` | `9.2B` | `L16` | `1.41` | `3.7192` | `L25` | `2.53` | `1.1508` | `1.8e-15` |
+| `OLMo-2-13B` | `13.7B` | `L16` | `8.08` | `0.1130` | `L20` | `15.06` | `0.0325` | `3.6e-15` |
+| `Phi-4` | `14.7B` | `L12` | `2.54` | `1.1436` | `L29` | `20.61` | `0.0174` | `4.4e-15` |
+| `Qwen3-14B` | `14.8B` | `L16` | `4.97` | `0.2994` | `L23` | `11.62` | `0.0547` | `1.8e-15` |
+| `R1-Qwen-14B` | `14.8B` | `L28` | `14.66` | `0.0343` | `L35` | `20.44` | `0.0177` | `3.6e-15` |
+| `Gemma-2-27B` | `27.2B` | `L14` | `9.35` | `0.0845` | `L27` | `27.47` | `0.0098` | `8.0e-15` |
+| `Qwen3-32B` | `32.8B` | `L47` | `15.91` | `0.0292` | `L25` | `10.00` | `0.0738` | `3.6e-15` |
+
+All three arms use one metric, $\lVert D\,\Delta W\rVert_{\mathrm{F}} / \lVert\Delta W\rVert_{\mathrm{F}}$, at step 60. Arm A (unconstrained) leaks `0.82% to 8.51%`; Arm B (gradient-projected, $P_\perp \nabla_B$ applied after backward and immediately before `AdamW.step`) leaks `0.33% to 1.67%`; Arm C (`ProjectThenHealLinear`) stays at `1.78e-10 to 8.67e-10`. Arm B is nonzero on all 15 models, as the Section 3.1 argument predicts for gradient projection under AdamW, and stays at least `3.8e6` times above Arm C. Unlike the three-model strix test, Arm B sits **below** Arm A here on 15 of 15 models; the task differs (orthogonal synthetic MSE plus real-token cross-entropy), so the A-versus-B ordering is task-dependent and only the B-versus-C gap is common to both runs.
+
+| Model | Size | Layer | A: unconstrained | B: gradient-projected | C: `ProjectThenHealLinear` | C: max abs |
+|---|---:|---:|---:|---:|---:|---:|
+| `Qwen3.5-0.8B` | `0.8B` | `17` | `7.60%` | `0.61%` | `8.67e-10` | `4.00e-10` |
+| `SmolLM2-1.7B` | `1.7B` | `17` | `2.95%` | `1.62%` | `5.41e-10` | `1.97e-10` |
+| `Qwen3.5-4B` | `4B` | `23` | `2.22%` | `1.67%` | `5.81e-10` | `2.25e-10` |
+| `Mistral-7B-v0.3` | `7.2B` | `12` | `2.17%` | `0.92%` | `3.38e-10` | `2.21e-10` |
+| `Qwen2.5-7B` | `7.6B` | `8` | `2.04%` | `0.49%` | `4.71e-10` | `2.43e-10` |
+| `Llama-3.1-8B` | `8B` | `23` | `0.82%` | `0.80%` | `4.36e-10` | `3.51e-10` |
+| `R1-Llama-8B` | `8B` | `23` | `1.59%` | `0.60%` | `4.50e-10` | `2.32e-10` |
+| `Qwen3-8B` | `8.2B` | `14` | `2.02%` | `0.58%` | `3.14e-10` | `2.14e-10` |
+| `Gemma-2-9B` | `9.2B` | `16` | `8.51%` | `0.35%` | `5.46e-10` | `6.67e-10` |
+| `OLMo-2-13B` | `13.7B` | `16` | `1.70%` | `0.44%` | `1.78e-10` | `1.87e-10` |
+| `Phi-4` | `14.7B` | `12` | `0.86%` | `0.33%` | `3.26e-10` | `3.64e-10` |
+| `Qwen3-14B` | `14.8B` | `16` | `2.13%` | `0.60%` | `2.69e-10` | `1.81e-10` |
+| `R1-Qwen-14B` | `14.8B` | `28` | `1.23%` | `0.77%` | `3.53e-10` | `2.06e-10` |
+| `Gemma-2-27B` | `27.2B` | `14` | `1.98%` | `1.31%` | `3.49e-10` | `1.03e-10` |
+| `Qwen3-32B` | `32.8B` | `47` | `2.04%` | `0.75%` | `3.07e-10` | `1.22e-10` |
+
+**Limits.** One seed (`20261105`) per model and one edited layer per model; no confidence interval across seeds. The receipt marks public benchmarks `NOT_RUN`, so it says nothing about task quality after healing. Its standalone `secant` CLI cross-check (`read` and `sanitize` on one shard) is `PASS` on 2 of 15 models and `HOLD` on the rest (13: exit `2` or a 120 s timeout in `read`); that cross-check is separate from the healing and calibration numbers above, which are all `PASS`.
+
+### 4.5 What the evaluation supports
 
 1. **Contrastive localization:** on 11 of the 12 full H100 models the peak held-out `B2` $\mathrm{SNR}_{\text{proj}}$ is `83.0` (`Gemma-2-9B`) to `199.4` (`Qwen2.5-7B`), with split-half cosine `0.849` to `0.972`. It does **not** scale cleanly with width: `Qwen3-8B` `168.4`, `Qwen3-14B` `172.3`, `Qwen3-32B` `93.6`. `Phi-4` (`27,362.3`, $\mathrm{SNR}_{\text{trace}}$ up to `909.6`) looks like an outlier-dimension artefact, and its `B2` edit moved the projection the wrong way, so $\mathrm{SNR}_{\text{proj}}$ and the signed shift must be read together.
 2. **Edit-versus-random separation is a geometric check:** in regime C the fixed-ratio edits separate from equal-norm random directions by `29.1x` to `1,269.9x` (by magnitude). A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so ratios of this size are expected from geometry and are not evidence of behavioural change. On `SmolLM2-1.7B`, real-forward held-out witnesses give `67.9x` (`B2`) and `22.1x` (`B3`). Dose scaling from $1.0\times$ to $1.5\times$ is linear (`1.49` to `1.50`) for 20 of 24 full-model edits, not for all.

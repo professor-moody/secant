@@ -1,113 +1,110 @@
 # CLI, Python & C-ABI Reference
 
-Secant exposes three synchronized interfaces backed by `secant-core`:
+Secant exposes three interfaces backed by `secant-core`:
 1. **`secant` CLI** (`crates/secant-cli`): Deterministic command-line tool with structured `--json` receipts.
 2. **`secant` Python Package** (`python/secant`): PyTorch `ProjectThenHealLinear`, contrastive capture, and CLI/FFI bridges.
 3. **`libsecant` C ABI** (`crates/secant-ffi/include/secant.h`): Stable `extern "C"` shared/static library (`*_v1` symbols).
+
+Every command, flag and signature on this page is copied from the built binary's `--help` output (`crates/secant-cli/src/main.rs` and `cmd_*.rs`), from `python/secant/nn.py`, and from the frozen header. If this page and `secant <command> --help` ever disagree, the binary is authoritative.
 
 ---
 
 ## 1. Exit Code Contract
 
-Every `secant` CLI command and C-ABI entry point obeys a strict three-state exit code contract:
+Every `secant` CLI command obeys a three-state exit code contract:
 
 | Exit Code | Meaning | Example |
 |---:|---|---|
-| **`0`** | **PASS**: Operation or verification gate succeeded. | `verify-patch` confirmed zero out-of-plan bytes changed; `verify-subspace` confirmed leakage $\le \tau$. |
-| **`1`** | **GATE FAILED**: Deterministic check ran to completion and found a violation. | `verify-subspace` measured leakage $0.156 > 10^{-6}$; `probe` detected non-zero GGUF alignment padding. |
-| **`2`** | **USAGE / IO ERROR**: Invalid arguments, missing file, or malformed container. | Missing `--model` flag or truncated GGUF header. |
+| **`0`** | **PASS**: Operation or verification gate succeeded. | `verify-patch` confirmed every non-target tensor is byte-identical; `verify-subspace` confirmed $\max \lvert D^\top \Delta W\rvert \le$ `--tol`. |
+| **`1`** | **GATE FAILED**: A deterministic check ran to completion and found a violation. | `verify-subspace` measured leakage above `--tol`; `sanitize` finished its scan and findings remain. |
+| **`2`** | **USAGE / IO / UNDETERMINABLE**: Invalid arguments, missing file, malformed container, or a verdict that cannot be computed. | Missing `--model`, an unknown subcommand, a truncated GGUF header, or a `verify-subspace` tensor holding NaN/Inf (verdict `unknown`, never pass). |
+
+The C ABI uses a separate five-value return code (Section 4).
 
 ---
 
 ## 2. `secant` CLI Subcommands
 
-### `secant profiles`
-Lists built-in weight-space edit profiles (`qwen35-beneficial-b1b2b3`, `qwen35-think-loop-b1`, `smollm2-beneficial-b2b3`, etc.).
-```bash
-secant profiles --json
-```
+The binary has exactly ten subcommands: `inspect`, `read`, `compose`, `patch`, `verify-patch`, `sanitize`, `probe`, `heal`, `verify-subspace`, and `quant` (with `witness`, `patch`, `roundtrip`). There is no `profiles`, `analyze`, or `quant verify` subcommand; each exits `2`. One global flag applies to every subcommand: `--go-arm64-fma` reproduces the arm64 Go oracle's fused multiply-adds (default: portable, unfused `float64`).
 
 ### `secant inspect`
-Parses SafeTensors or GGUF v2/v3 headers, tensor descriptors, offsets, and alignment padding without mutating the file.
+Parses SafeTensors or GGUF headers, tensor descriptors, payload offsets, dtype layout, and the Qwen3.5 `ssm_out` interleave without mutating the file.
 ```bash
-secant inspect --model <path> [--json]
+secant inspect --model <path.gguf|path.safetensors> [--json]
 ```
 
 ### `secant read`
-Computes deterministic FMA-free `float64` leading singular triplets $(\sigma_1, u_1, v_1)$, Frobenius norms, row-norm quantiles, and top-$K$ intermediate column indices.
+Computes deterministic FMA-free `float64` leading singular triplets, Frobenius norms, top input columns, optional anomalies, and an optional vocabulary projection. Read-only.
 ```bash
 secant read \
   --model <path> \
-  [--tensor <name>] \
-  [--top-cols <K>] \
-  [--top-k-singular <N>] \
+  [--tensor <glob>] \
+  [--top-cols <1..1048576, default 64>] \
+  [--top-k-singular <1..64, default 4>] \
+  [--vocab-tensor <unembedding tensor>] \
   [--detect-anomalies] \
+  [--vectors-out <new_dir>] \
   [--json]
 ```
 
-### `secant analyze`
-Ranks candidate layers from captured contrastive metrics (`snr_proj`, `snr_trace`, `split_half_cosine`).
-```bash
-secant analyze --in <capture_metrics.json> --out <analysis.json> [--json]
-```
-
 ### `secant compose`
-Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes (`gamma` or `target-shift`).
+Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes. `--profile` takes a built-in name (`adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`) or a path to a `secant.wsp.profile.v1` JSON file. If neither `--target-shift` nor `--gamma` is given, the profile's `default_target_shift` (or else `default_gamma`) applies. `--analysis` is accepted by the parser but always exits `2`: `wsp analyze` is not ported, and layers bind from the sorted vector filenames.
 ```bash
 secant compose \
   --profile <name-or-json> \
-  --vectors-dir <dir> \
-  [--calibration gamma|target-shift] \
-  [--alpha <float>] \
-  [--model <base_model_for_target_shift>] \
+  --vectors <dir> \
+  [--target-shift <value> | --gamma <value> [--base <model>]] \
   --out <plan.json> \
   [--json]
 ```
 
 ### `secant patch` & `secant verify-patch`
-Applies and verifies sparse floating-point (`F32`, `F16`, `BF16`) weight updates on SafeTensors or GGUF containers.
+`patch` applies a plan's weight edits directly to payload bytes (`F32`, `F16`, `BF16`) of a SafeTensors or GGUF file, writing a patched copy unless `--in-place` is given. `verify-patch` checks header identity and 100% byte-identity of every tensor not named in `--expect-changed`.
 ```bash
-secant patch --model <base> --plan <plan.json> --out <patched> [--json]
-secant verify-patch --base <base> --patched <patched> --plan <plan.json> [--json]
+secant patch --base <base> --plan <plan.json> --out <patched> [--in-place] [--json]
+secant verify-patch --base <base> --patched <patched> --expect-changed <tensor1,tensor2,...> [--json]
 ```
 
-### `secant quant patch` & `secant quant verify`
-Applies direct in-place block surgery on quantized `Q8_0` and `Q4_K` GGUF tensors (`untouched_blocks_bit_identical: true`) and computes quantization commutation witnesses.
+### `secant quant witness`, `secant quant patch` & `secant quant roundtrip`
+`quant patch` performs block-aligned surgery on **`Q8_0` tensors only**: only the 34-byte blocks holding an edited element are re-quantized. A tensor of any other dtype (including `Q4_K`) is refused with the error `tensor <name> is <dtype>, block-aligned surgery needs Q8_0` (`crates/secant-core/src/quant.rs`). `--out` is required unless `--in-place` is given. There is no `quant verify`; use `secant verify-patch` for the byte-difference check. `quant witness` measures $\lVert D^\top(\mathrm{Dequant}(\mathrm{Quant}(W')) - W')\rVert_2$ for `q8_0` or `q4_k`, optionally under the $\Pi_{128}$ panel permutation.
 ```bash
-secant quant patch --model <base-q8.gguf> --plan <plan.json> --out <patched-q8.gguf> [--json]
-secant quant verify --base <base.gguf> --patched <patched.gguf> --plan <plan.json> [--json]
+secant quant patch --base <base-q8_0.gguf> --plan <plan.json> --out <patched-q8_0.gguf> [--in-place] [--json]
+secant quant witness --model <model> --tensor <name> --vectors <dir-or-npy> [--format q8_0|q4_k] [--pi128] [--json]
+secant quant roundtrip --npy <matrix.npy> [--format q8_0|q4_k] [--json]
 ```
 
 ### `secant heal` & `secant verify-subspace`
-Merges a LoRA adapter $(A, \tilde{B})$ into a model tensor after double orthogonal projection $\PiPerp(\PiPerp(\tilde{B}))$ in `float64`, and verifies that protected-subspace leakage is bounded by `--max-leakage`.
+`heal` orthonormalizes the protected directions $D$ (every non-`h_*` `.npy`/`.json` in a directory, or one `.npy`), replaces every LoRA $B$ in a `lora_A`/`lora_B` `.safetensors` adapter by $B_{\text{locked}} = (I - DD^\top)B$, and writes a new healed adapter. With `--base` and `--merge-out` it also adds $\Delta W = \text{scale}\cdot B_{\text{locked}} A$ into a copy of the base and publishes it only if the realized $\max\lvert D^\top \Delta W\rvert \le$ `--tol`. `verify-subspace` recomputes $\Delta W = W_{\text{healed}} - W_{\text{base}}$ from stored bytes for each named tensor.
 ```bash
 secant heal \
-  --model <base> \
-  --out <healed> \
-  --tensor <tensor_name> \
-  --lora-a <A.npy> \
-  --lora-b <B.npy> \
-  --protect <d1.npy> [--protect <d2.npy> ...] \
-  [--scale <alpha_over_r>] \
+  --lora <adapter.safetensors> \
+  --vectors <dir-or-npy> \
+  --out <healed-adapter.safetensors> \
+  [--base <model> --merge-out <merged-model>] \
+  [--scale <lora_alpha/r, default 1>] \
+  [--tol <default 1e-5>] \
   [--json]
 
 secant verify-subspace \
-  --base <base> \
-  --healed <healed> \
-  --tensor <tensor_name> \
-  --protect <d1.npy> [--protect <d2.npy> ...] \
-  [--max-leakage 1e-6] \
+  --base <pre-heal-model> \
+  --healed <healed-model> \
+  --vectors <dir-or-npy> \
+  --tensors <tensor1,tensor2,...> \
+  [--tol <default 1e-5>] \
   [--json]
 ```
 
 ### `secant sanitize`, `secant probe` & `secant read --detect-anomalies`
-`sanitize` scans static weight values (NaN, Inf, extreme finite, subnormal, zero or tiny-norm vectors, out-of-range and duplicate routing ids) and can publish a repaired copy; `probe` generates boundary-value test fixtures (it does not scan a model); `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. Rules and exit codes: [Payload Security](payload-security.md). The standalone `secant` CLI has no `scan-sinks` subcommand.
+`sanitize` scans static weight values (NaN, Inf, extreme finite, subnormal, zero or tiny-norm vectors, out-of-range and duplicate routing ids) and can publish a repaired copy. `--receipt` and `--attempt-id` are required. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`. `probe` generates header-valid boundary-value fixtures and requires `--out-dir`, `--receipt` and `--attempt-id`; it does not scan a model. `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. Rules and exit codes: [Payload Security](payload-security.md). The standalone `secant` CLI has no `scan-sinks` subcommand.
 ```bash
 secant sanitize --model <in_path> --receipt <new.json> --attempt-id <id> \
+  [--num-experts <N>] [--routing-tensor <glob>]... [--norm-tensor <glob>]... \
+  [--max-abs <default 10000>] [--min-norm <default 1e-12>] [--max-examples <1..10000>] \
   [--clamp-nonfinite] [--dedup-routing-rows] [--clamp-extreme] [--flush-subnormal] \
-  [--num-experts <N>] [--out <new_clean_path>] [--json]
+  [--out <new_clean_path>] [--json]
 secant probe --class <class1|class2|class3|class4|all> --format <safetensors|gguf|both> \
-  --out-dir <new_dir> --receipt <new.json> --attempt-id <id> [--base <model>] [--json]
+  --out-dir <new_dir> --receipt <new.json> --attempt-id <id> \
+  [--base <model>] [--num-experts <2..1048576, default 8>] [--json]
 secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
 ```
 
@@ -117,73 +114,118 @@ secant read --model <path> [--tensor <glob>] --detect-anomalies [--json]
 
 ### `secant.nn.ProjectThenHealLinear`
 
+Signatures copied from `python/secant/nn.py`:
+
 ```python
-class ProjectThenHealLinear(torch.nn.Module):
+class ProjectThenHealLinear(nn.Module):
     def __init__(
         self,
         in_features: int,
         out_features: int,
         rank: int,
-        directions: Union[np.ndarray, torch.Tensor],
+        directions: Any,
         alpha: Optional[float] = None,
+        *,
         bias: bool = False,
-        device: Optional[torch.device] = None,
+        lora_bias: bool = False,
+        weight: Optional[torch.Tensor] = None,
+        base_bias: Optional[torch.Tensor] = None,
+        b_init_std: float = 0.0,
+        module_name: str = "module",
         dtype: Optional[torch.dtype] = None,
+        device: Optional[Any] = None,
     ) -> None: ...
 
     @classmethod
     def from_linear(
         cls,
-        linear: torch.nn.Linear,
+        linear: nn.Linear,
         rank: int,
-        directions: Union[np.ndarray, torch.Tensor],
+        directions: Any,
         alpha: Optional[float] = None,
-    ) -> "ProjectThenHealLinear": ...
+        **kwargs: Any,
+    ) -> "ProjectThenHealLinear":
+        """Wrap an existing `nn.Linear`: weight/bias are COPIED and frozen."""
 
     def locked_B(self) -> torch.Tensor:
-        """Returns B_locked = P(P(lora_B_tilde)) with P = I - D^T D."""
+        """B_locked = P (P B_tilde) [d_out, r], float64 accumulation, cast to the working dtype."""
 
     def leakage(self) -> float:
-        """Returns ||D @ B_locked||_F / ||B_locked||_F in float64."""
+        """max |D B_locked| in float64, measured on the working-dtype B_locked that forward() uses."""
+
+    def orthonormality_error(self) -> float:
+        """max |D D^T - I| (float64)."""
 
     def merged_delta(self) -> torch.Tensor:
-        """Returns (alpha / rank) * (B_locked @ lora_A)."""
+        """scale * B_locked @ A, [d_out, d_in], float64 accumulation, cast to the working dtype."""
 
-    def merge_into(self, target: Optional[torch.nn.Linear] = None) -> torch.nn.Linear:
-        """Merges the subspace-locked LoRA delta into the base Linear weight."""
+    def merge_into(self, base_weight: Optional[torch.Tensor] = None, *, inplace: bool = False) -> torch.Tensor:
+        """Return base_weight + merged_delta() (float64 sum, cast to base_weight's dtype)."""
 
-    def export_lora(self, dir_path: Union[str, Path], prefix: str = "") -> dict:
-        """Writes lora_A.npy and locked lora_B.npy in NumPy v1.0 format for `secant heal`."""
+    def merged_leakage(self, base_weight: Optional[torch.Tensor] = None) -> float:
+        """Realized leakage of the merge: max |D (W_merged - W)| over the stored dtype."""
+
+    def lora_tensors(self, module_name: Optional[str] = None, *, locked: bool = True, dtype: Optional[str] = None) -> Dict[str, np.ndarray]:
+        """The `<module>.lora_A.weight` / `<module>.lora_B.weight` arrays `export_lora` writes."""
+
+    def export_lora(
+        self,
+        path: str,
+        module_name: Optional[str] = None,
+        *,
+        locked: bool = True,
+        dtype: Optional[str] = None,
+        overwrite: bool = False,
+    ) -> Dict[str, Any]:
+        """Write a LoRA .safetensors for `secant heal --lora`."""
+
+
+def export_lora_adapter(
+    path: str,
+    modules: Mapping[str, ProjectThenHealLinear],
+    *,
+    locked: bool = True,
+    dtype: Optional[str] = None,
+    overwrite: bool = False,
+) -> Dict[str, Any]:
+    """Write several modules (name -> module) into one LoRA .safetensors."""
 ```
+
+Notes that follow from the source:
+
+- `leakage()` returns the **maximum absolute entry** of $D B_{\text{locked}}$, not a ratio.
+- `merge_into()` returns a **tensor** (the merged weight), not an `nn.Linear`. With `inplace=True` it writes into `base_weight` and returns it.
+- `export_lora()` writes one `.safetensors` file holding `<module>.lora_A.weight` $[r, d_{\text{in}}]$ and `<module>.lora_B.weight` $[d_{\text{out}}, r]$ as `F32` (`F64` for `float64` modules). `alpha` is not stored in the tensor file; pass the returned `scale` to `secant heal --scale`.
+- `directions` with dependent, zero, NaN/Inf rows, or $k > d_{\text{out}}$ raises `DirectionError` (fail closed). `lora_bias=True` raises `ValueError`.
 
 ---
 
 ## 4. C FFI Reference (`crates/secant-ffi/include/secant.h`)
 
+Copied verbatim from the frozen header:
+
 ```c
-// Returns the semantic version string of libsecant ("0.1.0").
-const char* secant_version_v1(void);
+/* Secant C ABI (libsecant.a / libsecant.so / libsecant.dylib). Frozen _v1 signatures.
+ * Return codes: 0 ok; 1 null pointer / zero extent; 2 size overflow;
+ * 3 refused (NaN/Inf, dependent directions, misaligned shape); 4 caught panic. */
 
-// Applies double orthogonal projection B_locked = P(P(B_tilde)) in float64
-// and merges scale * (B_locked @ A) into W_inout (d_out x d_in, row-major f32).
-int32_t secant_project_then_heal_f32_v1(
-    float* w_inout,
-    size_t d_out,
-    size_t d_in,
-    const float* lora_a,
-    const float* lora_b_tilde,
-    size_t rank,
-    float scale,
-    const double* protected_dirs,
-    size_t num_dirs,
-    double* out_leakage
-);
+/* Static NUL-terminated version string; never free. */
+const char *secant_version_v1(void);
 
-// Computes the Q8_0 quantization commutation witness on a float32 weight buffer.
-int32_t secant_q8_0_commutation_witness_v1(
-    const float* w_base,
-    const float* delta_w,
-    size_t n_elements,
-    double* out_rel_fro_error
-);
+/* Message for the last non-zero return on this thread. */
+const char *secant_last_error_v1(void);
+
+/* b <- P(P b), P = I - D^T D. directions: row-major k x d_out (orthonormalized
+ * internally in float64); b: row-major d_out x r, modified in place.
+ * *max_leak_out (nullable) <- max |D^T b_locked| over the stored floats. */
+int32_t secant_project_then_heal_f32_v1(const float *directions, size_t k, size_t d_out,
+                                        float *b, size_t r, double *max_leak_out);
+
+/* ||D^T (Dequant_Q8_0(Quant_Q8_0(w)) - w)||_2 and its max-abs entry.
+ * w: row-major d_out x d_in (d_in % 32 == 0); directions: row-major k x d_out. */
+int32_t secant_q8_0_commutation_witness_v1(const float *directions, size_t k, size_t d_out,
+                                           const float *w, size_t d_in,
+                                           double *out_l2, double *out_max_abs);
 ```
+
+The C ABI locks a LoRA $B$ matrix in place; it does not merge into a weight matrix. Merging is done by `secant heal --base --merge-out` or `ProjectThenHealLinear.merge_into`.

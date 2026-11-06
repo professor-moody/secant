@@ -6,6 +6,14 @@ Before diving into the equations, here is the core intuition behind Secant's mat
 2. **Keeping multiple edits from colliding (Gram-Schmidt):** When you combine loop suppression (`B1`), refusal subtraction (`B2`), and root-cause attribution (`B3`), their raw direction vectors can overlap when they share residual coordinates. Two-pass modified Gram-Schmidt orthogonalization in `float64` removes pairwise overlap before compiling the weight patch. The implementation enforces $\max_{i,j} |(D D^\top - I_k)_{ij}| < 10^{-12}$ and fails closed otherwise; the measured `float64` residual on tested bases is below $10^{-15}$.
 3. **Why fixed norm ratios fail on larger models (Target-Shift Calibration):** Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model closed `0/30` `<think>` loops, while the calibrated loop edit (summed target shift `-7.38`) closed `21/30`. **Target-Shift Calibration** solves directly for the step size that delivers the desired inner-product shift $\Delta_{\text{target}}$ at the layer's real activation scale.
 
+```{figure} assets/snr-and-calibration-profile.svg
+:name: fig-snr-and-calibration
+:alt: Panel A, refusal-direction SNR by layer for the attention-block and MLP outputs of Qwen3.5-0.8B with full-attention layers shaded; Panel B, Target-Shift Calibration step size beta against the selected-column activation norm on three models and on the 30 edits of the 15-model H100 Stage-1 run, and the realized shift error in float64 and after BF16 storage
+:width: 100%
+
+**A.** Held-out SNR of the `B2` refusal direction on `Qwen3.5-0.8B`, by layer and writer. This panel uses the margin statistic $(\mu_{\text{pos}} - \mu_{\text{neg}})/\sigma_{\text{ctl}}$ from the layer sweep (5 + 5 held-out prompts, 10 controls), not the $\mathrm{SNR}_{\text{proj}}$ of Section 1, so its values are not comparable to the H100 numbers. Layer 15, where a rule of thumb at about 60% depth lands, is the global minimum of the attention-block output (`0.23`) and is a full-attention layer (writer `o_proj`); layer 12, a Gated DeltaNet layer (writer `ssm_out`), peaks at `2.12`. **B.** Every calibrated rank-1 edit in the banked plans: the `B3` target $|\Delta| = 3.8956$ is the same on `Qwen3.5-4B`, `Qwen2.5-1.5B` and `SmolLM2-1.7B`, $\|h_S\|_2$ spans `4.13` to `10.44`, and $\beta$ spans `0.0358` to `0.2286`. Recomputing $\langle q, \Delta W\,h_{\text{ref}}\rangle$ from each plan in `float64` gives $|\text{error}| \le 4.0 \times 10^{-15}$; after the weights are stored in `BF16` the realized shift moves by $1.2 \times 10^{-6}$ to $2.0 \times 10^{-3}$. Generated from the banked receipts by `gen_secant_figures.py`, which checks every receipt's SHA-256 before drawing.
+```
+
 ---
 
 ## 1. Contrastive Capture & Held-Out Signal-to-Noise Metrics
@@ -126,4 +134,24 @@ $$
 
 The two modes are **not** equivalent: the calibrated step $\beta$ depends on the measured activation $h_S$, the ratio step $\gamma_b(\alpha)$ only on $\|W_\ell\|_{\mathrm{F}}$.
 
-Where each mode was used: full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) on `Qwen3.5-4B` (all `B1+B2+B3` edits, `0/30` $\to$ `21/30` $\to$ `30/30` `<think>` closure at doses $0.5\times$, $1.0\times$, $1.5\times$) and on the `SmolLM2-1.7B` `B3` edit. The 14-checkpoint H100 sweep (`7.2B` to `72.7B`) used the fixed-ratio mode ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$); there, aligned directions separate from equal-norm random directions by `29.1x` to `1,269.9x` by magnitude. A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so this is a geometric sanity check, not evidence of behavioural change.
+Where each mode was used: full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) on `Qwen3.5-4B` (all `B1+B2+B3` edits; `<think>` closure `0/30` in `a05`, where only `B1` was at $0.5\times$ and `B2` and `B3` were held at $1.0\times$, then `21/30` with all three at $1.0\times$ and `30/30` in `a15`, where `B1` was at $1.5\times$ and `B2` and `B3` again at $1.0\times$) and on the `B3` edit of `SmolLM2-1.7B` and of `Qwen2.5-1.5B` ([](#fig-snr-and-calibration), panel B). The 14-checkpoint H100 sweep (`7.2B` to `72.7B`) used the fixed-ratio mode ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$); there, aligned directions separate from equal-norm random directions by `29.1x` to `1,269.9x` by magnitude. A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so this is a geometric sanity check, not evidence of behavioural change.
+
+The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-stage1-receipt.json`, SHA-256 `00f4fe2afc4ff630c7c9ac55b5b2c0a85342477a5b32a0b0c455abd5b4c5056f`) applied full Target-Shift Calibration to `B2` and `B3` on every model, with $\lvert\Delta_{\text{target}}\rvert = 7.382$ and 128 selected input columns. Across `B2`, $\lVert h_S\rVert_2$ spans `1.41 to 15.91` and $\beta$ spans `0.0292 to 3.7192`; across `B3`, `2.53 to 27.47` and `0.0098 to 1.1508`. Every one of the 30 edits realizes its target at $h_{\text{ref}}$ to within `7.99e-15` in `float64` (10 of them exactly 0). Each random control is norm-matched. This run has no `BF16`-storage witness and its behavioral benchmarks are `NOT_RUN`, so it establishes that the step is solved correctly at every width tested, not what the edit does to generated output.
+
+| Model | Size | `B2` layer | `B2` $\lVert h_S\rVert_2$ | `B2` $\beta$ | `B3` layer | `B3` $\lVert h_S\rVert_2$ | `B3` $\beta$ | max float64 shift error |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `Qwen3.5-0.8B` | `0.8B` | `L17` | `3.57` | `0.5801` | `L14` | `4.53` | `0.3595` | `8.9e-16` |
+| `SmolLM2-1.7B` | `1.7B` | `L17` | `14.14` | `0.0369` | `L12` | `5.20` | `0.2727` | `1.8e-15` |
+| `Qwen3.5-4B` | `4B` | `L23` | `12.35` | `0.0484` | `L16` | `4.40` | `0.3805` | `3.6e-15` |
+| `Mistral-7B-v0.3` | `7.2B` | `L12` | `2.81` | `0.9352` | `L19` | `12.03` | `0.0510` | `3.6e-15` |
+| `Qwen2.5-7B` | `7.6B` | `L8` | `7.77` | `0.1224` | `L14` | `7.05` | `0.1484` | `2.7e-15` |
+| `Llama-3.1-8B` | `8B` | `L23` | `4.03` | `0.4556` | `L16` | `3.82` | `0.5070` | `1.8e-15` |
+| `R1-Llama-8B` | `8B` | `L23` | `4.12` | `0.4343` | `L16` | `3.96` | `0.4701` | `5.3e-15` |
+| `Qwen3-8B` | `8.2B` | `L14` | `4.33` | `0.3931` | `L21` | `9.82` | `0.0766` | `5.3e-15` |
+| `Gemma-2-9B` | `9.2B` | `L16` | `1.41` | `3.7192` | `L25` | `2.53` | `1.1508` | `1.8e-15` |
+| `OLMo-2-13B` | `13.7B` | `L16` | `8.08` | `0.1130` | `L20` | `15.06` | `0.0325` | `3.6e-15` |
+| `Phi-4` | `14.7B` | `L12` | `2.54` | `1.1436` | `L29` | `20.61` | `0.0174` | `4.4e-15` |
+| `Qwen3-14B` | `14.8B` | `L16` | `4.97` | `0.2994` | `L23` | `11.62` | `0.0547` | `1.8e-15` |
+| `R1-Qwen-14B` | `14.8B` | `L28` | `14.66` | `0.0343` | `L35` | `20.44` | `0.0177` | `3.6e-15` |
+| `Gemma-2-27B` | `27.2B` | `L14` | `9.35` | `0.0845` | `L27` | `27.47` | `0.0098` | `8.0e-15` |
+| `Qwen3-32B` | `32.8B` | `L47` | `15.91` | `0.0292` | `L25` | `10.00` | `0.0738` | `3.6e-15` |

@@ -1,6 +1,6 @@
 # Quickstart & Live CLI Receipts
 
-This guide walks through building `secant` from source and executing a complete **Inspect $\to$ Read $\to$ Compose $\to$ Patch $\to$ Verify $\to$ Heal** workflow with real JSON receipts.
+This guide walks through building `secant` from source and executing **Probe $\to$ Inspect $\to$ Read $\to$ Sanitize $\to$ Verify** on a deterministic fixture with real JSON receipts, followed by the exact command shapes for **Compose $\to$ Patch $\to$ Heal $\to$ Verify** on your own model.
 
 ---
 
@@ -24,69 +24,93 @@ pytest python/tests
 
 ---
 
-## 2. Inspect a SafeTensors or GGUF Container (`secant inspect`)
+## 2. Generate a Deterministic Fixture and Inspect It (`secant probe`, `secant inspect`)
 
-Before reading or modifying any weights, inspect the container header, tensor table, alignment invariants, and SHA-256 digest:
+Every output on this page through Section 3 comes from a real run of the built binary against a fixture that `secant probe` generates byte-deterministically, so you can reproduce each value on your own machine in seconds. `probe` requires `--out-dir`, `--receipt` and `--attempt-id`:
 
 ```bash
-secant inspect --model Qwen3.5-4B-BF16.gguf --json
+secant probe --class class3 --format safetensors \
+  --out-dir fixtures --receipt probe-receipt.json --attempt-id quickstart-1
+# probe: generated; 1 fixture(s) in fixtures; receipt probe-receipt.json
+#   class3-nan-sort-arrays.safetensors  findings findings=90 sha256=22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503
+
+secant inspect --model fixtures/class3-nan-sort-arrays.safetensors --json
 ```
 
 ```json
 {
   "schema": "secant.wsp.inspect.v1",
-  "format": "gguf",
-  "version": 3,
-  "alignment": 32,
-  "file_bytes": 8053924416,
-  "data_offset": 754176,
-  "tensor_count": 427,
-  "padding_clean": true
+  "path": "fixtures/class3-nan-sort-arrays.safetensors",
+  "format": "safetensors",
+  "file_size": 736,
+  "block_count": 3,
+  "data_offset": 352,
+  "tensor_count": 3,
+  "dtype_counts": { "BF16": 1, "F16": 1, "F32": 1 },
+  "tensors": [
+    { "name": "blk.0.router_scores.weight", "dtype": "F32", "shape": [6, 8],
+      "elements": 48, "byte_size": 192, "file_offset": 352 }
+  ]
 }
 ```
 
+(The `tensors` array is truncated to its first entry here; `read` output below is abridged the same way.)
+
 ---
 
-## 3. Read Spectral & Row-Norm Geometry directly from Weights (`secant read`)
+## 3. Read, Sanitize, Re-Read and Verify (`secant read`, `secant sanitize`, `secant verify-patch`)
 
-`secant read` memory-maps the model file (`input_unchanged: true`, pre/post SHA-256 verified) and computes the leading singular triplet $(\sigma_1, u_1, v_1)$, Frobenius norm, row-norm quantiles, and top-$K$ intermediate MLP columns without loading a Python runtime:
+`secant read` memory-maps the file, hashes it before and after (`input_unchanged`), and refuses to compute a spectrum for a tensor holding NaN or Inf:
 
 ```bash
-secant read \
-  --model models/SmolLM2-1.7B-Instruct/model.safetensors \
-  --tensor model.layers.12.mlp.down_proj.weight \
-  --top-cols 8 \
-  --top-k-singular 1 \
-  --json
+secant read --model fixtures/class3-nan-sort-arrays.safetensors \
+  --top-k-singular 1 --top-cols 4 --detect-anomalies --json
 ```
 
 ```json
 {
   "schema": "secant.wsp.read.v1",
-  "model": "models/SmolLM2-1.7B-Instruct/model.safetensors",
   "format": "safetensors",
-  "file_bytes": 3422777952,
-  "pre_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
-  "post_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
+  "file_bytes": 736,
+  "pre_sha256": "22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503",
+  "post_sha256": "22ffbb02b3e4d9c5560967bc7908f6991629fae9edf5d23c2b4419731555d503",
   "input_unchanged": true,
-  "policy": {
-    "version": "wsp-read-v1",
-    "max_iterations": 1000,
-    "convergence_tol_relative_sigma": 1e-13,
-    "convergence_tol_residual": 1e-10,
-    "start_seed": 11400714819323198485,
-    "fma_free_arithmetic": true
-  },
+  "tensors_in_file": 3,
+  "tensors_selected": 3,
+  "tensors_analyzed": 0,
   "tensors": [
-    {
-      "name": "model.layers.12.mlp.down_proj.weight",
-      "dtype": "BF16",
-      "shape": [2048, 8192],
-      "frobenius_norm": 66.224819
-    }
+    { "name": "blk.0.router_scores.weight", "dtype": "F32", "shape": [6, 8],
+      "status": "nonfinite", "nonfinite_elements": 30,
+      "notes": ["Frobenius norm and spectrum are undefined for a tensor holding NaN/Inf; use `secant sanitize` to locate them"] }
   ]
 }
 ```
+
+`secant sanitize` scans the values. Without a remediation flag it only reports (exit `1`: findings remain). `--out` without a remediation flag is refused (exit `2`: `remediation flags and a separate --out must be supplied together`). With `--clamp-nonfinite --out` it publishes a clean copy (exit `0`):
+
+```bash
+secant sanitize --model fixtures/class3-nan-sort-arrays.safetensors \
+  --receipt sanitize-receipt.json --attempt-id quickstart-1
+# exit 1; receipt: "status": "findings", "counts": {"inf": 18, "nan": 72}
+
+secant sanitize --model fixtures/class3-nan-sort-arrays.safetensors \
+  --receipt clean-receipt.json --attempt-id quickstart-1 \
+  --clamp-nonfinite --out clean.safetensors
+# exit 0; receipt: "status": "remediated", "output_published": true
+# clean.safetensors sha256 1e0b8f013a3f2e78e291fb1976f3b24372b3492716a88dbe64a7137df4f2a403
+
+secant read --model clean.safetensors --tensor 'blk.0.*' --top-k-singular 1 --top-cols 2 --json
+# "status": "ok", "frobenius": 24494.897662574545,
+# "singular": [{"sigma": 24494.89743144648, "iterations": 3, "converged": true, "residual": 2.715678131663147e-16}]
+
+secant verify-patch --base fixtures/class3-nan-sort-arrays.safetensors --patched clean.safetensors \
+  --expect-changed blk.0.router_scores.weight,blk.1.router_scores.weight,blk.2.router_scores.weight --json
+# "header_bytes_identical": true, "other_tensors_byte_identical": true, "ok": true (exit 0)
+```
+
+Naming only `blk.0.router_scores.weight` in `--expect-changed` makes the same `verify-patch` fail with `unexpected changed tensors: [blk.1.router_scores.weight blk.2.router_scores.weight]` (exit `1`), because the sanitizer also repaired the other two tensors.
+
+These runs were captured with the `secant` binary built from this repository on 2026-11-05; the probe fixture and the sanitized copy are byte-deterministic, so the digests above are the values to expect.
 
 ---
 
@@ -95,126 +119,128 @@ secant read \
 Use `secant.capture.capture_contrastive_directions` to extract unit-norm behavioral directions $v_b \in \mathbb{R}^{d_{\text{model}}}$ from paired contrastive prompts and evaluate held-out `snr_proj`, `snr_trace`, and `split_half_cosine` on a deterministic 50/50 split:
 
 ```python
-import numpy as np
 from secant.capture import capture_contrastive_directions, write_vectors
 
-# pos_acts / neg_acts: dict[(stream, layer) -> np.ndarray of shape (N, d_model)]
-results = capture_contrastive_directions(pos_acts, neg_acts, seed=20261104)
+# activations: {(stream, layer): (pos [n, d_model], neg [n, d_model])}
+results = capture_contrastive_directions(activations=activations, seed=20261104)
 
-for key, metric in results.items():
-    print(f"{key}: snr_proj={metric.snr_proj:.3f}, cos={metric.split_half_cosine:.4f}")
+for (stream, layer), r in results.items():
+    print(f"{stream} L{layer}: {r.status} snr_proj={r.snr_proj:.3f} snr_trace={r.snr_trace:.3f}")
 
-# Export float64 NumPy v1.0 vectors for `secant compose` and `secant heal`
-write_vectors(results, out_dir="./vectors")
+# Writes d_<stream>_L<layer>.npy (NumPy v1.0, float64) for `secant compose --vectors` and `secant heal --vectors`
+write_vectors("./vectors", results)
 ```
 
 ---
 
 ## 5. Compose a Scale-Calibrated Multi-Subspace Edit Plan (`secant compose`)
 
-To apply multiple behavioral edits (`B1`, `B2`, `B3`) simultaneously without cross-subspace interference or cross-scale decay, run `secant compose` with `--calibration target-shift`:
+To apply multiple behavioral edits (`B1`, `B2`, `B3`) together, `secant compose` orthogonalizes the directions in `float64` and calibrates each step. `--target-shift` selects Target-Shift Calibration ($\beta = \lvert\Delta_{\text{target}}\rvert / \lVert h_S\rVert_2^2$, which needs the `h_*` reference activations in the vectors directory); `--gamma` selects relative Frobenius calibration and measures $\lVert W\rVert_F$ from `--base`. With neither flag, the profile's default applies.
 
 ```bash
 secant compose \
-  --profile qwen35-beneficial-b1b2b3 \
-  --vectors-dir ./vectors \
-  --calibration target-shift \
-  --alpha 1.5 \
-  --model Qwen3.5-4B-BF16.gguf \
-  --out plan-b1b2b3-a15.json \
+  --profile security-auditor-b1b2b3 \
+  --vectors ./vectors \
+  --target-shift -4.0 \
+  --out plan-b1b2b3.json \
   --json
 ```
 
+Built-in profiles: `adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`; any other value is read as a path to a `secant.wsp.profile.v1` JSON file. There is no `secant profiles` or `secant analyze` subcommand.
+
 ---
 
-## 6. Apply & Verify In-Place `BF16` or Direct `Q8_0` Surgery
+## 6. Apply & Verify `BF16` or Direct `Q8_0` Surgery
 
 ### Option A: Sparse Column Surgery on `BF16` / `F32` / `F16` (`secant patch`)
 
 ```bash
 secant patch \
-  --model Qwen3.5-4B-BF16.gguf \
-  --plan plan-b1b2b3-a15.json \
+  --base Qwen3.5-4B-BF16.gguf \
+  --plan plan-b1b2b3.json \
   --out Qwen3.5-4B-BF16-patched.gguf \
   --json
 
 secant verify-patch \
   --base Qwen3.5-4B-BF16.gguf \
   --patched Qwen3.5-4B-BF16-patched.gguf \
-  --plan plan-b1b2b3-a15.json \
+  --expect-changed <comma-separated tensors the plan edits> \
   --json
 ```
 
-### Option B: Direct Block Surgery on Quantized `Q8_0` / `Q4_K` (`secant quant patch`)
+`--expect-changed` lists the tensors the plan edits (as named inside the model); every other tensor must be byte-identical or `verify-patch` exits `1`.
 
-When you only have a quantized `Q8_0` or `Q4_K` GGUF artifact on disk, `secant quant patch` modifies only the quantized super-blocks intersecting the sparse top-$K$ intermediate MLP columns (`untouched_blocks_bit_identical: true`):
+### Option B: Direct Block Surgery on Quantized `Q8_0` (`secant quant patch`)
+
+When you only have a `Q8_0` GGUF on disk, `secant quant patch` re-quantizes only the 34-byte `Q8_0` blocks that hold an edited element. It is **`Q8_0` only**: a tensor of any other dtype, including `Q4_K`, is refused with `tensor <name> is <dtype>, block-aligned surgery needs Q8_0`.
 
 ```bash
 secant quant patch \
-  --model base-pure-Q8_0.gguf \
+  --base base-pure-Q8_0.gguf \
   --plan plan-b1b2b3.json \
   --out path2-Q8_0-surgery.gguf \
   --json
+
+secant verify-patch \
+  --base base-pure-Q8_0.gguf \
+  --patched path2-Q8_0-surgery.gguf \
+  --expect-changed <tensors named in the plan> \
+  --json
 ```
 
-```json
-{
-  "schema": "secant.quant.patch.v1",
-  "base_sha256": "d9dd2c0bb0f54bb062ba008e855b29639afa47d18f7e0789551419d601806250",
-  "patched_sha256": "8bcfdaede2ed8d67060cd2adb240f6d3b3836e063544cbb32c6c5f9f13046eab",
-  "tensors_modified": 4,
-  "blocks_rewritten": 210598,
-  "untouched_blocks": 246379,
-  "unmodified_blocks_bit_identical": true,
-  "bytes_differing_outside_edited_tensors": 0
-}
-```
+The `--json` receipt has schema `secant.quant.patch.v1` with fields `base`, `out`, `base_sha256`, `out_sha256`, `verify`, and one `edits[]` entry per edit carrying `id`, `tensor`, `op`, `blocks_total`, `blocks_touched`, `blocks_rewritten`, `max_requant_error` and `notes`. There is no `secant quant verify`; `verify-patch` is the byte-difference check.
 
 ---
 
 ## 7. Subspace-Locked LoRA Healing (`secant.nn.ProjectThenHealLinear` & `secant heal`)
 
-Wrap any edited `torch.nn.Linear` layer in `ProjectThenHealLinear` during recovery fine-tuning so gradients are structurally locked to the orthogonal complement $\mathcal{S}^\perp$:
+Wrap an edited `torch.nn.Linear` layer in `ProjectThenHealLinear` during recovery fine-tuning so the LoRA update is parameterized inside the orthogonal complement $\mathcal{S}^\perp$:
 
 ```python
 import torch
 from secant.nn import ProjectThenHealLinear
 
-# D: [k, d_out] tensor or NumPy array of protected behavioral directions
+# D: [k, d_out] tensor, NumPy array, or path to a .npy of protected directions
 healed_layer = ProjectThenHealLinear.from_linear(
     base_linear,
     rank=16,
     directions=D,
     alpha=16.0,
+    module_name="model.layers.15.mlp.down_proj",
 )
 
 # Train lora_A and lora_B_tilde with standard AdamW
-optimizer = torch.optim.AdamW(healed_layer.parameters(), lr=2e-4)
+optimizer = torch.optim.AdamW(
+    [healed_layer.lora_A, healed_layer.lora_B_tilde], lr=2e-4
+)
 
-# Verify machine-zero subspace leakage at any step:
-assert healed_layer.leakage() < 1e-12
+# max |D B_locked| in float64; stays at the rounding level of the working dtype
+print(healed_layer.leakage())
+
+# Write lora_A / locked lora_B as one .safetensors for `secant heal --lora`
+info = healed_layer.export_lora("lora_locked.safetensors")
+print(info["scale"])  # pass to `secant heal --scale`
 ```
 
-To merge an existing LoRA adapter offline while projecting out protected directions in `float64`:
+To lock an existing LoRA adapter offline (`lora_A`/`lora_B` pairs in one `.safetensors`), optionally merge it into a copy of the base, and verify the merged weights:
 
 ```bash
 secant heal \
-  --model patched.gguf \
-  --out healed.gguf \
-  --tensor blk.15.ffn_down.weight \
-  --lora-a lora_A_L15.npy \
-  --lora-b lora_B_L15.npy \
-  --protect d_B1a_L15.npy \
-  --protect d_B2_L12.npy \
+  --lora lora_adapter.safetensors \
+  --vectors ./vectors \
+  --out lora_locked.safetensors \
+  --base patched.safetensors \
+  --merge-out healed.safetensors \
   --scale 1.0 \
   --json
 
 secant verify-subspace \
-  --base patched.gguf \
-  --healed healed.gguf \
-  --tensor blk.15.ffn_down.weight \
-  --protect d_B1a_L15.npy \
-  --protect d_B2_L12.npy \
-  --max-leakage 1e-6 \
+  --base patched.safetensors \
+  --healed healed.safetensors \
+  --vectors ./vectors \
+  --tensors model.layers.15.mlp.down_proj.weight \
+  --tol 1e-5 \
   --json
 ```
+
+`heal` exits `1` and publishes nothing if the float64 residual is not below `1e-12`, the residual re-read from the written file is not below `1e-6`, or the merged weights exceed `--tol`. `verify-subspace` exits `0` (pass), `1` (leak above `--tol`), or `2` (unknown: missing, mis-shaped or non-finite tensor; never pass).
