@@ -379,8 +379,12 @@ pub fn scan_gguf_layout(b: &[u8]) -> Result<Layout> {
             }
         }
     }
+    let mut seen_names: BTreeMap<String, bool> = BTreeMap::new();
     for _ in 0..tensor_count {
         let name = s.str()?;
+        if seen_names.insert(name.clone(), true).is_some() {
+            return Err(Error::msg(format!("gguf: duplicate tensor name {:?}", name)));
+        }
         let ndims = s.u32()?;
         if ndims > 8 {
             return Err(Error::msg(format!("gguf: tensor {:?} ndims {} out of range", name, ndims)));

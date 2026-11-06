@@ -14,22 +14,22 @@ The four stages of Secant: (1) zero-eval `float64` weight reading and Boundary-3
 
 ---
 
-## What Secant Does (The 7 Key Findings in Plain English)
+## What Secant Does (Ordered by Core Importance)
 
-1. **Read Weight Concepts into Vocabulary Words Without a GPU (`secant inspect`, `secant read --vocab-tensor`):**
-   - Memory-maps `.safetensors` and `.gguf` files directly on disk, computes top `float64` singular directions, and projects them onto the vocabulary unembedding matrix so you can see which words/tokens a layer promotes or suppresses without running a forward pass.
-2. **Sparse Rank-1 Surgery & Multi-Direction Orthogonal Composition (`secant.capture`, `secant compose`):**
-   - Instead of modifying every column of a weight matrix, Secant edits only the top 64 or 128 input columns (`< 2%` of the layer) and orthonormalizes multiple behavioral directions (`D D^T = I_k`, `< 1e-15` residual) via two-pass `float64` Gram-Schmidt so sequential edits never overwrite one another.
+1. **Direct In-Place `mmap` & 34-Byte `Q8_0` Quantized Block Surgery on Disk (`secant patch`, `secant quant patch`, `secant quant witness`):**
+   - Opens `.safetensors` and quantized `Q8_0` `.gguf` files via `mmap`, decodes only the touched 34-byte `Q8_0` blocks (2-byte `f16` scale + 32 `int8` quants), applies the surgical edit, and re-packs them in milliseconds while leaving `98%+` of the file (`240,640` untouched blocks) bit-for-bit identical. Also proves the $\Pi_{128}$ head-grid commutation boundary (`Q8_0` 32-weight blocks commute with 128-column heads, whereas 256-weight `Q4_K` superblocks straddle two heads).
+2. **`Project-Then-Heal`: Why Gradient Projection Fails Under `AdamW` & How Forward-Graph Locking Fixes It (`secant.nn.ProjectThenHealLinear`, `secant heal`):**
+   - Even if you project raw gradients out of $\mathrm{span}(D)$ before `AdamW.step()`, `AdamW` divides each coordinate by its running variance $\sqrt{\hat{v}_t} + \epsilon$, rotating updates right back into $\mathrm{span}(D)$ on **`100%` of steps (`108/108` runs)**. `ProjectThenHealLinear` locks the LoRA output factor inside the forward pass via $B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$, bounding writer leakage to **`5.21e-18 – 9.87e-18`** in `float64` (`1.78e-10 – 8.67e-10` in `float32`).
 3. **Target-Shift Calibration Across Model Scales (`secant compose --target-shift`):**
-   - Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model closes **`0/30`** `<think>` loops because wider layers have different activation scales. Solving analytically for the step size $\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$ closes **`21/30` (`70%`)** at $1.0\times$ and **`30/30` (`100%`)** (`23/30` exact culprit frame, $p = 1.86 \times 10^{-9}$) at $1.5\times$ on `Qwen3.5-4B`.
-4. **The `93.3%` Copy-the-Input Benchmark Control:**
+   - Copying a fixed Frobenius norm ratio ($\gamma = 0.30$) from a `0.8B` model to a `4B` model closes **`0/30`** `<think>` loops because wider layers have different activation scales. Solving analytically for the step size $\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$ closes **`21/30` (`70%`)** at $1.0\times$ and **`30/30` (`100%`)** (`23/30` exact culprit frame, $p = 1.86 \times 10^{-9}$) at $1.5\times$ on `Qwen3.5-4B`, and holds to within `<= 7.99e-15` across 15 architectures (`0.6B` to `32.8B`).
+4. **Sparse Rank-1 Surgery & Multi-Direction Orthogonal Composition (`secant.capture`, `secant compose`):**
+   - Instead of modifying every column of a weight matrix, Secant edits only the top 64 or 128 input columns (`< 2%` of the layer) selected by held-out $\text{SNR}_{\text{proj}}$ and orthonormalizes multiple behavioral directions (`D D^T = I_k`, `< 1e-15` residual) via two-pass `float64` Gram-Schmidt so sequential edits never overwrite one another.
+5. **Downstream C/C++ Sanitizer Vulnerability Uplift (`2/30 -> 12/30`, `6x`):**
+   - Rank-1 security-invariant surgery lifts `Qwen2.5-Coder-32B-Instruct` from `6.7%` (`2/30`) to **`40.0%` (`12/30`, `+10` crashes, $p = 0.00195$)** on our 30-case C/C++ sanitizer vulnerability suite without increasing reasoning token length (`125.9 -> 122.4` mean tokens).
+6. **Zero-Eval Weight Reading & Malicious/Corrupted Payload Auditing (`secant inspect`, `secant read --vocab-tensor`, `secant sanitize`, `secant probe`):**
+   - Memory-maps `.safetensors` and `.gguf` files directly on disk, computes deterministic non-FMA `float64` singular directions, projects them onto the vocabulary unembedding matrix without a GPU, and scans tensor payloads for `NaN`/`Inf`/subnormal floats, zero-norm rows, and out-of-bounds MoE router IDs that can crash C++ inference kernels.
+7. **Methodology Guardrail: The `93.3%` Copy-the-Input Benchmark Control:**
    - Feeding the **raw user prompt itself** (with zero model inference) into a naive whole-output keyword matcher scores **`93.3%` (`28/30`)** on crash-triage benchmarks because every stack-trace function is named in the prompt. Strict post-`</think>` single-commitment scoring eliminates that mirage (`0/30` on raw prompt copy).
-5. **Direct In-Place 34-Byte `Q8_0` Quantized Block Surgery on Disk (`secant quant patch`, `secant quant witness`):**
-   - Opens quantized `Q8_0` `.gguf` files via `mmap`, decodes only the touched 34-byte `Q8_0` blocks (2-byte `f16` scale + 32 `int8` quants), applies the surgical edit, and re-packs them in milliseconds while leaving `98%+` of the file (`240,640` untouched blocks) bit-for-bit identical. Also proves the $\Pi_{128}$ head-grid commutation boundary (`Q8_0` 32-weight blocks commute with 128-column heads, whereas 256-weight `Q4_K` superblocks straddle two heads).
-6. **`Project-Then-Heal`: Why Gradient Projection Fails Under `AdamW` & How Forward-Graph Locking Fixes It (`secant.nn.ProjectThenHealLinear`, `secant heal`):**
-   - Even if you project raw gradients out of $\mathrm{span}(D)$ before `AdamW.step()`, `AdamW` divides each coordinate by its running variance $\sqrt{\hat{v}_t} + \epsilon$, rotating updates right back into $\mathrm{span}(D)$ on **`100%` of steps (`108/108` runs)**. `ProjectThenHealLinear` locks the LoRA output factor inside the forward pass via $B_{\text{locked}} = P_\perp(P_\perp(\tilde{B}))$, bounding writer leakage to **`5.21e-18 – 9.87e-18`** in `float64` (`~3e-10` in `float32`).
-7. **Downstream C/C++ Sanitizer Audit Uplift & Static Payload Sanitization (`secant sanitize`, `secant probe`):**
-   - Rank-1 security-invariant surgery lifts `Qwen2.5-Coder-32B-Instruct` from `6.7%` (`2/30`) to **`40.0%` (`12/30`, `+10` crashes, $p = 0.00195$)** on our 30-case C/C++ sanitizer vulnerability suite without increasing reasoning token length. Meanwhile, `secant sanitize` scans checkpoints on disk for `NaN`/`Inf`/subnormal floats and out-of-bounds MoE router IDs that can crash C++ kernels.
 
 ---
 

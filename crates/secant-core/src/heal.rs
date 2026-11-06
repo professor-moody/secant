@@ -673,6 +673,10 @@ pub struct HealPair {
     pub target_dtype: String,
     #[serde(rename = "a_columns_permuted_hf_to_gguf", skip_serializing_if = "is_false")]
     pub a_permuted: bool,
+    pub leak_inf_float64: f64,
+    pub leak_inf_f32_adapter: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub leak_inf_merged: Option<f64>,
 }
 
 /// The optional merge into a base copy.
@@ -912,6 +916,7 @@ fn heal_inner(o: &HealOptions, rep: &mut HealReport, cleanup: &mut Vec<PathBuf>)
         project_columns(&ps.basis, &mut b, d, r);
         hp.b_fro_after = norm2_nf(&b);
         hp.leak_after_f64 = leakage_of_columns(&ps.basis, &b, d, r);
+        hp.leak_inf_float64 = hp.leak_after_f64;
         if hp.leak_after_f64 >= HEAL_F64_TOL {
             return Err(Error::gate(format!(
                 "module {}: float64 residual leakage {} is not below {} (column magnitudes too large for an absolute bound)",
@@ -959,6 +964,7 @@ fn heal_inner(o: &HealOptions, rep: &mut HealReport, cleanup: &mut Vec<PathBuf>)
             };
             let bm = matrix_of(sb, bt)?;
             rep.pairs[i].leak_after_serialize = leakage_of_columns(&ps.basis, &bm, bt.logical_out, bt.logical_in);
+            rep.pairs[i].leak_inf_f32_adapter = rep.pairs[i].leak_after_serialize;
             if rep.pairs[i].leak_after_serialize > rep.max_leak_serial {
                 rep.max_leak_serial = rep.pairs[i].leak_after_serialize;
             }
@@ -1175,6 +1181,13 @@ fn heal_merge(
         tol: o.tol,
     };
     let gr = verify_subspace_inner(&gate_opts, &mut gate);
+    for p in rep.pairs.iter_mut() {
+        for gt in &gate.tensors {
+            if gt.name == p.target && gt.max_leak.is_some() {
+                p.leak_inf_merged = gt.max_leak;
+            }
+        }
+    }
     let verdict = gate.verdict.clone();
     let (max_leak, tol, reason) = (gate.max_leak, gate.tol, gate.reason.clone());
     m.gate = Some(gate);
