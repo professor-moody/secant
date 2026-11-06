@@ -2,14 +2,6 @@
 
 This guide walks through building `secant` and running its **5 core workflows** (covering all 14 CLI subcommands and the Python `secant.nn` / `secant.capture` APIs), from reading weight concepts directly into vocabulary tokens without a GPU to in-place 34-byte `Q8_0` GGUF block surgery and `ProjectThenHealLinear` subspace-locked LoRA training.
 
-```{figure} assets/secant-terminal-demo.svg
-:name: fig-quickstart-terminal-demo
-:alt: Secant live terminal session capture
-:width: 100%
-
-End-to-end `secant` terminal session: (1) decoding downstream vocabulary tokens directly from static weight singular vectors (`secant read --vocab-tensor`), (2) Borda layer ranking and `Q8_0` in-place block surgery (`secant analyze`, `secant compose --analysis`, `secant quant patch`), and (3) `Project-Then-Heal` subspace-locked LoRA (`secant heal`).
-```
-
 ---
 
 ## 1. Build & Install in 60 Seconds
