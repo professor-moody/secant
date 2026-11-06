@@ -2,7 +2,9 @@
 
 In production deployments, language models are frequently served as block-quantized `.gguf` files (`Q8_0`, `Q4_K_M`, `Q6_K`). Re-downloading a multi-gigabyte `BF16` checkpoint simply to apply a sparse behavioral edit and re-quantizing the entire file is slow and modifies every tensor in the model.
 
-Secant provides **direct in-place quantized block surgery (`secant quant patch`)** on `Q8_0` tensors, backed by an exact block-grid alignment test that explains why `Q8_0` works in place and why `Q4_K` superblocks must be guarded.
+Secant provides **direct quantized block surgery (`secant quant patch`)** on `Q8_0` tensors. By default it writes a copy; `--in-place` explicitly selects mutation of the input. Block alignment explains when whole-panel permutations preserve the codec grid. It does not guarantee behavioral outcomes.
+
+**Relation to prior work.** [OPLoRA](https://arxiv.org/abs/2510.13003), [Safe LoRA](https://arxiv.org/abs/2405.16833), and [OGPSA](https://arxiv.org/abs/2602.07892) concern constrained adaptation or alignment; their guarantees do not automatically extend through lossy storage. [Heretic](https://github.com/p-e-w/heretic), [Obliteratus](https://github.com/elder-plinius/OBLITERATUS), and [model-unfetter](https://github.com/josepha-mayo/model-unfetter) overlap in directional editing. This page evaluates Secant's block-preservation contract, not comparative performance or the absence of quantized support elsewhere. See [the paper](PAPER.md) for bibliographic details and limits.
 
 ```{figure} assets/q8-vs-q4k-blocks.svg
 :name: fig-q8-vs-q4k-blocks
@@ -14,7 +16,7 @@ Why `Q8_0` commutes with 128-column `ssm_out` value-head panels while `Q4_K` str
 
 ---
 
-## 1. Why `Q8_0` Commutes with Head Permutations and `Q4_K` Does Not
+## 1. Whole-Panel Permutations and Quantization Block Alignment
 
 When `llama.cpp` converts hybrid `Qwen3.5` models with $r = n_v / n_k > 1$ (such as `Qwen3.5-4B`, where $n_k = 16, n_v = 32, r = 2$) to GGUF, it permutes the input columns of `blk.N.ssm_out.weight` in **128-column value-head panels** ($\Pi_{128}$). (On `Qwen3.5-0.8B`, $n_k = n_v = 16$ so $r = 1$ and the deployed column order is the identity; we evaluate $\Pi_{128}$ on `blk.16.ssm_out.weight` as a structural 128-tile permutation test alongside the real identity layout.) Writing a HuggingFace 128-column panel index as $h = k \cdot r + j$ ($k < n_k$, $j < r$), its GGUF panel position is $\pi(k \cdot r + j) = j \cdot n_k + k$: the transpose of an $(n_k, r) = (16, 2)$ grid into a $(2, 16)$ grid. On `Qwen3.5-4B` this is a **non-trivial bijection**, not an involution: because $r \neq n_k$, applying it twice does not return the identity ($\pi(1) = 16$, $\pi(16) = 8$). The inverse is
 
@@ -28,11 +30,13 @@ Whether a quantized format commutes with $\Pi_{128}$ depends on how its block si
 |---|---|---|
 | **Block size & byte footprint** | **32 weights** (`34` bytes: `2B` `f16` scale + `32B` `int8` codes) | **256 weights** (`144` bytes: shared `f16` `d, dmin` + `8` sub-blocks) |
 | **Alignment with 128-col `ssm_out` panels** | **Exact ($128 = 4 \times 32$)**: `0` straddling blocks | **Fails ($256 = 2 \times 128$)**: straddles 2 value heads (`8` per 2048-col row, `16` per 4096-col row) |
-| **Refusal (`B2`) removed by direct block surgery** | **`98.5%` removed** (`0.5172` $\to$ `0.0079`) | **Fails: `67%` of refusal survives** (`0.5172` $\to$ `0.346`) |
+| **Reported weight-component change (`B2`)** | **`98.5%` removed** (`0.5172` $\to$ `0.0079`) | **`67%` of the component retained** (`0.5172` $\to$ `0.346`) |
 | **Secant default behavior** | Supported in-place (`secant quant patch`) | Refused (`block-aligned surgery needs Q8_0`) |
 
 - **In `Q8_0` (`32` elements per block):** Every 128-column value-head panel is an exact union of 4 complete `Q8_0` blocks. Editing or permuting a panel never touches a neighboring panel's scale factor.
-- **In `Q4_K` (`256` elements per superblock):** Every superblock spans two adjacent 128-column panels and shares a single top-level `FP16` scale `d` and minimum `dmin`. Editing one panel shifts the shared superblock scale and corrupts the neighboring value head, leaving `67%` of the unwanted refusal component intact.
+- **In `Q4_K` (`256` elements per superblock):** Every aligned superblock spans two adjacent 128-column panels and shares top-level `FP16` scale `d` and minimum `dmin`. Editing one panel can alter the reconstructed neighbor. A panel permutation that preserves superblock pairs, including the identity, can still commute. The reported `67%` retained component is a particular weight-space measurement, not a guaranteed consequence of straddling.
+
+The permutation argument assumes a deterministic, position-independent encoder, aligned rows and complete blocks. Percentages here describe projections of weights onto a supplied direction, not the percentage of prompts refused. The standalone Rust `secant quant patch` refuses `Q4_K`; experimental `Q4_K` re-encoding results below are not receipts from a successful invocation of that command.
 
 ---
 
@@ -88,30 +92,32 @@ $$
 \big|Q_{32}(W + \Delta W) - Q_{32}(Q_{32}(W) + \Delta W)\big|_i \;\le\; \kappa\,\big((3 + \kappa)\, a_b + 2\,\delta_b\big).
 $$
 
-The bound is linear in the block's own magnitude, which is why `Q8_0` Path 2 stays close to Path 1: observed `max_abs_diff` $= 2.16 \times 10^{-3}$ on the edited `Qwen3.5-0.8B` `Q8_0` tensors (Section 4).
+This is an ideal-arithmetic bound with FP16 scale rounding included. It requires the scale-range assumption for each of $W_b$, $W_b+\Delta W_b$ and $Q_{32}(W)_b+\Delta W_b$, not only the original block. It does not include the Rust encoder's float32 reciprocal, multiplication and rounding errors and is not a certified bound for all machine inputs. The reported `max_abs_diff` $= 2.16 \times 10^{-3}$ is an empirical measurement, separate from that bound.
 
 ### 2.2 `Q4_K` Superblock Straddling (Empirical)
 
-`Q4_K` is not a single uniform scalar quantizer: each 256-element superblock has an `FP16` super-scale `d` and super-minimum `dmin`, plus eight 6-bit sub-block scales and minimums. On `Qwen3.5` `ssm_out`, each superblock straddles two 128-column value heads, so an edit to one head changes the shared fit of the neighboring head. We do **not** claim a proved per-element bound for `Q4_K`. Its behavior is characterized empirically: observed Path 1 vs. Path 2 `max_abs_diff` $= 2.38 \times 10^{-2}$ (about $11\times$ the `Q8_0` value), `8` straddling superblocks per 2048-column row (`16` per 4096-column row), and `67%` of the removed refusal direction surviving direct `Q4_K` surgery (`0.5172` $\to$ `0.346`, Section 1). This is why `secant quant patch` accepts only `Q8_0` tensors and refuses `Q4_K` (and every other dtype) with `tensor <name> is <dtype>, block-aligned surgery needs Q8_0`.
+`Q4_K` is not a single uniform scalar quantizer: each 256-element superblock has an `FP16` super-scale `d` and super-minimum `dmin`, plus eight 6-bit sub-block scales and minimums. On `Qwen3.5` `ssm_out`, each superblock straddles two 128-column value heads, so an edit to one head can change the shared fit of the neighboring head. We do **not** claim a proved per-element bound for `Q4_K`. Its behavior is characterized empirically: observed Path 1 vs. Path 2 `max_abs_diff` $= 2.38 \times 10^{-2}$ (about $11\times$ the `Q8_0` value), `8` straddling superblocks per 2048-column row (`16` per 4096-column row), and about `67%` of the original weight-direction component retained in experimental `Q4_K` re-encoding (`0.5172` $\to$ `0.346`, Section 1). The implemented policy is that `secant quant patch` accepts only `Q8_0` tensors and refuses `Q4_K` (and every other dtype) with `tensor <name> is <dtype>, block-aligned surgery needs Q8_0`.
 
 ---
 
 ## 3. Empirical Quantization Error: `Q8_0` vs. `Q4_K`
 
-Comparing `Q8_0` vs. `Q4_K` quantization error across all four edited `ffn_down` layers (`12, 13, 15, 19`) of `Qwen3.5-0.8B` (`secant quant witness`) shows `Q8_0` with **`11.5x` to `11.7x` lower relative quantization error** than `Q4_K`:
+The banked `exp2_receipt.json` (`crucible.secant.phase3.exp2.v1`, SHA-256 `1c437338d697ccfb6b24286ac60c84fa0c0a73f3a0120e3aefd920c5d608b0c7`) records a single `Qwen3.5-0.8B` `ssm_out` experiment with a projector edit of Frobenius norm `0.5172394742`. Under `commutation.identity_real`, both codecs commute with the identity permutation. Their reconstruction errors still differ:
 
-| Layer (`Qwen3.5-0.8B`) | Edit Stream | $\Vert \Delta W\Vert _{\mathrm{F}}$ | `Q8_0` Relative Error | `Q4_K` Relative Error | `Q8_0` Advantage |
-|---|---|---:|---:|---:|---:|
-| `blk.12.ffn_down.weight` | `B2` (dense) | `0.8500` | **`0.61%`** | `7.06%` | **`11.5x` lower error** |
-| `blk.13.ffn_down.weight` | `B3` (`K=128`) | `0.8500` | **`0.59%`** | `6.84%` | **`11.6x` lower error** |
-| `blk.15.ffn_down.weight` | `B1a` (`K=128`) | `1.1000` | **`0.58%`** | `6.79%` | **`11.7x` lower error** |
-| `blk.19.ffn_down.weight` | `B1b` (`K=128`) | `1.1000` | **`0.60%`** | `6.91%` | **`11.5x` lower error** |
+| Metric under identity ordering | `Q8_0` | `Q4_K` |
+|---|---:|---:|
+| Path 1 relative Frobenius reconstruction error | `0.5836%` | `7.5863%` |
+| Path 2 relative Frobenius reconstruction error | `0.7992%` | `8.2210%` |
+| Path 2 residual along the supplied direction, L2 | `0.0078591` | `0.3457191` |
+| Path 1 versus Path 2 maximum absolute difference | `0.0021572` | `0.0238073` |
+
+These are retained experimental measurements, not fresh model runs or outputs of the current Rust CLI. The earlier four-`ffn_down` error table could not be tied to an identified receipt in this audit and has been removed. The separate whole-model `Q8_0` byte-preservation experiment remains in Section 4.
 
 ---
 
 ## 4. Path 1 (`Edit-Then-Quantize`) vs. Path 2 (`secant quant patch` In-Place)
 
-Comparing **Path 1** (`secant patch` on `BF16` $\to$ `llama-quantize --pure Q8_0`) against **Path 2** (`secant quant patch` directly on `Qwen3.5-0.8B.Q8_0.gguf`) shows that direct 34-byte block surgery leaves all untouched blocks 100% bit-identical and matches Path 1 within **`0.179%` to `0.923%` per-tensor relative Frobenius error** (note that blocks where the float delta rounds to the same `int8` code remain byte-identical even when inside the touched column support):
+Comparing **Path 1** (schematically, `secant patch` on `BF16` followed by external Q8_0 quantization) against **Path 2** (`secant quant patch` directly on `Qwen3.5-0.8B.Q8_0.gguf`) shows that direct 34-byte block surgery leaves all untouched blocks 100% bit-identical and matches Path 1 within **`0.179%` to `0.923%` per-tensor relative Frobenius error** (note that blocks where the float delta rounds to the same `int8` code remain byte-identical even when inside the touched column support):
 
 | Tensor (`Qwen3.5-0.8B` `Q8_0`) | Total `Q8_0` Blocks | Modified Blocks (Path 2) | Touched but Byte-Unchanged | Untouched Support Blocks (`Bit-Identical = true`) | Relative Frobenius Diff (Path 1 vs Path 2) |
 |---|---:|---:|---:|---:|---:|
@@ -119,4 +125,4 @@ Comparing **Path 1** (`secant patch` on `BF16` $\to$ `llama-quantize --pure Q8_0
 | `blk.13.ffn_down.weight` (`B3`) | `114,688` | `48,703` | `449` | `65,536` (`100%` identical) | **`0.251%`** |
 | `blk.15.ffn_down.weight` (`B1a`) | `114,688` | `31,104` | `640` | `82,944` (`100%` identical) | **`0.225%`** |
 | `blk.19.ffn_down.weight` (`B1b`) | `114,688` | `21,842` | `686` | `92,160` (`100%` identical) | **`0.179%`** |
-| **All other 316 tensors in file** | `n/a` | **`0`** | **`0`** | **`100%` (`0` bytes differing)** | **`0.000%`** |
+| **All other 331 tensors in file** | `n/a` | **`0`** | **`0`** | **`100%` (`0` bytes differing)** | **`0.000%`** |

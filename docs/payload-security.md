@@ -15,7 +15,7 @@ This page describes only what the standalone `secant` CLI implements.
 
 ## 2. Static Weight-Value Scan (`secant sanitize`)
 
-`secant sanitize --model <file> --receipt <new.json> --attempt-id <id>` scans every selected tensor and writes a `secant.wsp.sanitize.v1` receipt.
+`secant sanitize --model <file> --receipt <new.json> --attempt-id <id>` scans supported static payload values and writes a `secant.wsp.sanitize.v1` receipt. A GGUF containing any quantized tensor is refused by this scanner with exit `2`, even if other tensors are unquantized (`crates/secant-core/src/security.rs:1137`). A successful `inspect` or `quant witness` does not imply `sanitize` supports the same file.
 
 | Finding | Criterion | Repair available |
 |---|---|---|
@@ -55,8 +55,8 @@ During `secant read --detect-anomalies`, each selected 2-D tensor is scanned in 
 | Field | Criterion |
 |---|---|
 | **`zero_rows`** | $\rho_i = 0$ |
-| **`collapsed_rows`** | $0 < \rho_i < 10^{-3} \cdot \operatorname{median}_r \rho_r$ |
-| **`spike_cols`** | $c_j > \operatorname{median}(c) + 10 \cdot 1.4826 \cdot \mathrm{MAD}(c)$ **and** $c_j > 2.0 \cdot \operatorname{median}(c)$, where $\mathrm{MAD}(c) = \operatorname{median}_j \lvert c_j - \operatorname{median}(c)\rvert$ |
+| **`collapsed_rows`** | $0 < \rho_i < 10^{-3} \cdot \mathrm{median}_r \rho_r$ |
+| **`spike_cols`** | $c_j > \mathrm{median}(c) + 10 \cdot 1.4826 \cdot \mathrm{MAD}(c)$ **and** $c_j > 2.0 \cdot \mathrm{median}(c)$, where $\mathrm{MAD}(c) = \mathrm{median}_j \lvert c_j - \mathrm{median}(c)\rvert$ |
 
 The record also carries up to 32 example indices per class, `median_row_l2`, the rule text, and `flagged = (zero_rows + collapsed_rows + spike_cols > 0)`. Detection is informational: `read` exits `0` whether or not anomalies are flagged.
 

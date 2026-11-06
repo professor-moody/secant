@@ -5,6 +5,10 @@ use secant_core::{plan, subspace::ORTHOGONALITY_TOLERANCE};
 use serde_json::json;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Build a deterministic edit plan from protected directions and a built-in or JSON profile. Directions are orthogonalized in float64; calibration uses a target activation shift or relative Frobenius norm. The plan is written to --out.",
+    after_help = "Example:\n  secant compose --profile security-auditor-b1b2b3 --vectors directions/ --target-shift 1 --out plan.json"
+)]
 pub struct Args {
     /// Built-in profile name or path to a secant.wsp.profile.v1 JSON file
     #[arg(long)]
@@ -75,8 +79,12 @@ pub fn run(a: &Args) -> i32 {
             Err(e) => fail(&e),
         };
     }
-    println!("composed {} edit(s) for profile {} -> {}", plan.edits.len(), plan.profile, out);
+    section("Edit plan");
+    field("Profile", &plan.profile);
+    field("Plan", out);
+    field("Edits", plan.edits.len());
     if let Some(g) = &plan.gram_schmidt {
+        field("Orthogonality gate", badge(g.post_cosine_max_abs < ORTHOGONALITY_TOLERANCE));
         println!(
             "gram-schmidt: {} direction(s), post max |cos| {:.3e} (< {:.0e})",
             g.order.len(),
@@ -91,14 +99,25 @@ pub fn run(a: &Args) -> i32 {
         println!(" (gamma {:.3})", plan.calibration.gamma);
     }
     let _ = plan::PLAN_SCHEMA;
-    for e in &plan.edits {
-        if e.achieved_shift != 0.0 {
-            println!("  {:<4} {:<18} {} cols={} witness shift {:+.3}", e.id, e.role, e.tensor, e.cols.len(), e.achieved_shift);
-        } else if e.op == "projector-subtract" {
-            println!("  {:<4} {:<18} {} gamma {:.3}", e.id, e.role, e.tensor, e.gamma);
-        } else {
-            println!("  {:<4} {:<18} {} {}", e.id, e.role, e.tensor, e.op);
-        }
-    }
+    table(
+        &["EDIT", "ROLE", "TENSOR", "OPERATION", "CALIBRATION"],
+        &plan
+            .edits
+            .iter()
+            .map(|e| {
+                vec![
+                    e.id.clone(),
+                    e.role.clone(),
+                    e.tensor.clone(),
+                    e.op.clone(),
+                    if e.achieved_shift != 0.0 {
+                        format!("shift {:+.6e}; {} columns", e.achieved_shift, e.cols.len())
+                    } else {
+                        format!("gamma {:.6e}", e.gamma)
+                    },
+                ]
+            })
+            .collect::<Vec<_>>(),
+    );
     0
 }

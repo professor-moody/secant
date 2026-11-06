@@ -225,6 +225,32 @@ def inspect(model: PathLike, *, json: bool = True, strict: bool = True, **kw: An
     return _need(run(argv, **kw), "inspect", strict)
 
 
+def rotation_test(tensor_npy: PathLike, directions_npy: PathLike, *, rank: int = 4, steps: int = 60,
+                  lr: float = 0.01, wd: float = 0.01, seed: int = 0, attempt_id: Optional[str] = None,
+                  json: bool = True, strict: bool = True, **kw: Any) -> CliResult:
+    """Run the native deterministic three-arm optimizer geometry witness."""
+    argv = ["rotation-test", "--tensor-npy", tensor_npy, "--directions-npy", directions_npy]
+    for flag, value in [("rank", rank), ("steps", steps), ("lr", lr), ("wd", wd), ("seed", seed), ("attempt-id", attempt_id)]:
+        _opt(argv, "--" + flag, value)
+    if json:
+        argv.append("--json")
+    return _need(run(argv, **kw), "rotation-test", strict)
+
+
+def fetch_tensor(repo: str, tensor: str, out: PathLike, *, revision: str = "main", receipt: Optional[PathLike] = None,
+                 row_start: Optional[int] = None, row_count: Optional[int] = None, max_bytes: Optional[int] = None,
+                 endpoint: Optional[str] = None, attempt_id: Optional[str] = None,
+                 json: bool = True, strict: bool = True, **kw: Any) -> CliResult:
+    """Fetch a commit-pinned tensor range and publish a new .npy plus receipt."""
+    argv = ["fetch-tensor", "--repo", repo, "--tensor", tensor, "--out", out]
+    for flag, value in [("revision", revision), ("receipt", receipt), ("row-start", row_start), ("row-count", row_count),
+                        ("max-bytes", max_bytes), ("endpoint", endpoint), ("attempt-id", attempt_id)]:
+        _opt(argv, "--" + flag, value)
+    if json:
+        argv.append("--json")
+    return _need(run(argv, **kw), "fetch-tensor", strict)
+
+
 def read(
     model: PathLike,
     *,

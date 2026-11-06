@@ -3,6 +3,10 @@ use clap::Args as ClapArgs;
 use secant_core::read::{read_model, ReadOptions};
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Read selected weights without inference: Frobenius norms, leading singular values, high-energy columns and optional vocabulary projections. Anomaly flags are informational and retain exit status 0.",
+    after_help = "Examples:\n  secant read --model model.gguf --tensor 'blk.0.*' --top-k-singular 4\n  secant read --model model.safetensors --detect-anomalies --json"
+)]
 pub struct Args {
     /// Input .gguf or .safetensors (read only)
     #[arg(long)]
@@ -50,18 +54,42 @@ pub fn run(a: &Args) -> i32 {
             Err(e) => fail(&e),
         };
     }
-    println!(
-        "read {} ({}): {}/{} tensors selected, {} analyzed; sha256 {} unchanged={}",
-        rep.model, rep.format, rep.tensors_selected, rep.tensors_in_file, rep.tensors_analyzed, rep.pre_sha256, rep.input_unchanged
+    section("Weight-space analysis");
+    field("Model", &rep.model);
+    field("Selection", format!("{} / {} tensors; {} analyzed", rep.tensors_selected, rep.tensors_in_file, rep.tensors_analyzed));
+    field("Input unchanged", badge(rep.input_unchanged));
+    field("SHA-256", &rep.pre_sha256);
+    table(
+        &["TENSOR", "DTYPE", "SHAPE", "FROBENIUS NORM", "STATUS"],
+        &rep.tensors
+            .iter()
+            .map(|t| {
+                vec![
+                    t.name.clone(),
+                    t.dtype.clone(),
+                    format!("{:?}", t.shape),
+                    t.frobenius.map(|x| format!("{:.6e}", x)).unwrap_or_else(|| "UNKNOWN".into()),
+                    t.status.clone(),
+                ]
+            })
+            .collect::<Vec<_>>(),
     );
     for t in &rep.tensors {
-        print!("  {} {} {:?}: {}", t.name, t.dtype, t.shape, t.status);
-        if let Some(f) = t.frobenius {
-            print!(" fro={:.6e}", f);
-        }
-        for (i, s) in t.singular.iter().enumerate() {
-            print!(" s{}={:.6e}", i + 1, s.sigma);
-        }
+        section(&t.name);
+        table(
+            &["SINGULAR VALUE", "SIGMA", "RELATIVE TO FIRST"],
+            &t.singular
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    vec![
+                        (i + 1).to_string(),
+                        format!("{:.6e}", s.sigma),
+                        format!("{:.6}", if t.singular[0].sigma > 0.0 { s.sigma / t.singular[0].sigma } else { 0.0 }),
+                    ]
+                })
+                .collect::<Vec<_>>(),
+        );
         if let Some(an) = &t.anomalies {
             if an.flagged {
                 print!(" ANOMALIES zero_rows={} collapsed_rows={} spike_cols={}", an.zero_rows, an.collapsed_rows, an.spike_cols);

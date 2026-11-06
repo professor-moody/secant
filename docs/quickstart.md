@@ -8,7 +8,8 @@ This guide walks through building `secant` from source and executing **Probe $\t
 
 ```bash
 # Build secant CLI and libsecant C-ABI library in release mode
-# Note: Cargo.toml enforces opt-level = 3 with FMA-free float64 accumulation
+# Run from native/secant-rs in the repository.
+# Release opt-level is 3; unfused arithmetic is implemented in the numeric kernels.
 cargo build --release
 
 # Verify the binary
@@ -116,7 +117,7 @@ These runs were captured with the `secant` binary built from this repository on 
 
 ## 4. Capture Contrastive Behavioral Directions (`secant.capture`)
 
-Use `secant.capture.capture_contrastive_directions` to extract unit-norm behavioral directions $v_b \in \mathbb{R}^{d_{\text{model}}}$ from paired contrastive prompts and evaluate held-out `snr_proj`, `snr_trace`, and `split_half_cosine` on a deterministic 50/50 split:
+Use `secant.capture.capture_contrastive_directions` to extract unit-norm behavioral directions $v_b \in \mathbb{R}^{d_{\text{model}}}$ from positive and negative prompt classes and evaluate held-out `snr_proj`, `snr_trace`, and `split_half_cosine` on independent deterministic class splits. The classes need not be paired or have equal counts:
 
 ```python
 from secant.capture import capture_contrastive_directions, write_vectors

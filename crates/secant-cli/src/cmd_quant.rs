@@ -8,6 +8,10 @@ use secant_core::subspace::{load_directions, load_numpy_file};
 use secant_core::Error;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Inspect quantization error, measure protected-subspace leakage, or edit Q8_0 blocks. Supported formats are q8_0 and q4_k; patching uses Q8_0. Numerical diagnostics are measurements, not an inference-quality guarantee.",
+    after_help = "Examples:\n  secant quant roundtrip --npy weights.npy --format q8_0\n  secant quant witness --model model.gguf --tensor blk.0.ffn_down.weight --vectors d.npy\n  secant quant patch --base base.gguf --plan plan.json --out edited.gguf"
+)]
 pub struct Args {
     #[command(subcommand)]
     sub: Sub,
@@ -16,6 +20,9 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 enum Sub {
     /// Measure ||D^T (Dequant(Quant(W')) - W')||_2 for a tensor (the Pi_128 commutation witness)
+    #[command(
+        after_help = "Example:\n  secant quant witness --model model.gguf --tensor blk.0.ffn_down.weight --vectors d.npy --format q8_0"
+    )]
     Witness {
         #[arg(long)]
         model: String,
@@ -34,6 +41,7 @@ enum Sub {
         json: bool,
     },
     /// Block-aligned Q8_0 surgery: only blocks holding an edited element are re-quantized
+    #[command(after_help = "Example:\n  secant quant patch --base base.gguf --plan plan.json --out edited.gguf --json")]
     Patch {
         #[arg(long)]
         base: String,
@@ -47,6 +55,7 @@ enum Sub {
         json: bool,
     },
     /// Round-trip a .npy matrix/vector through a format and report the error
+    #[command(after_help = "Example:\n  secant quant roundtrip --npy weights.npy --format q4_k --json")]
     Roundtrip {
         #[arg(long)]
         npy: String,
@@ -104,14 +113,30 @@ pub fn run(a: &Args) -> i32 {
                             return fail(&e);
                         }
                     } else {
-                        println!(
-                            "witness {} {}: ||D^T(Dq(Q(W'))-W')||_2 = {:.6e}, max|.| = {:.6e}, ||Dq(Q(W'))-W'||_F = {:.6e}, ||D^T W'||_F before = {:.6e}",
-                            v["format"].as_str().unwrap_or("?"), tensor,
-                            v["witness_l2"].as_f64().unwrap_or(f64::NAN), v["witness_max_abs"].as_f64().unwrap_or(f64::NAN),
-                            v["quant_error_fro"].as_f64().unwrap_or(f64::NAN), v["dt_w_fro_before"].as_f64().unwrap_or(f64::NAN)
+                        section("Quantization witness");
+                        field("Tensor", tensor);
+                        field("Format", v["format"].as_str().unwrap_or("UNKNOWN"));
+                        table(
+                            &["METRIC", "VALUE"],
+                            &[
+                                ("Projected quantization error (L2)", "witness_l2"),
+                                ("Projected quantization error (max abs)", "witness_max_abs"),
+                                ("Quantization error (Frobenius)", "quant_error_fro"),
+                                ("Protected component before (Frobenius)", "dt_w_fro_before"),
+                            ]
+                            .iter()
+                            .map(|(label, key)| {
+                                vec![
+                                    label.to_string(),
+                                    v[*key].as_f64().map(|n| format!("{:.6e}", n)).unwrap_or_else(|| "UNKNOWN".into()),
+                                ]
+                            })
+                            .collect::<Vec<_>>(),
                         );
+                        println!("\nMeasurements only; no leakage threshold gate was run.");
                         if let Some(p) = v.get("pi128") {
-                            println!("  pi128 equivariance: {}", p);
+                            section("Pi_128 equivariance");
+                            details(p);
                         }
                     }
                     0
@@ -138,14 +163,29 @@ pub fn run(a: &Args) -> i32 {
                             Err(e) => fail(&e),
                         };
                     }
-                    println!("q8_0 patch {} -> {}", base, out);
-                    for e in &rep.edits {
-                        println!(
-                            "  {:<4} {}: {}/{} blocks touched, {} rewritten, max requant error {:.3e}",
-                            e.id, e.tensor, e.blocks_touched, e.blocks_total, e.blocks_rewritten, e.max_requant_error
-                        );
+                    section("Q8_0 block patch");
+                    field("Base", base);
+                    field("Output", out);
+                    if let Some(verify) = &rep.verify {
+                        field("Byte-identity gate", badge(verify.ok));
                     }
-                    println!("sha256 {}", rep.out_sha256);
+                    field("Output SHA-256", &rep.out_sha256);
+                    table(
+                        &["EDIT", "TENSOR", "TOUCHED / TOTAL", "REWRITTEN", "MAX REQUANT ERROR"],
+                        &rep
+                            .edits
+                            .iter()
+                            .map(|e| {
+                                vec![
+                                    e.id.clone(),
+                                    e.tensor.clone(),
+                                    format!("{} / {}", e.blocks_touched, e.blocks_total),
+                                    e.blocks_rewritten.to_string(),
+                                    format!("{:.6e}", e.max_requant_error),
+                                ]
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                     0
                 }
                 Err(e) => fail(&e),
@@ -182,7 +222,8 @@ pub fn run(a: &Args) -> i32 {
                             return fail(&e);
                         }
                     } else {
-                        println!("{}", v);
+                        section("Quantization round-trip");
+                        details(&v);
                     }
                     0
                 }

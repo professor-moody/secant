@@ -12,12 +12,16 @@
 //! NEW directory; the receipt is a new file. Fixtures are byte-deterministic
 //! for a given class, format and --num-experts.
 //! Exit 0: generated and self-verified. Exit 2: usage, I/O, or could not verify.
-use crate::util::{fail, usage};
+use crate::util::{fail, field, section, table, usage};
 use clap::Args as ClapArgs;
 use secant_core::security::{generate_probe, go_abs, write_probe_receipt, ProbeOptions};
 use secant_core::Error;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Generate deterministic boundary-value fixtures with valid container headers. Each published fixture is inspected and checked against its intended static policy findings. Use a new output directory and a separate new receipt path.",
+    after_help = "Example:\n  secant probe --class class1 --format safetensors --out-dir fixtures --receipt probe.json --attempt-id local-check"
+)]
 pub struct Args {
     /// class1|class2|class3|class4|all
     #[arg(long, default_value = "all")]
@@ -83,9 +87,17 @@ pub fn run(a: &Args) -> i32 {
     if a.json {
         println!("{}", rep.to_json_pretty());
     } else {
+        section("Fixture generation");
+        field("Status", &rep.status);
         println!("probe: {}; {} fixture(s) in {}; receipt {}", rep.status, rep.fixtures.len(), a.out_dir, a.receipt);
+        table(
+            &["FIXTURE", "SCAN STATUS", "FINDINGS", "SHA-256"],
+            &rep.fixtures
+                .iter()
+                .map(|fx| vec![fx.file.clone(), fx.sanitize_status.clone(), fx.sanitize_total.to_string(), fx.sha256.clone()])
+                .collect::<Vec<_>>(),
+        );
         for fx in &rep.fixtures {
-            println!("  {:<52} {} findings={} sha256={}", fx.file, fx.sanitize_status, fx.sanitize_total, fx.sha256);
             for n in &fx.notes {
                 println!("      {}", n);
             }

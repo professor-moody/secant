@@ -117,6 +117,15 @@ def test_run_returns_tuple_json_and_never_uses_a_shell(fake_secant):
         secant.run("inspect --model x", binary=fake_secant)
 
 
+def test_fetch_tensor_wrapper_preserves_paths_and_slice_options(fake_secant):
+    result = secant.fetch_tensor("org/model", "layer.weight", "my tensor.npy", row_start=0, row_count=2, receipt="receipt.json", binary=fake_secant)
+    args = result.json["argv"]
+    assert args[:7] == ["fetch-tensor", "--repo", "org/model", "--tensor", "layer.weight", "--out", "my tensor.npy"]
+    assert args[args.index("--row-start") + 1] == "0"
+    assert args[args.index("--row-count") + 1] == "2"
+    assert args[-1] == "--json"
+
+
 def test_exit_codes_and_json_errors_are_reported_not_hidden(fake_secant, monkeypatch):
     monkeypatch.setenv("FAKE_SECANT_EXIT", "1")
     r = secant.run(["x", "--json"], binary=fake_secant)

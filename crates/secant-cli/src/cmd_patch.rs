@@ -4,6 +4,10 @@ use secant_core::container::{apply_plan_report, PatchMode};
 use secant_core::plan::Plan;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Apply an edit plan at tensor payload offsets and verify the result in the same run. By default the base stays read-only and --out receives a copy. --in-place explicitly edits the base. Apply failures retain exit status 1.",
+    after_help = "Example:\n  secant patch --base base.safetensors --plan plan.json --out edited.safetensors --json"
+)]
 pub struct Args {
     /// Base model to edit (read-only unless --in-place; a copy is patched)
     #[arg(long)]
@@ -53,14 +57,28 @@ pub fn run(a: &Args) -> i32 {
             Err(e) => fail(&e),
         };
     }
-    println!("patched {} -> {} ({} bytes)", base, out, report.out_bytes);
-    for e in report.edits.iter().flatten() {
-        println!(
-            "  {:<4} {}: {}/{} entries changed, delta_fro {:.6}",
-            e.id, e.tensor, e.entries_changed, e.entries_total, e.delta_fro_norm
-        );
-    }
+    section("Patch receipt");
+    field("Base", base);
+    field("Output", &out);
+    field("Output size", bytes(report.out_bytes as u64));
+    table(
+        &["EDIT", "TENSOR", "ENTRIES CHANGED", "DELTA FROBENIUS"],
+        &report
+            .edits
+            .iter()
+            .flatten()
+            .map(|e| {
+                vec![
+                    e.id.clone(),
+                    e.tensor.clone(),
+                    format!("{} / {}", e.entries_changed, e.entries_total),
+                    format!("{:.6e}", e.delta_fro_norm),
+                ]
+            })
+            .collect::<Vec<_>>(),
+    );
     if let Some(v) = &report.verify {
+        field("Verification gate", badge(v.ok));
         println!(
             "verify: header identical={}, other tensors byte-identical={} ({} tensors), ok={}",
             v.header_identical, v.other_tensors_byte_identical, v.n_tensors_other, v.ok

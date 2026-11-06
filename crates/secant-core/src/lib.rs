@@ -17,3 +17,4 @@ pub mod security;
 pub mod subspace;
 
 pub use error::{Error, Result};
+pub mod rotation;

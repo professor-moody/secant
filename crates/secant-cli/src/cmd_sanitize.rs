@@ -8,12 +8,16 @@
 //! Exit 0: clean or remediated under this policy. Exit 1: findings remain.
 //! Exit 2: usage, I/O, unsupported input, or incomplete scan. A clean receipt
 //! does not prove runtime inference safety. Output and receipts never overwrite.
-use crate::util::{fail, usage};
+use crate::util::{badge, bytes, fail, field, section, table, usage};
 use clap::Args as ClapArgs;
 use secant_core::security::{go_abs, sanitize_file_report, write_sanitize_receipt, SanitizeOptions};
 use secant_core::Error;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Scan weight values against explicit numerical policies and write a receipt. Repairs are opt-in and published only after a clean rescan. Exit 0 means clean or remediated; 1 means findings remain; 2 means the scan was incomplete or invalid.",
+    after_help = "Example:\n  secant sanitize --model model.safetensors --receipt scan.json --attempt-id local-check\n\nA clean static scan does not prove runtime inference safety."
+)]
 pub struct Args {
     /// Input .gguf or .safetensors (read only)
     #[arg(long, default_value = "")]
@@ -105,6 +109,27 @@ pub fn run(a: &Args) -> i32 {
     if a.json {
         println!("{}", rep.to_json_compact());
     } else {
+        section("Weight-value policy scan");
+        field(
+            "Policy gate",
+            if rep.status == "clean" || rep.status == "remediated" {
+                "[PASS]"
+            } else if rep.status == "findings" {
+                "[FAIL]"
+            } else {
+                "[UNKNOWN]"
+            },
+        );
+        field("Input unchanged", badge(rep.input_unchanged));
+        field("Input size", bytes(rep.bytes.max(0) as u64));
+        if let Some(scan) = rep.after.as_ref().or(rep.before.as_ref()) {
+            field("Tensors scanned", scan.tensors);
+            field("Findings remaining", scan.total_findings);
+            table(
+                &["FINDING KIND", "COUNT"],
+                &scan.counts.iter().map(|(kind, count)| vec![kind.clone(), count.to_string()]).collect::<Vec<_>>(),
+            );
+        }
         println!(
             "sanitize: {}; receipt {}; input unchanged={}; output published={}",
             rep.status, a.receipt, rep.input_unchanged, rep.output_published

@@ -3,6 +3,10 @@ use clap::Args as ClapArgs;
 use secant_core::container::verify_patch;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Compare checkpoint headers and payloads. Every tensor outside --expect-changed must remain byte-identical; a failed verification exits 1. Listing a tensor permits a change but does not require one.",
+    after_help = "Example:\n  secant verify-patch --base base.gguf --patched edited.gguf --expect-changed blk.0.ffn_down.weight"
+)]
 pub struct Args {
     /// Unmodified base model
     #[arg(long)]
@@ -31,6 +35,8 @@ pub fn run(a: &Args) -> i32 {
             return fail(&e);
         }
     } else {
+        section("Patch verification");
+        field("Verification gate", badge(rep.ok));
         println!("verify {} vs {} ({})", base, patched, rep.format);
         println!("  header [{} bytes] identical: {}", rep.header_len, rep.header_identical);
         let ch = rep.changed_tensors.clone().unwrap_or_default();

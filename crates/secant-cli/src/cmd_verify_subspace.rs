@@ -7,12 +7,16 @@
 //! A tensor that is missing, differently shaped, not a 2-D float matrix, has
 //! d_out different from the direction dimension, or holds NaN/Inf is verdict
 //! unknown (exit 2), never pass. Exit 0 pass; 1 leak; 2 unknown or usage/I-O error.
-use crate::util::{emit_json, fail, split_csv, usage};
+use crate::util::{emit_json, fail, field, section, split_csv, table, usage};
 use clap::Args as ClapArgs;
 use secant_core::heal::{fmt_e, fmt_g, verify_subspace, VerifySubspaceOptions, DEFAULT_SUBSPACE_TOL};
 use secant_core::Error;
 
 #[derive(ClapArgs, Debug)]
+#[command(
+    long_about = "Measure protected-direction leakage on the realized stored weight difference, W_healed - W_base. All named tensors must satisfy --tol. Missing, incompatible or non-finite tensors produce UNKNOWN (exit 2), never a pass.",
+    after_help = "Example:\n  secant verify-subspace --base base.gguf --healed healed.gguf --vectors d.npy --tensors blk.0.ffn_down.weight --tol 1e-5"
+)]
 pub struct Args {
     /// Surgical (pre-heal) model
     #[arg(long, default_value = "")]
@@ -56,6 +60,15 @@ pub fn run(args: &Args) -> i32 {
             return fail(&e);
         }
     } else {
+        section("Protected-subspace verification");
+        field(
+            "Leakage gate",
+            match rep.verdict.as_str() {
+                "pass" => "[PASS]",
+                "leak" => "[FAIL]",
+                _ => "[UNKNOWN]",
+            },
+        );
         let (dim, k) = rep.protected.as_ref().map(|p| (p.dim, p.k)).unwrap_or((0, 0));
         println!(
             "verify-subspace: {} (tol {}, max leak {}, protected dim {}, k={})",
@@ -65,13 +78,26 @@ pub fn run(args: &Args) -> i32 {
             dim,
             k
         );
-        for t in &rep.tensors {
-            let leak = match t.max_leak {
-                Some(x) => fmt_e(x, 3),
-                None => "n/a".to_string(),
-            };
-            println!("  {:<40} {:<7} leak={} delta_fro={} {}", t.name, t.verdict, leak, fmt_g(t.delta_fro, 4), t.reason);
-        }
+        table(
+            &["TENSOR", "GATE", "MAX LEAKAGE", "DELTA FROBENIUS", "DETAIL"],
+            &rep.tensors
+                .iter()
+                .map(|t| {
+                    vec![
+                        t.name.clone(),
+                        match t.verdict.as_str() {
+                            "pass" => "[PASS]",
+                            "leak" => "[FAIL]",
+                            _ => "[UNKNOWN]",
+                        }
+                        .into(),
+                        t.max_leak.map(|x| fmt_e(x, 3)).unwrap_or_else(|| "UNKNOWN".into()),
+                        fmt_g(t.delta_fro, 4),
+                        t.reason.clone(),
+                    ]
+                })
+                .collect::<Vec<_>>(),
+        );
         if !rep.unchecked_changed.is_empty() {
             let mut names = rep.unchecked_changed.clone();
             names.sort();

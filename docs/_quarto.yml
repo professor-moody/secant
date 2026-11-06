@@ -5,7 +5,7 @@ project:
 book:
   title: "Secant: Weight-Space Programming & Subspace-Locked LoRA Healing"
   subtitle: "Deterministic Weight-Space Surgery, Quantization Commutation & Orthogonal LoRA Recovery"
-  author: "Secant Research Contributors"
+  author: "Nathan / m00dy"
   repo-url: https://github.com/professor-moody/secant
   repo-actions: [edit, issue]
   chapters:
