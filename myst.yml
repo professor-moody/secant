@@ -47,6 +47,6 @@ site:
     hide_search: false
   actions:
     - title: "Scientific Paper"
-      url: /PAPER
+      url: /secant/paper
     - title: "GitHub Repo"
       url: https://github.com/professor-moody/secant
