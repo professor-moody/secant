@@ -8,6 +8,8 @@ Secant combines Rust checkpoint tools with a PyTorch adapter layer. **Target-Shi
 
 The reported experiments measure both local numerical properties and model responses. On 30 crash-triage prompts, calibrated edits to `Qwen3.5-4B` raised completion within a fixed token limit from `0/30` to `21/30`, then `30/30` at a higher loop-edit dose (reported paired `p = 1.86e-9` against baseline). A separate C/C++ root-cause test on `Qwen2.5-Coder-32B-Instruct` improved from `2/30` to `12/30` correct cases (`p = 0.00195`). In the 15-model adapter comparison, Project-Then-Heal's relative leakage into the protected directions was `1.78e-10` to `8.67e-10`, compared with `0.33%` to `1.67%` for gradient-projected AdamW. These are results for the stated experiments. Calibration at one reference input does not guarantee behavior on other prompts, and a local adapter constraint does not prevent later layers or storage rounding from changing the result.
 
+The same tools also audit weights. In one planted rank-1 edit per model, on `SmolLM2-1.7B` and `Qwen3.5-4B`, the edit stayed invisible to `secant audit-trojan` until its singular value reached the layer's trained $\sigma_1$. That crossing happens at exactly $g^* = \sigma_1/\lVert W\rVert_F$, which is `8.65%` and `6.57%` of the weight norm. The trigger token was rank 1 or 2 in the vocabulary projection at `8%`. The automatic sibling outlier test fired at `12%`, with no false positives on the unedited bases. On `Q8_0` and `Q4_K` files, `secant sanitize` found exactly the three planted hostile scales. However, ordinary quantizer output carries hundreds of thousands of subnormal scales, so the default gate fails every quantized file. On 14 models with public benchmarks, the calibrated edits left scores where equal-size random edits left them. On `Qwen2.5-Math-7B-Instruct`, sizing edits relative to the writer's output norm showed that the earlier unit shift was only `1.34%` of that norm. Only the Project-Then-Heal arm changed GSM8K (`87%` to `93%`, unadjusted `p = 0.031`); the result does not survive multiple-comparison correction, and no control isolates the composition from the healing step.
+
 ---
 
 ## Reading Guide and Terminology
@@ -22,7 +24,8 @@ Throughout the derivations, `D` stores protected directions as rows, `W` is a we
 | [2. Editing compressed checkpoints](#container-geometry-the-pi-128-quantization-commutation-theorem) | Which stored blocks must change? | Whole 128-column panels contain complete `Q8_0` blocks, but split `Q4_K` superblocks. Editing and quantizing can still give different numerical results. |
 | [3. Constraining LoRA](#project-then-heal-structural-orthogonal-complement-lora) | How can fine-tuning respect protected directions? | Apply the projection inside the adapter's forward pass and measure rounding error after export. |
 | [4. Experiments](#cross-architecture-empirical-evaluation-0-8b-to-72-7b) | What was measured? | Separate reference-input checks, adapter tests, and response benchmarks. They support different claims. |
-| [5. Related work and limits](#related-work-and-limits-of-novelty) | Which ideas come from prior work? | Projection and constrained adapters are established methods; this paper evaluates their use in Secant's file-editing workflow. |
+| [5. Static weight auditing](#sec-paper-static-auditing) | Can the same reader find a planted edit or a hostile quantized scale? | A rank-1 edit hides until its singular value reaches $\sigma_1$; planted scales are found exactly, but the default gate also fails ordinary quantized files. |
+| [6. Related work and limits](#related-work-and-limits-of-novelty) | Which ideas come from prior work? | Projection and constrained adapters are established methods; this paper evaluates their use in Secant's file-editing workflow. |
 
 ---
 
@@ -337,6 +340,25 @@ ASan-30 counts out of 30 for each model: base (gray ring), calibrated `1.0x` (bl
 
 > **Scope.** These are first-N items, not random samples, from one seed, decoded greedily, on a set of checkpoints weighted toward Qwen. The receipt's standalone `secant` CLI cross-check is `HOLD` for 7 of the 14 models; that check is separate from these benchmark results. Section 4.5's table comes from separate runs. For `Gemma-2-9B`, `Qwen2.5-7B` and `Qwen3-14B`, its numbers do not match this receipt, which uses 100 and 64 items per benchmark, so do not combine the two tables.
 
+**Per-model counts, all 14 completed models.** Each cell is `base` / calibrated `1.0x` / norm-matched random `1.0x`, as correct items out of 100 (`GSM8K`, `MATH-500`, `MMLU-Pro`), passed items out of 64 (`HumanEval`), and correct root causes out of 30 (ASan-30). The rows are generated from the receipt with `jq`, not typed. Two rows that are easy to over-read: `OLMo-2-13B` `MATH-500` goes from `33` to `37` under the calibrated edit and also to `37` under the random control. `Qwen3-32B` `MATH-500` goes from `31` to `38` (exact McNemar `p = 0.19`, Holm `p = 1`), while `GSM8K` moves from `53` to `55` calibrated and to `56` random. No cell in this table is a demonstrated uplift.
+
+| Model | Size | `GSM8K` /100 | `MATH-500` /100 | `MMLU-Pro` /100 | `HumanEval` /64 | ASan-30 root cause /30 |
+|---|---:|---|---|---|---|---|
+| `Qwen3.5-0.8B` | `0.8B` | `48` / `44` / `47` | `30` / `26` / `23` | `22` / `20` / `17` | `5` / `5` / `1` | `5` / `7` / `12` |
+| `SmolLM2-1.7B` | `1.7B` | `23` / `23` / `21` | `25` / `26` / `23` | `4` / `5` / `4` | `7` / `6` / `7` | `5` / `6` / `6` |
+| `Qwen3.5-4B` | `4.0B` | `14` / `21` / `20` | `20` / `12` / `20` | `4` / `4` / `3` | `21` / `20` / `19` | `6` / `5` / `6` |
+| `Mistral-7B-v0.3` | `7.2B` | `55` / `46` / `49` | `13` / `16` / `7` | `25` / `25` / `28` | `2` / `0` / `0` | `12` / `15` / `10` |
+| `Qwen2.5-7B` | `7.6B` | `89` / `89` / `89` | `59` / `60` / `58` | `56` / `58` / `54` | `9` / `11` / `8` | `17` / `16` / `18` |
+| `Llama-3.1-8B` | `8.0B` | `78` / `83` / `82` | `44` / `38` / `41` | `48` / `46` / `51` | `22` / `18` / `23` | `17` / `21` / `18` |
+| `R1-Llama-8B` | `8.0B` | `66` / `67` / `65` | `41` / `43` / `42` | `7` / `3` / `4` | `6` / `7` / `7` | `18` / `20` / `16` |
+| `Qwen3-8B` | `8.2B` | `39` / `37` / `34` | `31` / `33` / `33` | `9` / `9` / `9` | `25` / `21` / `23` | `17` / `16` / `17` |
+| `Gemma-2-9B` | `9.2B` | `87` / `78` / `77` | `48` / `36` / `39` | `55` / `45` / `52` | `27` / `39` / `48` | `13` / `13` / `13` |
+| `OLMo-2-13B` | `13.7B` | `90` / `90` / `89` | `33` / `37` / `37` | `32` / `28` / `31` | `8` / `8` / `6` | `22` / `22` / `20` |
+| `Phi-4` | `14.7B` | `95` / `96` / `95` | `65` / `65` / `67` | `68` / `67` / `66` | `4` / `7` / `4` | `23` / `23` / `23` |
+| `Qwen3-14B` | `14.8B` | `59` / `58` / `59` | `36` / `40` / `36` | `15` / `10` / `16` | `13` / `9` / `10` | `15` / `15` / `13` |
+| `R1-Qwen-14B` | `14.8B` | `50` / `46` / `52` | `40` / `39` / `39` | `6` / `3` / `3` | `26` / `27` / `20` | `16` / `16` / `15` |
+| `Qwen3-32B` | `32.8B` | `53` / `55` / `56` | `31` / `38` / `31` | `7` / `7` / `13` | `14` / `16` / `17` | `15` / `15` / `15` |
+
 ### 4.5 Root-Cause Identification, Math, and Code Scores
 
 Here the measurement is answer quality, rather than a matrix property. “Correct cases” counts benchmark cases answered correctly, not newly discovered vulnerabilities. Changes in accuracy are percentage points (`pp`); rates and differences retain the reported rounding. A blank numerical result is marked `NOT_REPORTED`; the table cannot establish performance on that benchmark.
@@ -361,12 +383,90 @@ In a separate adversarial stress test across 12 full models (`7.2B` to `32.8B`) 
 > - **Non-linear dose saturation at extreme shifts:** On 20 of 24 full-model edits in Regime C, raising the dose from $1.0\times$ to $1.5\times$ scaled the realized shift linearly (`1.49x` to `1.50x`). Four edits (`Phi-4` `B2`, `OLMo-2-13B` `B3`, `Gemma-2-9B` `B3`, `Gemma-2-27B` `B3`) showed sub-linear scaling (`1.04x` to `1.18x`) due to downstream RMSNorm normalization.
 > - **Outlier-dimension diagnostic (`Phi-4`):** In Regime C's uncalibrated capture on `Phi-4` (`L32`), peak $\mathrm{SNR}_{\text{proj}}$ reached `27,362.3` with $\mathrm{SNR}_{\text{trace}} = 60.4$, and the uncalibrated edit inverted sign (`-3.399`). Always pair $\mathrm{SNR}_{\text{proj}}$ with $\mathrm{SNR}_{\text{trace}}$ and verify the signed shift on held-out prompts (as done in Stage-1 L12 calibration, where `Phi-4` achieves `4.4e-15` shift error).
 
-> **Section 4 takeaway:** Each study supports its own claim. Calibration matched the requested shift on all 15 Stage-1 models. Project-Then-Heal kept local leakage at the `float32` floor on every model where gradient projection did not. On 14 models, the calibrated `1.0x` edits left public-benchmark scores within about 2 pooled points of base, as equal-size random edits did, with a pooled `MMLU-Pro` cost of `2.0` points and no significant crash-triage gain. The response benchmarks report measured changes on specific prompt sets, not general behavior.
+(sec-paper-rms-dosing)=
+### 4.7 Size Edits Relative to the Writer's Output: `Qwen2.5-Math-7B-Instruct`
+
+A fixed shift such as $\lvert\Delta_{\text{target}}\rvert = 1.0$ means different things in different layers, because writer outputs differ in scale. **RMS-relative dosing** measures that scale first and sizes the shift against it:
+
+$$
+\sigma_{\text{writer}} = \sqrt{\tfrac{1}{N}\textstyle\sum_{i=1}^{N} \lVert W h_i\rVert_2^2}, \qquad \Delta_{\text{target}} = \alpha\,\sigma_{\text{writer}}, \qquad \beta_k = \frac{\Delta_{\text{target}}}{\lVert h_{S,k}\rVert_2^2}
+$$
+
+over $N = 24$ positive reference activations (4 domains times 6). On layer 19 of `Qwen2.5-Math-7B-Instruct` (revision `ef9926d7`, 3,584 output features), $\sigma_{\text{writer}} = 74.607$ (per domain `68.70` to `80.50`). The earlier unscaled run used a shift of `1.0`, which is $\alpha = 1.0/74.607 = 0.0134$: `1.34%` of the writer's output norm. That explains why it left greedy accuracy unchanged (`GSM8K` `87%`, `MATH-500` `43%`, largest change in any complete cell `1` point). In that run's partial receipt, the mean change along each edited direction, measured in the LayerNorm-normalized writer output, was at most `0.19%` of that vector's norm.
+
+The RMS-calibrated run (receipt `manifest.json` SHA-256 `49181d79...7cc1`, `status: COMPLETE`, 14 arms, predictions SHA-256 `f5036530...b90c`, runner hashed before and after) used one H100 with greedy, left-padded batches of 16 and a 512-token limit. Each arm answered 100 items of `MATH-500`, `GSM8K`, `MMLU-Pro` and `HumanEval`. It had four single-domain edits at $\alpha = 1.0$; their composition (`composed`, Gram-Schmidt-orthogonal security, math, science and code directions on a 183-column union support); a seeded norm-matched random control with the same support and Frobenius norm (`7.250` vs. `7.250`, support hashes identical); the composition followed by a rank-4, 60-step `ProjectThenHealLinear` healing pass; and a dose sweep at $\alpha \in \{0.25, 0.5, 1.0, 2.0\}$ for the composed and random arms. At every $\alpha$, every direction realized its reference target to within `1e-4` relative error.
+
+| Arm | $\alpha$ | `GSM8K` /100 | `MATH-500` /100 | `MMLU-Pro` /100 | `HumanEval` /100 |
+|---|---:|---:|---:|---:|---:|
+| `base` | | `87` | `43` | `17` | `1` |
+| `security` / `math` / `science` / `code` | `1.0` | `87` / `87` / `87` / `88` | `42` / `44` / `43` / `43` | `14` / `16` / `17` / `15` | `2` / `1` / `0` / `1` |
+| `composed` | `0.25` / `0.5` / `1.0` / `2.0` | `88` / `89` / `87` / `89` | `42` / `43` / `43` / `42` | `16` / `17` / `16` / `15` | `0` / `0` / `0` / `0` |
+| `random` (norm-matched) | `0.25` / `0.5` / `1.0` / `2.0` | `87` / `87` / `88` / `87` | `42` / `43` / `44` / `43` | `15` / `15` / `16` / `14` | `2` / `0` / `1` / `0` |
+| **`composed_healed`** (Project-Then-Heal) | `1.0` | **`93`** | `44` | `17` | `0` |
+
+What this shows, and what it does not:
+
+- **The composed edit alone does nothing measurable.** At every dose the composed arm stays within 2 points of base on `GSM8K` and `MATH-500`, and so does the random control. A dose response that would separate direction from size does not appear.
+- **The healed arm raises `GSM8K` from `87` to `93`.** That is 6 gains and 0 losses against `base`, and also 6 to 0 against the unhealed `composed` arm (exact McNemar `p = 0.031` each, unadjusted). Across the receipt's 110 paired tests the Holm-adjusted value is `1.0`. `MATH-500` goes from `43` to `44` (3 gains, 2 losses, `p = 1.0`). The healed arm also swaps 24 `MMLU-Pro` items (12 gained, 12 lost), so healing changes the model more than the composed edit does.
+- **The gain cannot be attributed to the composition.** The healing objective is causal-LM cross-entropy on fixed neutral texts, with $\mathrm{span}(D)$ structurally locked (step-60 relative leakage `5.07e-17`, loss `4.94` to `0.95`). The run has no healed-random arm and no arm that heals the unedited base. Either the composition or the LoRA training alone could explain the `+6`. One seed and one model.
+- **Calibration is exact at the reference inputs only.** On benchmark prompts the composed edit's mean prefill shift along each direction is `0.5%` to `14.8%` of the base output norm, not `1.0x`. The random control's shifts along its own directions agree with these to within `0.01%` of the base norm.
+
+> **Section 4 takeaway:** Each study supports its own claim. Calibration matched the requested shift on all 15 Stage-1 models. Project-Then-Heal kept local leakage at the `float32` floor on every model where gradient projection did not. On 14 models, the calibrated `1.0x` edits left public-benchmark scores within about 2 pooled points of base, as equal-size random edits did, with a pooled `MMLU-Pro` cost of `2.0` points and no significant crash-triage gain. On `Qwen2.5-Math-7B-Instruct`, RMS-relative dosing showed that the earlier unit shift was `1.34%` of the writer's output norm. Even at the full norm the composed edit matched its random control, and the one `GSM8K` gain came with healing and does not survive correction. The response benchmarks report measured changes on specific prompt sets, not general behavior.
+
+---
+
+(sec-paper-static-auditing)=
+## 5. Static Weight Auditing
+
+Sections 1 to 4 edit weights. This section uses the same readers to inspect weights someone else may have edited, without running the model. Every number below comes from a receipt whose inputs were hashed before and after each run (`pre_sha256 == post_sha256`). That is a non-adversarial host-filesystem bracket, not descriptor-bound execution.
+
+### 5.1 Spectral Trojan Auditing and the Vocabulary Phase Transition
+
+`secant audit-trojan` reports each tensor's $\sigma_1/\sigma_{MP}$ against the Marchenko-Pastur bulk edge, ranks every tensor against its layer family with the Iglewicz-Hoaglin modified z-score (`sibling_outlier` when $z > 3.5$), and with `--vocab-tensor` maps $u_1$ through the embedding to its most promoted tokens. To measure when these signals fire, a rank-1 edit $\Delta W = \theta\,\hat e_T\, c^\top$ was planted in the layer-12 MLP down projection of `SmolLM2-1.7B-Instruct` (SafeTensors) and `Qwen3.5-4B` (BF16 GGUF). Here $\hat e_T$ is the unit embedding row of a trigger token, and $c$ spreads equal weight over 16 evenly spaced input columns. The edit was planted at 12 relative Frobenius doses $g = \lVert\Delta W\rVert_F/\lVert W\rVert_F$ from `0` to `16%`.
+
+A rank-1 edit's only singular value is $\sigma_{\text{trojan}} = \lVert\Delta W\rVert_F = g\lVert W\rVert_F$. It can dominate the edited matrix's top singular direction only once $\sigma_{\text{trojan}}$ reaches the trained $\sigma_1$, that is at
+
+$$
+g^* = \frac{\sigma_1(W)}{\lVert W\rVert_F},
+$$
+
+which is `8.65%` for SmolLM2 and `6.57%` for Qwen. Below $g^*$ the edit sits in the tail of the trained spectrum.
+
+```{figure} assets/trojan-detection-phase-transition.svg
+:name: fig-paper-trojan-phase
+:alt: Planted rank-1 trojan detection against relative Frobenius dose on SmolLM2-1.7B and Qwen3.5-4B, showing family statistics, sigma_2, vocabulary alignment and trigger-token rank
+:width: 100%
+
+Detection signals against dose for both models. Doses `0` to `4%` were pre-specified, and `6` to `16%` were added after the pre-specified range showed nothing, so each threshold is post-hoc and an upper bound. The dashed verticals mark the exact crossing $g^*$.
+```
+
+| Signal | First tested dose, SmolLM2 | First tested dose, Qwen3.5-4B | Needs the base checkpoint? |
+|---|---:|---:|---|
+| Any automatic signal, pre-specified `0.10` to `4.00%` | none | none | |
+| $\sigma_2$ rises (`25.31` to `30.10`; `2.112` to `2.678`) | `6%` | `6%` | yes: `audit-trojan` ranks $\sigma_1/\sigma_{MP}$ only |
+| Trigger token in the promoted top 16 of $u_1$ | `8%` (rank 2, $\cos(u,u_1) = 0.569$) | `8%` (rank 1, $\cos(u,u_1) = 0.991$) | no, but a person has to read the column |
+| Edited layer is family rank 1 by $\sigma_1/\sigma_{MP}$ | `10%` | `10%` | no |
+| Automatic `sibling_outlier` ($z > 3.5$) | `12%` ($z = 5.01$) | `12%` ($z = 3.58$) | no |
+| Sibling outliers on the unedited base | `0` of `24` | `0` of `33` | |
+
+The vocabulary jump happens at the crossing: $\cos(u, u_1)$ goes from `0.168` to `0.991` between `6%` and `8%` on Qwen ($g^* = 6.57\%$), and from `0.569` to `0.984` between `8%` and `10%` on SmolLM2 ($g^* = 8.65\%$). Well below the crossing the planted direction is nearly absent from $u_1$ ($\cos < 0.17$ at `6%` on both models). Close to the crossing the two directions mix (SmolLM2 at `8%`: $\sigma_{\text{trojan}}/\sigma_1 = 0.92$, $\cos = 0.569$). Above it, $u_1$ is the planted direction ($\cos > 0.98$). The automatic sibling test needs a further `39%` to `83%` of $\sigma_1$ beyond that ($\sigma_{\text{trojan}}/\sigma_1$ = `1.39` and `1.83` at the first flag). Full 12-dose tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
+
+Scope: one layer, one token and one column placement per model, static weights only. A smaller edit spread over many layers, or a rank-1 edit placed in a layer with a lower baseline ratio, may behave differently, and neither was tested. The curve says when this reader sees a rank-1 edit. It says nothing about whether the edit changes model output.
+
+### 5.2 Quantized Scale-Header Sanitization
+
+In `Q8_0` and `Q4_K` blocks, one f16 scale multiplies 32 or 256 weights. `secant sanitize` checks each scale field (`d`, and `dmin` for `Q4_K`) for NaN, Inf, values that overflow the `--max-abs` policy given the block's largest multiplier, and subnormals. On quantizer-produced `Q8_0` and pure `Q4_K` copies of `Qwen3.5-4B`, three planted scales (NaN, Inf, `65504`) were each found exactly once, with the correct field and file offset, and the repair flags produced copies that rescanned with 0 findings. The same scan also reports the benign background: `272,730` subnormal scales in `Q8_0` (`0.20%` of `135,168,000` blocks) and `8,992,791` in `Q4_K` (`0.53` per super-block). So the default policy fails every quantized file, and a hostile scale is a single count inside that total. Read the per-kind `counts`, not the status. Flushing subnormals zeroes the affected blocks' weights, and its effect on the model was not measured. Files mixing in unsupported types (`Q6_K`, from a real `Q4_K_M` download) are refused with exit `2`. Details: [payload checks, quantized scale headers](#sec-quant-sanitize-controls).
+
+### 5.3 A 46-Checkpoint Spectral and Vocabulary Atlas
+
+`secant read` was run with singular values, column statistics, anomaly detection and vocabulary projection over 46 local checkpoints: 14 read in full, 16 edited variants read only where they differ from base, and 16 vocab-only files that `read` refuses. That gave 429 receipts covering `2,619` tensors, `0` of them non-finite. `323` of `5,101` singular triplets (`6.3%`) hit the iteration cap. The SafeTensors and GGUF copies of `Qwen3.5-4B` agree bit-for-bit on $\sigma_1..\sigma_3$ for all 32 MLP down projections. The unedited layer-12 $\sigma_1$ values in Section 5.1 match this atlas exactly. Separately, the native `secant scan-sinks` port was checked byte-for-byte against its Go oracle on nine source trees, `9,612` pattern hits in all, `9,532` of them in seven inference and ML codebases. Those hits are untriaged hypotheses for oracle parity, not bugs. See [payload checks, Sections 6 and 7](payload-security.md).
+
+> **Section 5 takeaway:** The spectral reader sees a planted rank-1 edit once that edit's singular value reaches the trained $\sigma_1$. The vocabulary projection shows it first, and the automatic sibling test shows it later. Below that crossing, a single-file audit sees nothing in these tests. Hostile quantized scales are detected exactly, but under the default policy that signal is buried in benign subnormals.
 
 ---
 
 (related-work-and-limits-of-novelty)=
-## 5. Related Work and Limits of Novelty
+## 6. Related Work and Limits of Novelty
 
 Orthogonal projection and subspace-constrained LoRA build upon a rich line of mechanistic interpretability and parameter-efficient fine-tuning research:
 
@@ -376,7 +476,7 @@ Orthogonal projection and subspace-constrained LoRA build upon a rich line of me
 
 **Scope of this paper.** Secant does not claim to introduce orthogonal projection or null-space LoRA. It evaluates reference-based edit sizing, block-aware `Q8_0` file editing, and a forward-pass adapter constraint in one workflow. The equations explain local matrix properties. The experiments test particular checkpoints, directions, prompts, and storage formats; they do not establish universal behavior preservation or comparative superiority over the cited tools.
 
-> **Section 5 takeaway:** The projection methods are prior work. This paper evaluates reference-based edit sizing, block-aware `Q8_0` editing, and a forward-pass adapter constraint together, inside one file-editing workflow that verifies every untouched byte.
+> **Section 6 takeaway:** The projection methods are prior work. This paper evaluates reference-based edit sizing, block-aware `Q8_0` editing, and a forward-pass adapter constraint together, inside one file-editing workflow that verifies every untouched byte.
 
 ---
 

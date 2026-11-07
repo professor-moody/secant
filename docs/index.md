@@ -46,6 +46,10 @@ Different experiments answer different questions. The paper reports results acro
 | LoRA comparison, 15 models | Gradient-projected AdamW retained `0.33%` to `1.67%` relative leakage; Project-Then-Heal measured `1.78e-10` to `8.67e-10` | A local constraint on the adapter's weight update, measured with the same metric in all three arms. |
 | C/C++ root-cause benchmark, `Qwen2.5-Coder-32B-Instruct` | Correct cases rose from `2/30` to `12/30` (reported paired `p = 0.00195`) | Performance on the reported suite, not a count of new vulnerabilities discovered. |
 | Live fine-tuning, `Qwen3.5-0.8B` and `SmolLM2-1.7B` | Similar held-out perplexity to unconstrained LoRA, with lower local leakage | Evidence from two short runs. Both Qwen arms overfit the small training batch by step 60. |
+| RMS-relative dosing, `Qwen2.5-Math-7B-Instruct`, 14 arms | The earlier unit shift was `1.34%` of the writer's output norm. At the full norm, composed edits matched a norm-matched random control at every dose. The Project-Then-Heal arm moved `GSM8K` from `87` to `93` of 100 (unadjusted `p = 0.031`, Holm `1.0`) | How to size an edit so it is large enough to matter. The `GSM8K` gain does not survive correction, and no control separates the composition from the healing step. |
+| Planted rank-1 trojan, `SmolLM2-1.7B` and `Qwen3.5-4B`, 24 static audits | Nothing at doses `0.10%` to `4%`. The trigger token is rank 1 or 2 in the vocabulary projection at `8%`, and the automatic sibling flag fires at `12%`. 0 false positives on the unedited bases | When `secant audit-trojan` sees one rank-1 edit in one layer: once its singular value reaches the trained $\sigma_1$. The doses above `4%` were added post-hoc. |
+| Quantized scale sanitize, `Q8_0` and `Q4_K` | The three planted hostile scales are each found exactly once and repaired. Clean quantizer output also fails the default gate, on `0.20%` (`Q8_0`) to `0.53` per super-block (`Q4_K`) subnormal scales | Read the per-kind counts, not the pass or fail status. |
+| Static atlas, 46 local checkpoints | 429 `read` receipts, `2,619` tensors, `0` non-finite; SafeTensors and GGUF copies agree bit-for-bit | What unedited weights look like to these readers. |
 
 ```{figure} assets/benchmark-retention-14models.svg
 :name: fig-index-benchmark-retention
@@ -69,6 +73,14 @@ Leakage into the protected direction after 60 AdamW steps, on a log scale. Maski
 :width: 100%
 
 On this 30-prompt test, the calibrated edit completed 21 answers at the standard dose. Increasing only the loop-edit component (`B1`) to 1.5 times that dose completed all 30, with 23 correct culprit frames and 19 correct root causes. The other two edit components stayed at their standard dose.
+```
+
+```{figure} assets/trojan-detection-phase-transition.svg
+:name: fig-index-trojan-phase
+:alt: Planted rank-1 trojan detection against relative Frobenius dose on SmolLM2-1.7B and Qwen3.5-4B
+:width: 100%
+
+The audit side of the same tools. A rank-1 edit planted in one layer stays invisible until its singular value reaches that layer's trained $\sigma_1$, at `6.57%` (Qwen) and `8.65%` (SmolLM2) of the weight norm. Past that point the trigger token appears in the vocabulary projection, and at `12%` the automatic sibling test flags the layer. Method and tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
 ```
 
 ## Where to Start

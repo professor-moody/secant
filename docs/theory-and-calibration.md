@@ -194,3 +194,13 @@ The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-
 
 Paired change from base for each model and benchmark, calibrated `1.0x` (blue) against norm-matched random `1.0x` (orange). No calibrated cell survives Holm correction (`0/70`). Pooled over 14 models, calibrated edits move each benchmark by `-2.0` to `+2.1` points, and random edits by `-1.4` to `+0.4`. The one model that moves a lot, `Gemma-2-9B`, has the sweep's largest step, $\beta_{B2} = 3.72$ from $\lVert h_S\rVert_2 = 1.41$, and its random control moves as far as its calibrated edit. A small $\lVert h_S\rVert_2$ makes $\beta = \lvert\Delta\rvert / \lVert h_S\rVert_2^2$ large, so check it before trusting a reference shift as a dose. Method and tables: [paper, Section 4.4](#sec-paper-public-benchmarks).
 ```
+
+### Size the Target Relative to the Writer's Output (RMS-Relative Dosing)
+
+A target such as $\lvert\Delta_{\text{target}}\rvert = 7.382$ or $1.0$ is an absolute number. Whether it is large depends on how large the writer's outputs already are. RMS-relative dosing measures that first, over $N$ positive reference activations $h_i$, and then asks for a fraction $\alpha$ of it:
+
+$$
+\sigma_{\text{writer}} = \sqrt{\tfrac{1}{N}\textstyle\sum_{i} \lVert W h_i\rVert_2^2}, \qquad \Delta_{\text{target}} = \alpha\,\sigma_{\text{writer}}, \qquad \beta = \frac{\Delta_{\text{target}}}{\lVert h_S\rVert_2^2}.
+$$
+
+The step $\beta$ is solved exactly as above, so the reference-input identity still holds. Only the size of the request changes. On layer 19 of `Qwen2.5-Math-7B-Instruct`, $\sigma_{\text{writer}} = 74.607$ over 24 references. An earlier run that asked for a shift of `1.0` was therefore at $\alpha = 0.0134$: `1.34%` of the output norm, too small to change greedy answers (`GSM8K` `87`, `MATH-500` `43` of 100, with no complete cell moving more than 1 point). At $\alpha = 0.25$ to $2.0$, a four-domain composed edit and its norm-matched random control both stayed within 2 points of base. Only the arm that added Project-Then-Heal training moved `GSM8K` (`87` to `93`, unadjusted `p = 0.031`, not significant after Holm correction across 110 tests), and the run has no control that separates the healing from the edit. Two practical rules follow. Report $\alpha$ next to any absolute target, so readers can tell a negligible dose from a large one. And treat calibration as exact only at the reference inputs: on benchmark prompts the same $\alpha = 1.0$ edits moved the writer output by `0.5%` to `14.8%` of its norm, depending on direction. Full table: [paper, Section 4.7](#sec-paper-rms-dosing).
