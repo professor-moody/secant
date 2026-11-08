@@ -193,12 +193,20 @@ class ProjectThenHealLinear(nn.Module):
             self._buffers["D"] = d64.detach().to(device=self._buffers["D"].device, dtype=torch.float64)
         return out
 
-    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, *args: Any, **kwargs: Any):  # type: ignore[override]
-        result = super().load_state_dict(state_dict, strict, *args, **kwargs)
-        err = self.orthonormality_error()
-        if not (err < _LOAD_ORTHONORMALITY_TOL):
-            raise ValueError(f"loaded D is not orthonormal: max|D D^T - I| = {err:.3e}")
-        return result
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        # Module.load_state_dict calls this for nested children too. Validate
+        # before super() can copy or assign an invalid buffer into this layer.
+        incoming = state_dict.get(prefix + "D")
+        if incoming is not None:
+            if not isinstance(incoming, torch.Tensor) or incoming.dtype != torch.float64:
+                raise ValueError("loaded D must have float64 dtype")
+            if incoming.shape != self.D.shape or not torch.isfinite(incoming).all().item():
+                raise ValueError("loaded D is not orthonormal: wrong shape or non-finite values")
+            gram = incoming @ incoming.t()
+            err = float((gram - torch.eye(gram.shape[0], dtype=torch.float64, device=gram.device)).abs().max().item())
+            if not (err < _LOAD_ORTHONORMALITY_TOL):
+                raise ValueError(f"loaded D is not orthonormal: max|D D^T - I| = {err:.3e}")
+        super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
     # ------------------------------------------------------------------ core math
 
@@ -224,7 +232,13 @@ class ProjectThenHealLinear(nn.Module):
 
     @torch.no_grad()
     def leakage(self) -> float:
-        """max |D B_locked| in float64, measured on the working-dtype B_locked that forward() uses."""
+        """max |D B_locked| in float64, measured on the stored-dtype B_locked (lora_B_tilde.dtype).
+
+        Note: if forward(x) is called with a lower-precision x.dtype (such as bfloat16)
+        or inside torch.autocast, F.linear casts B_locked to that lower precision (~1e-3
+        for bfloat16). Run the adapter outside autocast with float32/float64 activations
+        when runtime matmul orthogonality must match leakage().
+        """
         return float((self.D @ self.locked_B().to(torch.float64)).abs().max().item())
 
     @torch.no_grad()

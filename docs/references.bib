@@ -8,11 +8,12 @@
   note         = {MIT CSAIL research release (November 2, 2026) demonstrating that frontier models can read and edit neural network weights directly, including suppressing reasoning-loop directions in Qwen3.5-0.8B layers 15 and 19 MLPs}
 }
 
-@article{arditi2024refusal,
-  author  = {Arditi, Andy and Obeso, Oscar and Syed, Aaquib and Paleka, Daniel and Panickssery, Nina and Gurnee, Wes and Nanda, Neel},
-  title   = {Refusal in Language Models Is Mediated by a Single Direction},
-  journal = {arXiv preprint arXiv:2406.11717},
-  year    = {2024}
+@inproceedings{arditi2024refusal,
+  author    = {Arditi, Andy and Obeso, Oscar and Syed, Aaquib and Paleka, Daniel and Panickssery, Nina and Gurnee, Wes and Nanda, Neel},
+  title     = {Refusal in Language Models Is Mediated by a Single Direction},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024},
+  note      = {arXiv:2406.11717}
 }
 
 @article{zou2023representation,
@@ -48,4 +49,135 @@
   title   = {Activation Addition: Steering Language Models Without Optimization},
   journal = {arXiv preprint arXiv:2308.10248},
   year    = {2023}
+}
+
+@article{meng2023memit,
+  author  = {Meng, Kevin and Sharma, Arnab Sen and Andonian, Alex and Belinkov, Yonatan and Bau, David},
+  title   = {Mass-Editing Memory in a Transformer ({MEMIT})},
+  journal = {International Conference on Learning Representations (ICLR)},
+  year    = {2023},
+  note    = {arXiv:2210.07229}
+}
+
+@article{belrose2023leace,
+  author  = {Belrose, Nora and Schneider-Joseph, David and Ravfogel, Shauli and Cotterell, Ryan and Raff, Edward and Biderman, Stella},
+  title   = {{LEACE}: Perfect Linear Concept Erasure in Closed Form},
+  journal = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year    = {2023},
+  note    = {arXiv:2306.03819}
+}
+
+@article{fang2025alphaedit,
+  author  = {Fang, Junfeng and Jiang, Houcheng and Wang, Kun and Ma, Yunshan and Jie, Shi and Wang, Xiang and He, Xiangnan and Chua, Tat-Seng},
+  title   = {{AlphaEdit}: Null-Space Constrained Knowledge Editing for Language Models},
+  journal = {International Conference on Learning Representations (ICLR)},
+  year    = {2025},
+  note    = {arXiv:2410.02355}
+}
+
+@article{xiong2026oplora,
+  author  = {Xiong, Yifeng and Xie, Xiaohui},
+  title   = {{OPLoRA}: Orthogonal Projection {LoRA} Prevents Catastrophic Forgetting during Parameter-Efficient Fine-Tuning},
+  journal = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume  = {40},
+  number  = {40},
+  pages   = {34088--34096},
+  year    = {2026},
+  doi     = {10.1609/aaai.v40i40.40703},
+  note    = {arXiv:2510.13003}
+}
+
+@article{li2025salora,
+  author  = {Li, Mingjie and Si, Wai Man and Backes, Michael and Zhang, Yang and Wang, Yisen},
+  title   = {{SaLoRA}: Safety-Alignment Preserved Low-Rank Adaptation},
+  journal = {International Conference on Learning Representations (ICLR)},
+  year    = {2025},
+  note    = {arXiv:2501.01765}
+}
+
+@article{hsu2024safelora,
+  author  = {Hsu, Chia-Yi and Tsai, Yu-Lin and Lin, Chih-Hsun and Chen, Pin-Yu and Yu, Chia-Mu and Huang, Chun-Ying},
+  title   = {Safe {LoRA}: The Silver Lining of Reducing Safety Risks when Fine-Tuning Large Language Models},
+  journal = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year    = {2024},
+  note    = {arXiv:2405.16833}
+}
+
+@article{tang2026loranull,
+  author  = {Tang, Pengwei and others},
+  title   = {Put the Space of {LoRA} Initialization to the Extreme to Preserve Pre-trained Knowledge ({LoRA-Null})},
+  journal = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  year    = {2026},
+  note    = {arXiv:2503.02659}
+}
+
+@article{sun2026ogpsa,
+  author  = {Sun, Guanglong and others},
+  title   = {Safety Alignment as Continual Learning: Mitigating the Alignment Tax via Orthogonal Gradient Projection ({OGPSA})},
+  journal = {arXiv preprint arXiv:2602.07892},
+  year    = {2026}
+}
+
+@article{chen2026goal,
+  author  = {Chen, Chao and Shao, Pengyang and Qin, Wei and Hao, Shijie and Shen, Fei and Hong, Richang},
+  title   = {Revisiting Over-refusal in Safety-aligned Large Language Models: A Representation and Optimization Perspective ({GOAL})},
+  journal = {arXiv preprint arXiv:2610.39802},
+  year    = {2026},
+  month   = oct,
+  note    = {Appendix M and Table 7 formalize residual refusal-subspace leakage after AdamW preconditioning}
+}
+
+@article{yu2026cord,
+  author  = {Yu, Wenhao and others},
+  title   = {Conflict-Aware Optimization for Joint {RL} and Distillation in Agents ({CORD})},
+  journal = {arXiv preprint arXiv:2610.29965},
+  year    = {2026},
+  month   = oct
+}
+
+@article{ghosh2026polora,
+  author  = {Ghosh, Nikhil and Parshakova, Tetiana and Gower, Robert M.},
+  title   = {{PoLoRA}: A Preconditioned Orthogonalized {LoRA} Optimizer},
+  journal = {arXiv preprint arXiv:2607.17620},
+  year    = {2026},
+  month   = jul
+}
+
+@article{gulmez2025gabliteration,
+  author  = {G{\"u}lmez, G{\"o}kdeniz},
+  title   = {Gabliteration: Adaptive Multi-Directional Neural Weight Modification for Selective Behavioral Alteration in Large Language Models},
+  journal = {arXiv preprint arXiv:2512.18901v3},
+  year    = {2025},
+  month   = dec
+}
+
+@misc{kiwimaker2026mmapgguf,
+  author       = {Kiwimaker},
+  title        = {In-place \texttt{r+} memory-mapped {GGUF} \texttt{Q8\_0} abliteration with {SHA-256} byte-preservation verification (\texttt{apply\_abliteration.py} and \texttt{apply\_abliteration\_v2.py})},
+  year         = {2026},
+  month        = oct,
+  howpublished = {\url{https://huggingface.co/Kiwimaker/DeepSeek-V4.1-Flash-1017-Maya-S-abliterated-GGUF}}
+}
+
+@misc{sc1172026gguftransplant,
+  author       = {SC117},
+  title        = {Byte-level in-place {GGUF} tensor transplantation and scale-preserving \texttt{Q2\_0} re-encoding (\texttt{Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF})},
+  year         = {2026},
+  month        = oct,
+  howpublished = {\url{https://huggingface.co/SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF}}
+}
+
+@misc{fornaro2026colibri,
+  author       = {Fornaro, Vincenzo},
+  title        = {{NaN} router logits leave {MoE} top-k selection at \texttt{best=-1}, causing negative-index heap {OOB} read/write and negative-offset \texttt{pread} ({GHSA-5xpg-vw35-2687})},
+  year         = {2026},
+  month        = aug,
+  howpublished = {\url{https://github.com/JustVugg/colibri/security/advisories/GHSA-5xpg-vw35-2687}}
+}
+
+@misc{hanzo2026hip0113,
+  author       = {{Hanzo AI Standards Track}},
+  title        = {{HIP-0113}: Cognitive Sidecar \& Hanzo Engine Provider Runtime for Thinking Chains (Section 4.5: \texttt{FCVTZS} vs. \texttt{CVTTSD2SI})},
+  year         = {2026},
+  howpublished = {\url{https://github.com/hanzo-apps/HIPs/blob/main/HIPs/hip-0113-cognitive-sidecar-and-hanzo-engine-provider-runtime.md}}
 }

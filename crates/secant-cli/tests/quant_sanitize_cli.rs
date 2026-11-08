@@ -1,7 +1,7 @@
 //! End-to-end tests of `secant sanitize` on quantized GGUF files (Milestone
-//! S-4): Q8_0 and Q4_K scale headers (`d`, `dmin`) are scanned for NaN, Inf,
-//! subnormal and extreme values instead of the whole file being refused, the
-//! opt-in repairs rewrite only the offending f16 fields, and every other
+//! S-4): Q8_0 and Q4_K scale headers (`d`, `dmin`) are scanned for NaN and Inf
+//! by default, with subnormal and extreme checks available as opt-in
+//! diagnostics. Non-finite repair zeroes the affected block, and every other
 //! quantized type is still refused with exit 2.
 
 #[path = "../../secant-core/tests/common/mod.rs"]
@@ -70,7 +70,7 @@ fn genuine_q8_0_and_q4_k_files_scan_clean_instead_of_being_refused() {
     let (code, rep, err) = sanitize(&dir, &p, "control", &[]);
     assert_eq!(code, 0, "{} {}", rep, err);
     assert_eq!(rep["status"], "clean");
-    assert_eq!(rep["policy_version"], "unquantized-static-values-v1+quant-scale-headers-v1");
+    assert_eq!(rep["policy_version"], "zero-false-positive-b3-v2");
     let before = &rep["before"];
     assert_eq!(before["quant_tensors"], 2);
     assert_eq!(before["quant_blocks"], (D_OUT * D_IN / 32 + D_OUT * D_IN / 256) as i64);
@@ -81,7 +81,7 @@ fn genuine_q8_0_and_q4_k_files_scan_clean_instead_of_being_refused() {
 }
 
 #[test]
-fn crafted_scale_headers_are_found_and_repaired_field_by_field() {
+fn crafted_scale_headers_follow_b3_2a_and_zero_nonfinite_blocks() {
     let dir = Scratch::new("s4-crafted");
     let (mut b, q8, q4) = fixture();
     let orig = b.clone();
@@ -103,8 +103,8 @@ fn crafted_scale_headers_are_found_and_repaired_field_by_field() {
     assert_eq!(code, 1, "findings remain: exit 1");
     assert_eq!(rep["status"], "findings");
     let before = &rep["before"];
-    assert_eq!(before["total_findings"], 4);
-    for s in &sites {
+    assert_eq!(before["total_findings"], 2);
+    for s in [&sites[0], &sites[2]] {
         assert_eq!(before["counts"][s.2], 1, "{}", s.2);
         let ex = before["examples"].as_array().unwrap().iter().find(|e| e["kind"] == s.2).expect(s.2);
         assert_eq!(ex["field"], s.3);
@@ -113,39 +113,49 @@ fn crafted_scale_headers_are_found_and_repaired_field_by_field() {
         assert_eq!(ex["file_offset"], s.0, "file_offset points at the f16 field");
         assert_eq!(ex["bits"], format!("0x{:04x}", s.1));
     }
+    assert!(before["counts"].get("quant_scale_extreme").is_none());
+    assert!(before["counts"].get("quant_scale_subnormal").is_none());
     // row = block / blocks-per-row (512 / 32 = 16 Q8_0 blocks per row)
     assert_eq!(before["examples"].as_array().unwrap().iter().find(|e| e["kind"] == "quant_scale_nan").unwrap()["row"], 0);
 
-    // --clamp-nonfinite alone leaves the extreme and subnormal scales: no publication
+    // B3-2A repair ignores the valid finite diagnostics and zeroes each block
+    // whose scale header is NaN or Inf.
     let out1 = dir.path("partial.gguf");
     let (code, rep, _) = sanitize(&dir, &p, "partial", &["--clamp-nonfinite", "--out", &out1]);
-    assert_eq!(code, 1);
-    assert_eq!(rep["status"], "findings");
-    assert!(!rep["output_published"].as_bool().unwrap());
-    assert!(!std::path::Path::new(&out1).exists());
-    assert_eq!(rep["changes"]["quant_scale_nan"], 1);
-    assert_eq!(rep["changes"]["quant_scale_inf"], 1);
-    assert_eq!(rep["after"]["total_findings"], 2);
+    assert_eq!(code, 0);
+    assert_eq!(rep["status"], "remediated");
+    assert!(rep["output_published"].as_bool().unwrap());
+    assert_eq!(rep["changes"]["quant_block_zeroed"], 2);
+    assert_eq!(rep["after"]["total_findings"], 0);
+    let partial = std::fs::read(&out1).unwrap();
+    assert!(partial[sites[0].0 as usize..sites[0].0 as usize + Q8_0_BLOCK_BYTES].iter().all(|&x| x == 0));
+    let q4_block = sites[2].0 as usize - 2;
+    assert!(partial[q4_block..q4_block + Q4_K_BLOCK_BYTES].iter().all(|&x| x == 0));
 
-    // all three repairs: remediated, published, and only the four fields differ
+    // Opting into all diagnostics reports and repairs all four planted cases.
     let out = dir.path("clean.gguf");
     let (code, rep, err) = sanitize(&dir, &p, "full", &["--clamp-nonfinite", "--clamp-extreme", "--flush-subnormal", "--out", &out]);
     assert_eq!(code, 0, "{} {}", rep, err);
     assert_eq!(rep["status"], "remediated");
     assert!(rep["output_published"].as_bool().unwrap());
+    assert_eq!(rep["before"]["total_findings"], 4);
+    for s in &sites {
+        assert_eq!(rep["before"]["counts"][s.2], 1, "{}", s.2);
+    }
     assert_eq!(rep["after"]["total_findings"], 0);
     assert_eq!(std::fs::read(&p).unwrap(), b, "input never modified");
     let c = std::fs::read(&out).unwrap();
     assert_eq!(c.len(), b.len());
     let changed: Vec<usize> = (0..c.len()).filter(|&i| c[i] != b[i]).collect();
-    let allowed: Vec<usize> = sites.iter().flat_map(|s| [s.0 as usize, s.0 as usize + 1]).collect();
-    assert!(changed.iter().all(|i| allowed.contains(i)), "only scale bytes change: {:?}", changed);
-    assert_eq!(get16(&c, sites[0].0), 0x0000, "NaN scale -> +0");
+    let mut allowed: Vec<usize> = (sites[0].0 as usize..sites[0].0 as usize + Q8_0_BLOCK_BYTES).collect();
+    allowed.extend(q4_block..q4_block + Q4_K_BLOCK_BYTES);
+    allowed.extend([sites[1].0 as usize, sites[1].0 as usize + 1, sites[3].0 as usize, sites[3].0 as usize + 1]);
+    assert!(changed.iter().all(|i| allowed.contains(i)), "only affected blocks and diagnostic fields change: {:?}", changed);
+    assert!(c[sites[0].0 as usize..sites[0].0 as usize + Q8_0_BLOCK_BYTES].iter().all(|&x| x == 0));
+    assert!(c[q4_block..q4_block + Q4_K_BLOCK_BYTES].iter().all(|&x| x == 0));
     assert_eq!(get16(&c, sites[3].0), 0x8000, "negative subnormal -> -0");
-    for s in [&sites[1], &sites[2]] {
-        let v = get16(&c, s.0);
-        assert!(v & 0x8000 == 0 && v < 0x7c00 && v != 0, "{:#06x}", v);
-    }
+    let v = get16(&c, sites[1].0);
+    assert!(v & 0x8000 == 0 && v < 0x7c00 && v != 0, "{:#06x}", v);
     // the clamped scales are bounded replacements, not the genuine values
     assert_ne!(get16(&c, sites[1].0), get16(&orig, sites[1].0));
     // the published copy rescans clean through the CLI
@@ -156,20 +166,86 @@ fn crafted_scale_headers_are_found_and_repaired_field_by_field() {
 
 #[test]
 fn other_quantized_types_are_still_refused_with_exit_2() {
-    let dir = Scratch::new("s4-q4_0");
-    let t = quantized("w", QuantFormat::Q8_0, 0.01);
+    let dir = Scratch::new("s4-iq2_xxs");
+    // Build a 256-element Q4_K tensor (144 bytes) and retag as IQ2_XXS (type 16, 256 elements, 66 bytes/block)
+    let t = quantized("w", QuantFormat::Q4K, 0.01);
     let mut b = build_gguf(&[], &[t], 32).unwrap();
-    // retag the Q8_0 tensor (type 8) as Q4_0 (type 2): its 18-byte blocks fit inside the payload
     let pat: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 2u32.to_le_bytes().to_vec()].concat();
     let at = b.windows(pat.len()).position(|w| w == pat.as_slice()).unwrap() + pat.len() + 16;
-    assert_eq!(u32::from_le_bytes(b[at..at + 4].try_into().unwrap()), 8);
-    b[at..at + 4].copy_from_slice(&2u32.to_le_bytes());
-    let p = dir.path("q4_0.gguf");
+    assert_eq!(u32::from_le_bytes(b[at..at + 4].try_into().unwrap()), 12);
+    b[at..at + 4].copy_from_slice(&16u32.to_le_bytes());
+    let p = dir.path("iq2_xxs.gguf");
     write(&p, &b);
-    let (code, rep, _) = sanitize(&dir, &p, "q4_0", &[]);
+    let (code, rep, _) = sanitize(&dir, &p, "iq2_xxs", &[]);
     assert_eq!(code, 2);
     assert_eq!(rep["status"], "unknown");
-    assert!(rep["error"].as_str().unwrap().contains("unsupported ggml type 2 (quantized)"), "{}", rep["error"]);
+    assert!(rep["error"].as_str().unwrap().contains("no reviewed B3-2A block-header map for IQ2_XXS"), "{}", rep["error"]);
+}
+
+#[test]
+fn all_ten_mixed_gguf_quantized_formats_and_dry_run_scan_clean_and_detect_nan() {
+    use secant_core::quant_scale::QuantScaleFormat;
+    let dir = Scratch::new("s4-mixed-10fmt");
+    let formats = QuantScaleFormat::ALL;
+    assert_eq!(formats.len(), 10);
+
+    // Build a multi-tensor GGUF with 2 blocks per format and finite 1.0 (0x3c00) in every f16 header slot.
+    let tensors: Vec<BuildTensor> = formats
+        .iter()
+        .enumerate()
+        .map(|(idx, fmt)| {
+            let mut data = vec![0u8; 2 * fmt.block_bytes()];
+            for blk in 0..2 {
+                for &(_, field_off) in fmt.fields() {
+                    let pos = blk * fmt.block_bytes() + field_off;
+                    data[pos..pos + 2].copy_from_slice(&0x3c00u16.to_le_bytes());
+                }
+            }
+            BuildTensor {
+                name: format!("blk.{}.attn_q.weight", idx),
+                dtype: fmt.name().into(),
+                shape: vec![2, fmt.block_elems()],
+                data,
+            }
+        })
+        .collect();
+    let b = build_gguf(&[], &tensors, 32).unwrap();
+    let clean_path = dir.path("mixed_clean.gguf");
+    write(&clean_path, &b);
+    let (code, rep, err) = sanitize(&dir, &clean_path, "mixed_clean", &["--dry-run"]);
+    assert_eq!(code, 0, "{} {}", rep, err);
+    assert_eq!(rep["status"], "clean");
+    assert_eq!(rep["before"]["quant_tensors"], 10);
+    assert_eq!(rep["before"]["quant_blocks"], 20);
+
+    // Plant NaN (0x7e00) in block 0 and +Inf (0x7c00) in block 1 across EVERY f16 header field (15 fields x 2 blocks = 30 findings).
+    let mut poisoned = b.clone();
+    let layout = scan_gguf_layout(&poisoned).unwrap();
+    let mut total_fields = 0i64;
+    for (idx, fmt) in formats.iter().enumerate() {
+        let t = layout.tensor(&format!("blk.{}.attn_q.weight", idx)).unwrap();
+        for &(_, field_off) in fmt.fields() {
+            set16(&mut poisoned, t.offset + field_off as i64, 0x7e00);
+            set16(&mut poisoned, t.offset + fmt.block_bytes() as i64 + field_off as i64, 0x7c00);
+            total_fields += 1;
+        }
+    }
+    assert_eq!(total_fields, 15);
+    let poisoned_path = dir.path("mixed_poisoned.gguf");
+    write(&poisoned_path, &poisoned);
+    let (code, rep, _) = sanitize(&dir, &poisoned_path, "mixed_poisoned", &["--dry-run"]);
+    assert_eq!(code, 1);
+    assert_eq!(rep["status"], "findings");
+    assert_eq!(rep["before"]["total_findings"], 30);
+    assert_eq!(rep["before"]["counts"]["quant_scale_nan"], 15);
+    assert_eq!(rep["before"]["counts"]["quant_scale_inf"], 15);
+
+    let remediated_path = dir.path("mixed_remediated.gguf");
+    let (code, rep, err) = sanitize(&dir, &poisoned_path, "mixed_remediated", &["--clamp-nonfinite", "--out", &remediated_path]);
+    assert_eq!(code, 0, "{} {}", rep, err);
+    assert_eq!(rep["status"], "remediated");
+    assert_eq!(rep["after"]["total_findings"], 0);
+    assert_eq!(rep["changes"]["quant_block_zeroed"], 20);
 }
 
 #[test]

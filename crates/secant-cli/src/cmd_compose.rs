@@ -31,6 +31,9 @@ pub struct Args {
     /// Output plan path (secant.wsp.plan.v1)
     #[arg(long)]
     out: Option<String>,
+    /// Schema id written into the plan (default: secant.wsp.plan.v1)
+    #[arg(long, default_value = plan::PLAN_SCHEMA)]
+    schema_version: String,
     #[arg(long)]
     json: bool,
 }
@@ -43,6 +46,7 @@ pub fn run(a: &Args) -> i32 {
     let mut o = ComposeOptions {
         profile_name: profile.clone(),
         vectors_dir: a.vectors.clone(),
+        schema_version: a.schema_version.clone(),
         target_shift: a.target_shift.unwrap_or(0.0),
         has_shift: a.target_shift.is_some(),
         gamma: a.gamma.unwrap_or(0.0),
@@ -67,6 +71,7 @@ pub fn run(a: &Args) -> i32 {
             "schema": plan::COMPOSE_SCHEMA,
             "profile": plan.profile,
             "plan_path": out,
+            "plan_schema": plan.schema,
             "edits": plan.edits.len(),
             "calibration": plan.calibration,
             "gram_schmidt": plan.gram_schmidt,

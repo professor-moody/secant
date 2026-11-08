@@ -206,6 +206,43 @@ fn stdout_json(o: &Output) -> Result<Value, String> {
         .map_err(|e| format!("not JSON ({}): {:?}", e, String::from_utf8_lossy(&o.stdout[..o.stdout.len().min(200)])))
 }
 
+/// The pinned oracle predates original-direction compensation. For target-shift
+/// plans, compare every unaffected field and independently measure the complete
+/// additive rank1 update on each original unit direction/reference activation.
+fn check_original_targets(plan: &Value, vectors: &str) {
+    let plan: secant_core::plan::Plan = serde_json::from_value(plan.clone()).unwrap();
+    let vs = secant_core::subspace::load_vectors(vectors).unwrap();
+    let order = &plan.gram_schmidt.as_ref().unwrap().order;
+    for (i, edit) in plan.edits.iter().enumerate() {
+        if edit.op != "rank1-columns" {
+            continue;
+        }
+        let raw = &vs.by_name[&order[i]];
+        let norm = raw.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let mut response = vec![0.; raw.len()];
+        for other in &plan.edits {
+            if other.op != "rank1-columns" || other.tensor != edit.tensor || other.tensor_st != edit.tensor_st {
+                continue;
+            }
+            for (c, coeff) in other.cols.iter().zip(&other.coeffs) {
+                for o in 0..raw.len() {
+                    response[o] += other.direction[o] * coeff * edit.h_ref[*c as usize];
+                }
+            }
+        }
+        let actual = raw.iter().zip(&response).map(|(d, y)| d / norm * y).sum::<f64>();
+        assert!(
+            actual.is_finite() && (actual - edit.achieved_shift).abs() < 1e-10 * edit.achieved_shift.abs().max(1.),
+            "{}: original target {}, achieved {}",
+            edit.id,
+            edit.achieved_shift,
+            actual
+        );
+        let coeff_norm = edit.coeffs.iter().map(|x| x * x).sum::<f64>().sqrt();
+        assert!((coeff_norm - edit.delta_fro_norm).abs() < 1e-12 * coeff_norm.max(1.));
+    }
+}
+
 /// Compare `secant <args> --json` with the oracle's `wsp <args> --json`.
 fn cmp_cmd(t: &mut Table, name: &str, args: &[&str], ignore_extra: &[&str]) {
     let go = oracle(args);
@@ -423,12 +460,21 @@ fn differential_conformance() {
             let mut ok = exit(&go) == exit(&rs);
             let mut detail = format!("exit oracle {} secant {}", exit(&go), exit(&rs));
             if ok && exit(&go) == 0 {
-                match json_diff(&file_json(&go_plan), &file_json(&rs_plan), &[]) {
+                let (gp, rp) = (file_json(&go_plan), file_json(&rs_plan));
+                let compensated = rp["calibration"]["mode"] == "target-shift";
+                let allowed: &[&str] = if compensated { &["coeffs", "delta_fro_norm_composed", "notes"] } else { &[] };
+                if compensated {
+                    check_original_targets(&rp, c.vectors.unwrap());
+                }
+                match json_diff(&gp, &rp, allowed) {
                     None => detail.push_str("; plan file bit-identical"),
                     Some(d) => {
                         ok = false;
                         detail = format!("plan differs: {}", d);
                     }
+                }
+                if compensated && ok {
+                    detail = "exit oracle 0 secant 0; unchanged plan fields match; original-direction targets independently verified (R5 contract)".into();
                 }
                 if ok {
                     if let Some(d) = json_diff(&stdout_json(&go).unwrap(), &stdout_json(&rs).unwrap(), IGNORE) {

@@ -184,6 +184,43 @@ fn comparable(stdout: &[u8]) -> String {
 }
 
 #[test]
+fn incomplete_and_skipped_files_match_the_oracle() {
+    let s = fixture();
+    // Add a file > 4 MiB and a file with a line > 1 MiB.
+    put(&s, "src/oversize.c", &vec![b'a'; (4 << 20) + 16]);
+    let mut long_line = b"int f(float *logits) {\n".to_vec();
+    long_line.extend(std::iter::repeat_n(b'x', (1 << 20) + 7));
+    long_line.extend_from_slice(b"\n  return (int) logits[0];\n}\n");
+    put(&s, "src/long_line.c", &long_line);
+
+    let src = s.0.to_str().unwrap();
+    let r = secant(&["scan-sinks", "--source", src, "--top", "1000000", "--json"]);
+    assert_eq!(r.status.code(), Some(0));
+    let vr = json(&r);
+    assert_eq!(vr["files_scanned"], 7);
+    assert_eq!(vr["files_skipped"], 2);
+    assert_eq!(vr["incomplete"], true);
+    let skipped = vr["skipped"].as_array().unwrap();
+    assert_eq!(skipped.len(), 2);
+    assert_eq!(skipped[0]["path"], "src/long_line.c");
+    assert_eq!(skipped[0]["reason"], "scan error: bufio.Scanner: token too long");
+    assert_eq!(skipped[1]["path"], "src/oversize.c");
+    assert_eq!(skipped[1]["reason"], "file exceeds 4194304 bytes");
+    assert!(
+        vr["limitations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|l| l.as_str() == Some("INCOMPLETE: 2 file(s) were skipped (see skipped); an absence of findings is not a clean result"))
+    );
+
+    let Some(go) = oracle_bin() else { return not_run("incomplete_and_skipped_files_match_the_oracle") };
+    let g = Command::new(&go).args(["wsp", "scan-sinks", "--source", src, "--top", "1000000", "--json"]).output().unwrap();
+    assert_eq!(g.status.code(), r.status.code());
+    assert_eq!(comparable(&g.stdout), comparable(&r.stdout));
+}
+
+#[test]
 fn receipt_is_byte_identical_to_the_oracle() {
     let Some(go) = oracle_bin() else { return not_run("receipt_is_byte_identical_to_the_oracle") };
     let s = fixture();

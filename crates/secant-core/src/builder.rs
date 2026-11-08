@@ -27,11 +27,7 @@ impl BuildTensor {
 }
 
 fn quant_block(dtype: &str) -> Option<(usize, usize)> {
-    match dtype {
-        "Q8_0" => Some((32, 34)),
-        "Q4_K" => Some((256, 144)),
-        _ => None,
-    }
+    crate::quant_scale::QuantScaleFormat::from_dtype(dtype).map(|f| (f.block_elems(), f.block_bytes()))
 }
 
 fn validate(tensors: &[BuildTensor]) -> Result<()> {

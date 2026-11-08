@@ -20,8 +20,9 @@
 //!   * `schema` is `secant.wsp-sink-scan.v1` (the oracle writes the legacy
 //!     namespace), and the third `limitations` entry is worded without the
 //!     oracle's internal rule references.
-//!   * A line longer than 1 MiB: the oracle's `bufio.Scanner` stops at it and
-//!     silently drops the rest of that file; Secant scans every line.
+//!   * A file exceeding 4 MiB or containing a line over 1 MiB is skipped as a
+//!     whole, recorded in `skipped`, and sets `incomplete: true` (matching the
+//!     oracle).
 //!   * Regex classes are ASCII here (`regex::bytes`, Unicode off). Go's `(?i)`
 //!     also folds U+212A (Kelvin) and U+017F (long s), and Go's `\s` excludes
 //!     `\v`; neither occurs in real source identifiers.
@@ -47,6 +48,7 @@ pub const SINK_RELEASE_ASSERT: &str = "WEIGHT_VALUE_RELEASE_ASSERT";
 pub const SINK_CLASSES: [&str; 4] = [SINK_FLOAT_TO_INDEX_CAST, SINK_UNVALIDATED_INDEX, SINK_QUANT_SCALE_DIV, SINK_RELEASE_ASSERT];
 
 const MAX_FILE_BYTES: usize = 4 << 20;
+const MAX_LINE_BYTES: usize = 1 << 20;
 const MAX_SCOPE_BACK: usize = 250;
 
 pub const LIMITATIONS: [&str; 3] = [
@@ -61,6 +63,12 @@ pub struct SinkScanOptions {
     /// Maximum ranked findings kept in `findings`; `<= 0` takes 100.
     pub top: i64,
     pub attempt_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SinkSkip {
+    pub path: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,6 +94,8 @@ pub struct SinkScanReport {
     pub finished_utc: String,
     pub files_scanned: i64,
     pub files_skipped: i64,
+    pub incomplete: bool,
+    pub skipped: Vec<SinkSkip>,
     pub lines_scanned: i64,
     pub tree_digest: String,
     pub total_findings: i64,
@@ -108,6 +118,12 @@ fn counts(m: &BTreeMap<String, i64>) -> J {
     J::Obj(m.iter().map(|(k, v)| (k.clone(), J::Int(*v))).collect())
 }
 
+impl SinkSkip {
+    fn to_j(&self) -> J {
+        J::obj(vec![("path", J::s(&self.path)), ("reason", J::s(&self.reason))])
+    }
+}
+
 impl SinkFinding {
     fn to_j(&self) -> J {
         let mut v = vec![
@@ -127,6 +143,12 @@ impl SinkFinding {
 }
 
 impl SinkScanReport {
+    fn skip(&mut self, path: String, reason: String) {
+        self.files_skipped += 1;
+        self.incomplete = true;
+        self.skipped.push(SinkSkip { path, reason });
+    }
+
     /// The receipt as the oracle's `encoding/json` struct tree.
     pub fn to_j(&self) -> J {
         let mut v = vec![("schema", J::s(&self.schema))];
@@ -137,6 +159,14 @@ impl SinkScanReport {
             ("finished_utc", J::s(&self.finished_utc)),
             ("files_scanned", J::Int(self.files_scanned)),
             ("files_skipped", J::Int(self.files_skipped)),
+        ]);
+        if self.incomplete {
+            v.push(("incomplete", J::Bool(true)));
+        }
+        if !self.skipped.is_empty() {
+            v.push(("skipped", J::Arr(self.skipped.iter().map(|s| s.to_j()).collect())));
+        }
+        v.extend([
             ("lines_scanned", J::Int(self.lines_scanned)),
             ("tree_digest_sha256", J::s(&self.tree_digest)),
             ("total_findings", J::Int(self.total_findings)),
@@ -164,6 +194,8 @@ struct Res {
     c_cast: Regex,
     static_cast: Regex,
     fn_cast: Regex,
+    cub_nan_sink: Regex,
+    partial_cmp_unwrap: Regex,
     rust_cast: Regex,
     floaty: Regex,
     test_path: Regex,
@@ -194,13 +226,15 @@ fn res() -> &'static Res {
     static R: OnceLock<Res> = OnceLock::new();
     R.get_or_init(|| {
         let cast_type = r"(?:u?int(?:8|16|32|64)_t|size_t|ssize_t|ptrdiff_t|intptr_t|int|unsigned|long(?:\s+long)?|short|index_t|idx_t)";
-        let idx_names = r"tid2eid|expert_ids?|expert_idx|expert_indices|selected_experts|topk_ids|sorted_token_ids|token_idx|token_ids?|indices|row_splits|perm(?:utation)?";
+        let idx_names = r"tid2eid|expert_ids?|expert_idx|expert_indices|selected_experts|topk_ids|sorted_token_ids|token_idx|token_ids?|indices|row_splits|perm(?:utation)?|g_idx|expert_map|full_row_indices|hash_indices_table|true_classes|qzeros|kmap_q\w+|iq\w+_grid";
         Res {
             c_cast: re(&format!(r"\(\s*{}\s*\)\s*[\w(*&\[~-]", cast_type)),
             static_cast: re(&format!(r"(?:static|reinterpret)_cast\s*<\s*(?:const\s+)?{}\s*>\s*\(", cast_type)),
-            fn_cast: re(r"\b(?:lrintf?|llrintf?|lroundf?|llroundf?|nearbyintf?|rintf?)\s*\("),
+            fn_cast: re(r"\b(?:lrintf?|llrintf?|lroundf?|llroundf?|nearbyintf?|rintf?|_mm(?:256|512)?_cvtt?ps_epi32|_mm(?:256|512)?_cvtt?ps_epu32|__float2u?int_r[znud])\s*\("),
+            cub_nan_sink: re(r"\bcub::(?:BlockRadixSort|DeviceRadixSort|ArgMax)\b"),
+            partial_cmp_unwrap: re(r"\.partial_cmp\s*\([^)]*\)\s*\.unwrap\s*\(\s*\)"),
             rust_cast: re(r"\bas\s+(?:i|u)(?:8|16|32|64|size)\b"),
-            floaty: re(r"(?i)\b(?:logits?|probs?|probabilit\w*|scores?|softmax|topk|top_k|gate|router|routing_w\w*|weights?|scales?|temperature|float|half|bfloat16?|bf16|fp16|fp32|f32|f16|floorf?|ceilf?|roundf?|truncf?|expf?|logf?|sqrtf?|tanhf?|powf?|fabsf?|fmaf?|rsqrt\w*|GGML_FP16_TO_FP32|__half2float|__bfloat162float|static_cast\s*<\s*float|\d+\.\d*f\b|\d+e[+-]?\d+f?\b)"),
+            floaty: re(r"(?i)\b(?:logits?|probs?|probabilit\w*|scores?|softmax|topk|top_k|gate|router|routing_w\w*|weights?|scales?|temperature|float|half|bfloat16?|bf16|fp16|fp32|f32|f16|floorf?|ceilf?|roundf?|truncf?|expf?|logf?|sqrtf?|tanhf?|powf?|fabsf?|fmaf?|rsqrt\w*|_mm(?:256|512)?_cvtt?ps_ep[iu]32|__float2u?int_r[znud]|GGML_FP16_TO_FP32|__half2float|__bfloat162float|static_cast\s*<\s*float|\d+\.\d*f\b|\d+e[+-]?\d+f?\b)"),
             test_path: re(r"(?i)(?:^|/)(?:tests?|testing|testdata|bench(?:mark)?s?|examples?|samples?|docs?|tools/(?:perf|bench)\w*)/|_test\.(?:cc|cpp|c|rs)$|(?:^|/)test_\w+\.(?:cc|cpp|c)$"),
             kernel_path: re(r"(?i)(?:kernel|cuda|\.cu$|\.cuh$|moe|expert|router|routing|ssm|delta|quant|dequant|mamba|attention|sampl|topk|gate|csrc|ops?/)"),
             load_path: re(r"(?i)(?:load|loader|read|checkpoint|bundle|restore|safetensor|gguf|serializ|deserializ|import|model_|weights?)"),
@@ -210,7 +244,7 @@ fn res() -> &'static Res {
             check_macro: re(r"\b(?:CHECK(?:_EQ|_NE|_LT|_LE|_GT|_GE)?|GGML_ASSERT|TORCH_CHECK\w*|TORCH_INTERNAL_ASSERT|ORT_ENFORCE|ORT_THROW|TF_CHECK_OK|TF_QCHECK_OK|LOG\s*\(\s*FATAL\s*\)|OP_REQUIRES\w*|RET_CHECK\w*|abort|assert|DCHECK\w*)\b"),
             fn_start_c: re(r"^[A-Za-z_~][\w:<>,\s\*&~]*\b([A-Za-z_~][\w:~]*)\s*\([^;]*$"),
             fn_start_rust: re(r#"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:unsafe\s+)?(?:extern\s+"C"\s+)?fn\s+(\w+)"#),
-            idx_sub: re(&format!(r"\[\s*[^\]\[\n]*\b({})\w*(?:\s*\[[^\]\n]*\])?[^\]\n]*\]", idx_names)),
+            idx_sub: re(&format!(r"\[\s*[^\]\[\n]*\b({0})\w*(?:\s*\[[^\]\n]*\])?[^\]\n]*\]|\b({0})\w*\s*\[[^\]\[\n]*(?:\[[^\]\n]*\][^\]\[\n]*)?\]", idx_names)),
             idx_ptr: re(&format!(r"\*\s*\(\s*\w+\s*\+\s*[^)\n]*\b({})\b[^)\n]*\)", idx_names)),
             div_scale1: re(r"\b1(?:\.0*)?f?\s*/\s*\(?\s*(?:[A-Za-z_]\w*(?:->|\.))?(d|dmin|dm|amax|absmax|iscale|inv_scale|id|\w*scale\w*)\s*\)?"),
             div_scale2: re(r"[\w)\]]\s*/\s*\(?\s*(?:[A-Za-z_]\w*(?:->|\.))?(scale\w*|\w*_scale\w*|dmin|amax|absmax|\w+\.d|\w+->d|\w+\.dm|\w+->dm)\b"),
@@ -387,7 +421,7 @@ fn strip_comments(line: &[u8], in_block: &mut bool) -> Vec<u8> {
 }
 
 /// `bufio.ScanLines`: split on `\n`, drop one trailing `\r`, no empty final
-/// token. Unlike the oracle there is no 1 MiB line cap (see module docs).
+/// token. Callers enforce the 1 MiB line cap before calling `split_lines` (see module docs).
 fn split_lines(data: &[u8]) -> Vec<&[u8]> {
     let mut out = Vec::new();
     let mut start = 0;
@@ -445,10 +479,13 @@ fn scope_has(scope: &[Line], code: &[u8], r: &Regex, nan: bool) -> (bool, String
 
 fn float_to_index(code: &[u8], lang: &str) -> bool {
     let r = res();
+    if r.fn_cast.is_match(code) || r.cub_nan_sink.is_match(code) {
+        return true;
+    }
     if lang == "rust" {
         return r.rust_cast.is_match(code) && r.floaty.is_match(code);
     }
-    let loc = r.c_cast.find(code).or_else(|| r.static_cast.find(code)).or_else(|| r.fn_cast.find(code));
+    let loc = r.c_cast.find(code).or_else(|| r.static_cast.find(code));
     match loc {
         Some(m) => r.floaty.is_match(&code[m.start()..]),
         None => false,
@@ -457,7 +494,11 @@ fn float_to_index(code: &[u8], lang: &str) -> bool {
 
 fn idx_subscript(code: &[u8]) -> Option<String> {
     let r = res();
-    r.idx_sub.captures(code).or_else(|| r.idx_ptr.captures(code)).and_then(|c| c.get(1)).map(|m| go_lossy(m.as_bytes()))
+    if let Some(c) = r.idx_sub.captures(code) {
+        let m = c.get(1).or_else(|| c.get(2))?;
+        return Some(go_lossy(m.as_bytes()));
+    }
+    r.idx_ptr.captures(code).and_then(|c| c.get(1)).map(|m| go_lossy(m.as_bytes()))
 }
 
 fn index_guard(scope: &[Line], code: &[u8], name: &str) -> (bool, String) {
@@ -502,7 +543,11 @@ fn quant_scale(code: &[u8]) -> Option<(&'static str, &'static str)> {
 /// and `RET_CHECK*` are not release aborts; a bare `abort` IS reported (the
 /// oracle's comment says otherwise, its code reports it).
 fn release_assert(code: &[u8]) -> String {
-    let m = go_lossy(find_str(&res().check_macro, code));
+    let r = res();
+    if r.partial_cmp_unwrap.is_match(code) {
+        return "partial_cmp.unwrap".into();
+    }
+    let m = go_lossy(find_str(&r.check_macro, code));
     if m.is_empty()
         || m == "assert"
         || m == "OP_REQUIRES"
@@ -590,7 +635,7 @@ pub fn scan_sink_file(rel: &str, lang: &str, data: &[u8]) -> (Vec<SinkFinding>, 
             if test_path {
                 score *= 0.2;
             }
-            if lang == "rust" && class == SINK_FLOAT_TO_INDEX_CAST {
+            if lang == "rust" && class == SINK_FLOAT_TO_INDEX_CAST && !r.fn_cast.is_match(code) {
                 score *= 0.4; // `as` on floats saturates and maps NaN to 0 in Rust: no UB
                 notes = String::from_utf8(
                     trim_space(format!("{} rust float-to-int `as` saturates (NaN->0); logic error, not UB", notes).as_bytes()).to_vec(),
@@ -628,8 +673,14 @@ pub fn scan_sink_file(rel: &str, lang: &str, data: &[u8]) -> (Vec<SinkFinding>, 
         }
         let mac = release_assert(code);
         let loaded = r.loaded_value.is_match(code);
-        if !mac.is_empty() && (load_path || kernel_path || loaded) {
-            add(SINK_RELEASE_ASSERT, if loaded { 5.5 } else { 4.0 }, false, String::new(), format!("macro: {}", mac));
+        if !mac.is_empty() && (load_path || kernel_path || loaded || mac == "partial_cmp.unwrap") {
+            let base = if loaded || mac == "partial_cmp.unwrap" { 5.5 } else { 4.0 };
+            let (guard, kind) = if mac == "partial_cmp.unwrap" {
+                scope_has(scope, code, &r.nan_guard, true)
+            } else {
+                (false, String::new())
+            };
+            add(SINK_RELEASE_ASSERT, base, guard, if guard { kind } else { String::new() }, format!("macro: {}", mac));
         }
     }
     (out, lines.len() as i64)
@@ -653,14 +704,20 @@ fn io_msg(e: &std::io::Error) -> String {
     }
 }
 
+fn sink_rel_path(root: &str, p: &std::path::Path) -> String {
+    let prefix = if root.ends_with('/') { root.to_string() } else { format!("{}/", root) };
+    let ps = p.to_string_lossy();
+    ps.strip_prefix(&prefix).unwrap_or(&ps).to_string()
+}
+
 /// Walk `dir` like `filepath.WalkDir`: entries in name order, hidden and VCS
 /// directories pruned, only regular files with a known extension kept. An
-/// unreadable directory counts as one skipped file.
-fn walk(dir: &std::path::Path, files: &mut Vec<String>, skipped: &mut i64) {
+/// unreadable directory counts as one skipped entry in `rep`.
+fn walk(root: &str, dir: &std::path::Path, files: &mut Vec<String>, rep: &mut SinkScanReport) {
     let rd = match std::fs::read_dir(dir) {
         Ok(r) => r,
-        Err(_) => {
-            *skipped += 1;
+        Err(e) => {
+            rep.skip(sink_rel_path(root, dir), format!("walk error: open {}: {}", dir.display(), io_msg(&e)));
             return;
         }
     };
@@ -668,27 +725,27 @@ fn walk(dir: &std::path::Path, files: &mut Vec<String>, skipped: &mut i64) {
     for e in rd {
         match e {
             Ok(e) => entries.push((std::os::unix::ffi::OsStrExt::as_bytes(e.file_name().as_os_str()).to_vec(), e)),
-            Err(_) => {
-                *skipped += 1;
+            Err(e) => {
+                rep.skip(sink_rel_path(root, dir), format!("walk error: open {}: {}", dir.display(), io_msg(&e)));
                 return;
             }
         }
     }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     for (name, e) in entries {
+        let path = e.path();
         let ft = match e.file_type() {
             Ok(t) => t,
-            Err(_) => {
-                *skipped += 1;
+            Err(err) => {
+                rep.skip(sink_rel_path(root, &path), format!("walk error: lstat {}: {}", path.display(), io_msg(&err)));
                 continue;
             }
         };
-        let path = e.path();
         if ft.is_dir() {
             if matches!(name.as_slice(), b".git" | b"node_modules" | b".hg" | b".svn") || name.starts_with(b".") {
                 continue;
             }
-            walk(&path, files, skipped);
+            walk(root, &path, files, rep);
             continue;
         }
         let p = path.to_string_lossy().into_owned();
@@ -720,6 +777,8 @@ pub fn sink_scan(o: &SinkScanOptions) -> Result<SinkScanReport> {
         finished_utc: String::new(),
         files_scanned: 0,
         files_skipped: 0,
+        incomplete: false,
+        skipped: vec![],
         lines_scanned: 0,
         tree_digest: String::new(),
         total_findings: 0,
@@ -732,7 +791,7 @@ pub fn sink_scan(o: &SinkScanOptions) -> Result<SinkScanReport> {
         options: o.clone(),
     };
     let mut files = Vec::new();
-    walk(std::path::Path::new(&root), &mut files, &mut rep.files_skipped);
+    walk(&root, std::path::Path::new(&root), &mut files, &mut rep);
     files.sort();
     let mut digest = Sha256::new();
     let mut all: Vec<SinkFinding> = Vec::new();
@@ -740,12 +799,20 @@ pub fn sink_scan(o: &SinkScanOptions) -> Result<SinkScanReport> {
     for p in &files {
         let rel = p.strip_prefix(&prefix).unwrap_or(p).to_string();
         let data = match std::fs::read(p) {
-            Ok(d) if d.len() <= MAX_FILE_BYTES => d,
-            _ => {
-                rep.files_skipped += 1;
+            Ok(d) => d,
+            Err(e) => {
+                rep.skip(rel, format!("read error: open {}: {}", p, io_msg(&e)));
                 continue;
             }
         };
+        if data.len() > MAX_FILE_BYTES {
+            rep.skip(rel, format!("file exceeds {} bytes", MAX_FILE_BYTES));
+            continue;
+        }
+        if data.split(|&b| b == b'\n').any(|line| line.len() >= MAX_LINE_BYTES) {
+            rep.skip(rel, "scan error: bufio.Scanner: token too long".into());
+            continue;
+        }
         digest.update(format!("{} {}\n", rel, crate::container::sha256_hex(&data)).as_bytes());
         rep.files_scanned += 1;
         let lang = language_of_ext(&go_ext(p).to_lowercase()).unwrap();
@@ -754,6 +821,12 @@ pub fn sink_scan(o: &SinkScanOptions) -> Result<SinkScanReport> {
         all.extend(fs);
     }
     rep.tree_digest = crate::container::hex(&digest.finalize());
+    if rep.incomplete {
+        rep.limitations.push(format!(
+            "INCOMPLETE: {} file(s) were skipped (see skipped); an absence of findings is not a clean result",
+            rep.files_skipped
+        ));
+    }
     all.sort_by(|a, b| {
         b.risk_score
             .partial_cmp(&a.risk_score)
@@ -834,16 +907,21 @@ mod tests {
     }
 
     #[test]
-    fn a_line_over_one_mib_does_not_truncate_the_file() {
-        // Recorded divergence: the oracle's bufio.Scanner stops at a >1 MiB line
-        // and drops the rest of the file; every line is scanned here.
+    fn a_line_over_one_mib_skips_the_whole_file_in_sink_scan() {
         let mut src = b"int f(float *logits) {\n".to_vec();
         src.extend(std::iter::repeat_n(b'x', (1 << 20) + 7));
         src.extend_from_slice(b"\n  return (int) logits[0];\n}\n");
-        let (f, n) = scan_sink_file("a.c", "c", &src);
-        assert_eq!(n, 4);
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].line, 3);
+        let dir = std::env::temp_dir().join(format!("secant-sinks-1mib-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.c"), &src).unwrap();
+        let rep = sink_scan(&SinkScanOptions { source: dir.to_string_lossy().into_owned(), top: 100, attempt_id: String::new() }).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(rep.files_scanned, 0);
+        assert_eq!(rep.files_skipped, 1);
+        assert!(rep.incomplete);
+        assert_eq!(rep.skipped, vec![SinkSkip { path: "a.c".into(), reason: "scan error: bufio.Scanner: token too long".into() }]);
+        assert!(rep.limitations.iter().any(|l| l.starts_with("INCOMPLETE: 1 file(s) were skipped")));
     }
 
     #[test]

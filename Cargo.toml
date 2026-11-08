@@ -3,10 +3,14 @@ resolver = "2"
 members = ["crates/secant-core", "crates/secant-cli", "crates/secant-ffi"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "Secant: weight-space programming, tensor-file security probes and Project-Then-Heal"
+authors = ["Nathan Keys <professor.moody@pm.me>"]
+repository = "https://github.com/professor-moody/secant"
+homepage = "https://professor-moody.github.io/secant/"
+documentation = "https://professor-moody.github.io/secant/"
 
 [workspace.dependencies]
 memmap2 = "0.9"
@@ -15,7 +19,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 clap = { version = "4", features = ["derive"] }
 regex = "1"
-secant-core = { path = "crates/secant-core" }
+secant-core = { path = "crates/secant-core", version = "0.2.0" }
 
 [profile.release]
 # Never fuse multiply-adds implicitly; the reader's determinism contract

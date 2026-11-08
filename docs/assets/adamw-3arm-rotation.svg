@@ -282,9 +282,9 @@
 <rect x="869.5" y="958.4" width="7.2" height="7.2" fill="#fbbf24" transform="rotate(45 873.1 962.0)"/>
 <circle cx="654.4" cy="962.0" r="4.2" fill="#34d399"/>
 <text x="530.0" y="1024.0" fill="#d6d3d1" font-size="11.5" font-weight="600" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">A 0.82% to 8.51% · B 0.33% to 1.67% · C 1.78e-10 to 8.67e-10.</text>
-<text x="530.0" y="1041.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Here B sits below A on 15 of 15 models, the reverse of the strix rows; it never</text>
+<text x="530.0" y="1041.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Here B sits below A on 15 of 15 models, the reverse of the mixed-target rows; it never</text>
 <text x="530.0" y="1058.0" fill="#a8a29e" font-size="11.5" font-weight="400" text-anchor="start" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">reaches C: min B / max C = 3.8e+06. Target: orthogonal MSE + real-token CE.</text>
 <line x1="32" y1="1080" x2="928" y2="1080" stroke="#2e2d2b"/>
-<text x="32.0" y="1100.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Sources: posthoc_lr3e-3_run_{q35_08b 3ee4aa43, q35_4b db193e05, q25_7b c7bba16e}.json (strix rows; lr 3e-3 is post hoc, the preregistered</text>
+<text x="32.0" y="1100.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Sources: posthoc_lr3e-3_run_{q35_08b 3ee4aa43, q35_4b db193e05, q25_7b c7bba16e}.json (mixed-target rows; lr 3e-3 is post hoc, the preregistered</text>
 <text x="32.0" y="1116.0" fill="#a8a29e" font-size="10.5" font-weight="400" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">lr 1e-2 run gives the same ordering) · irrefutable-15models-stage1-receipt.json 00f4fe2a (H100 Stage-1, seed 20261105).</text>
 </svg>

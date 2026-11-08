@@ -12,22 +12,22 @@
 //!
 //! Both reduce to the flat payload element index `out * logical_in + in`.
 //!
-//! One deliberate extension over the oracle: the oracle rejects a whole GGUF
-//! file that contains any quantized tensor. Secant lists quantized tensors
+//! Quantized GGUF support: Secant lists all GGUF quantized tensor types
 //! (`Q8_0`, `Q4_K`, ...) with their exact block-derived byte size so `inspect`,
-//! `verify-patch` and the block-aligned `quant` surgery work on them; every
-//! float edit refuses a quantized target.
+//! `verify-patch` and the block-aligned `quant` surgery work on them, while
+//! `sanitize` scans the 10 B3-2A block-quantized formats at the scale-header
+//! level; float-only edits refuse a quantized target.
 
 use crate::dtype::*;
 use crate::error::{Error, Result};
 use crate::numeric::fma_add;
 use crate::plan::{Edit, Plan};
-use memmap2::{Mmap, MmapMut};
+use memmap2::Mmap;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::fs::{File, OpenOptions};
-use std::io::Read;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 pub const DEFAULT_ALIGNMENT: u64 = 32;
@@ -241,8 +241,16 @@ pub fn ggml_type_id(dtype: &str) -> Option<u32> {
     match dtype {
         "F32" => Some(0),
         "F16" => Some(1),
+        "Q4_0" => Some(2),
+        "Q4_1" => Some(3),
+        "Q5_0" => Some(6),
+        "Q5_1" => Some(7),
         "Q8_0" => Some(8),
+        "Q2_K" => Some(10),
+        "Q3_K" => Some(11),
         "Q4_K" => Some(12),
+        "Q5_K" => Some(13),
+        "Q6_K" => Some(14),
         "I32" => Some(26),
         "I64" => Some(27),
         "F64" => Some(28),
@@ -362,9 +370,16 @@ pub fn scan_gguf_layout(b: &[u8]) -> Result<Layout> {
     }
     let mut layout =
         Layout { format: "gguf".into(), path: String::new(), file_size: 0, data_offset: 0, metadata: BTreeMap::new(), tensors: Vec::new() };
+    let mut seen_metadata = std::collections::BTreeSet::new();
     for _ in 0..kv_count {
         let key = s.str()?;
+        if !seen_metadata.insert(key.clone()) {
+            return Err(Error::msg(format!("gguf: duplicate metadata key {:?}", key)));
+        }
         let vt = s.u32()?;
+        if key == "general.alignment" && vt != 4 {
+            return Err(Error::msg("gguf: general.alignment must be a uint32"));
+        }
         if let Some(val) = s.skip_value(vt, 0)? {
             if !val.is_empty() {
                 layout.metadata.insert(key, val);
@@ -373,10 +388,9 @@ pub fn scan_gguf_layout(b: &[u8]) -> Result<Layout> {
     }
     let mut alignment = DEFAULT_ALIGNMENT;
     if let Some(v) = layout.metadata.get("general.alignment") {
-        if let Some(a) = scan_int_prefix(v) {
-            if a > 0 && a <= 1 << 20 {
-                alignment = a as u64;
-            }
+        alignment = v.parse().map_err(|_| Error::msg("gguf: invalid general.alignment"))?;
+        if !alignment.is_power_of_two() || alignment > 1 << 20 {
+            return Err(Error::msg("gguf: general.alignment must be a power of two in [1, 1048576]"));
         }
     }
     let mut seen_names: BTreeMap<String, bool> = BTreeMap::new();
@@ -401,7 +415,16 @@ pub fn scan_gguf_layout(b: &[u8]) -> Result<Layout> {
         }
         let typ = s.u32()?;
         let off = s.u64()?;
+        if off > i64::MAX as u64 {
+            return Err(Error::msg(format!("gguf: tensor offset {} exceeds the signed 64-bit range", off)));
+        }
         let info = ggml_info(typ).ok_or_else(|| Error::msg(format!("gguf: tensor {:?}: unknown ggml type: {}", name, typ)))?;
+        if off % alignment != 0 {
+            return Err(Error::msg(format!("gguf: tensor {:?} offset {} is not aligned to {}", name, off, alignment)));
+        }
+        if info.block > 1 && (dims.is_empty() || dims[0] as u64 % info.block != 0) {
+            return Err(Error::msg(format!("gguf: tensor {:?} contiguous dimension must be a multiple of {}", name, info.block)));
+        }
         let size = tensor_data_size(elements, typ).map_err(|e| Error::msg(format!("gguf: tensor {:?}: {}", name, e)))?;
         let (rows, cols, lo, li) = match dims.len() {
             0 => (1, 1, 0, 0),
@@ -621,8 +644,15 @@ pub fn layout_of_bytes(b: &[u8], path: &str) -> Result<Layout> {
     layout.file_size = b.len() as i64;
     for t in &layout.tensors {
         let end = t.offset.checked_add(t.size).ok_or_else(|| Error::msg(format!("tensor {:?} payload extent overflows", t.name)))?;
-        if t.offset < 0 || end > layout.file_size {
+        if t.offset < layout.data_offset || t.size < 0 || end > layout.file_size {
             return Err(Error::msg(format!("tensor {:?} payload [{},{}) exceeds file size {}", t.name, t.offset, end, layout.file_size)));
+        }
+    }
+    let mut intervals: Vec<_> = layout.tensors.iter().filter(|t| t.size > 0).collect();
+    intervals.sort_by_key(|t| t.offset);
+    for pair in intervals.windows(2) {
+        if pair[0].offset + pair[0].size > pair[1].offset {
+            return Err(Error::msg(format!("overlapping tensor payloads: {:?} and {:?}", pair[0].name, pair[1].name)));
         }
     }
     Ok(layout)
@@ -641,8 +671,9 @@ impl Model {
         if len == 0 {
             return Err(Error::msg(format!("{}: empty file", path)));
         }
-        // SAFETY: the mapping is read-only; callers that need immutability
-        // across a long operation bracket it with sha256 before and after.
+        // SAFETY: callers must exclude external writes and truncation while
+        // this mapping lives. Hash bracketing is evidence, not synchronization.
+        // Patch writers use private owned snapshots instead of this mapping.
         let map = unsafe { Mmap::map(&f) }.map_err(|e| Error::msg(format!("mmap {}: {}", path, e)))?;
         let layout = layout_of_bytes(&map, path)?;
         Ok(Model { layout, map })
@@ -1056,7 +1087,21 @@ pub fn inspect_model(path: &str) -> Result<InspectReport> {
         }
     }
     ssm.layers.sort();
-    let lay = SsmOutLayout::from_meta(&layout.metadata).map_err(|e| Error::msg(format!("qwen3.5 ssm_out metadata: {}", e)))?;
+    let lay = match SsmOutLayout::from_meta(&layout.metadata) {
+        Ok(l) => l,
+        Err(e) => {
+            if !ssm.layers.is_empty() {
+                return Err(Error::msg(format!("qwen3.5 ssm_out metadata: {}", e)));
+            }
+            SsmOutLayout {
+                num_k_heads: QWEN35_DEFAULT_NUM_K_HEADS,
+                num_v_heads: QWEN35_DEFAULT_NUM_V_HEADS,
+                head_v_dim: QWEN35_DEFAULT_HEAD_V_DIM,
+                head_k_dim: QWEN35_DEFAULT_HEAD_K_DIM,
+                metadata_derived: false,
+            }
+        }
+    };
     ssm.num_k_heads = lay.num_k_heads;
     ssm.num_v_heads = lay.num_v_heads;
     ssm.head_v_dim = lay.head_v_dim;
@@ -1187,9 +1232,14 @@ fn ranges_identical(a: &[u8], b: &[u8], offset: i64, size: i64) -> Result<bool> 
 /// names the tensors allowed (and required) to differ; the header region
 /// `[0, data_offset)` and every other tensor must be 100% byte-identical.
 pub fn verify_patch(base_path: &str, patched_path: &str, expect: &[String]) -> Result<VerifyReport> {
-    let base = Model::open(base_path).map_err(|e| Error::msg(format!("base: {}", e)))?;
-    let patched = Model::open(patched_path).map_err(|e| Error::msg(format!("patched: {}", e)))?;
-    let (bl, pl) = (&base.layout, &patched.layout);
+    let base = std::fs::read(base_path)?;
+    let patched = std::fs::read(patched_path)?;
+    verify_patch_images(&base, &patched, base_path, patched_path, expect)
+}
+
+fn verify_patch_images(base: &[u8], patched: &[u8], base_path: &str, patched_path: &str, expect: &[String]) -> Result<VerifyReport> {
+    let bl = &layout_of_bytes(base, base_path).map_err(|e| Error::msg(format!("base: {}", e)))?;
+    let pl = &layout_of_bytes(patched, patched_path).map_err(|e| Error::msg(format!("patched: {}", e)))?;
     if bl.format != pl.format {
         return Err(Error::msg(format!(
             "cannot compare {} ({}) with {} ({}): different container formats",
@@ -1209,7 +1259,7 @@ pub fn verify_patch(base_path: &str, patched_path: &str, expect: &[String]) -> R
     rep.header_len = bl.data_offset;
     rep.header_identical = bl.data_offset == pl.data_offset;
     if rep.header_identical {
-        rep.header_identical = ranges_identical(base.bytes(), patched.bytes(), 0, bl.data_offset)?;
+        rep.header_identical = ranges_identical(base, patched, 0, bl.data_offset)?;
     }
     if !rep.header_identical {
         rep.failures.push(format!(
@@ -1222,7 +1272,26 @@ pub fn verify_patch(base_path: &str, patched_path: &str, expect: &[String]) -> R
         rep.failures.push(format!("tensor counts differ: base {}, patched {}", bl.tensors.len(), pl.tensors.len()));
         return Ok(rep);
     }
-    let mut other_identical = true;
+    let mut other_identical = base.len() == patched.len();
+    if !other_identical {
+        rep.failures.push(format!("file lengths differ: base {}, patched {}", base.len(), patched.len()));
+    }
+    // Cover every byte outside tensor extents, including gaps and trailers.
+    // Header padding is already included in [0, data_offset).
+    let mut spans: Vec<_> = bl.tensors.iter().filter(|t| t.size > 0).collect();
+    spans.sort_by_key(|t| t.offset);
+    let mut cursor = bl.data_offset;
+    for t in spans {
+        if !ranges_identical(base, patched, cursor, t.offset - cursor)? {
+            other_identical = false;
+            rep.failures.push(format!("non-target gap [{},{}) differs", cursor, t.offset));
+        }
+        cursor = t.offset + t.size;
+    }
+    if !ranges_identical(base, patched, cursor, bl.file_size - cursor)? {
+        other_identical = false;
+        rep.failures.push(format!("trailing bytes [{},{}) differ", cursor, bl.file_size));
+    }
     let mut changed: Vec<String> = Vec::new();
     for (bt, pt) in bl.tensors.iter().zip(pl.tensors.iter()) {
         if bt.name != pt.name || bt.offset != pt.offset || bt.size != pt.size {
@@ -1238,7 +1307,7 @@ pub fn verify_patch(base_path: &str, patched_path: &str, expect: &[String]) -> R
             ));
             continue;
         }
-        if !ranges_identical(base.bytes(), patched.bytes(), bt.offset, bt.size)? {
+        if !ranges_identical(base, patched, bt.offset, bt.size)? {
             changed.push(bt.name.clone());
             if !expected.contains(bt.name.as_str()) {
                 rep.unexpected_changed.push(bt.name.clone());
@@ -1421,7 +1490,7 @@ fn apply_permute_columns(buf: &mut TensorBuffer, t: &TensorLocation, layout: &La
     Ok(())
 }
 
-fn apply_edit(map: &mut MmapMut, layout: &Layout, edit: &Edit) -> Result<TensorPatchReport> {
+fn apply_edit(map: &mut [u8], layout: &Layout, edit: &Edit) -> Result<TensorPatchReport> {
     let name = edit.target_tensor_name(&layout.format).to_string();
     if name.is_empty() {
         return Err(Error::msg(format!("no tensor name for format {}", layout.format)));
@@ -1561,11 +1630,11 @@ fn apply_edit(map: &mut MmapMut, layout: &Layout, edit: &Edit) -> Result<TensorP
 /// How a patch should be written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PatchMode {
-    /// Copy `base` to `out` first (copy-on-write; the base is never touched).
+    /// Validate a private image, then atomically publish `out`.
     #[default]
     CopyOnWrite,
-    /// Edit `base` itself. `out` is ignored; verification uses a per-tensor
-    /// SHA-256 snapshot taken before the first write.
+    /// Atomically replace `base` after all edits and verification succeed.
+    /// `out` is ignored. Existing hard links retain the original inode.
     InPlace,
 }
 
@@ -1588,47 +1657,25 @@ pub fn apply_plan_report(base_path: &str, out_path: &str, plan: &Plan, mode: Pat
 }
 
 fn apply_plan_inner(base_path: &str, out_path: &str, plan: &Plan, mode: PatchMode, out_report: &mut Option<PatchReport>) -> Result<()> {
-    let layout = load_layout(base_path)?;
-    let (base_hash, base_bytes) = file_sha256(base_path)?;
-    let target = match mode {
-        PatchMode::CopyOnWrite => {
-            copy_file(base_path, out_path)?;
-            out_path
-        }
-        PatchMode::InPlace => base_path,
-    };
-    let snapshot = if mode == PatchMode::InPlace { Some(TensorDigests::of(base_path)?) } else { None };
-    let file =
-        OpenOptions::new().read(true).write(true).open(target).map_err(|e| Error::msg(format!("open {} for editing: {}", target, e)))?;
-    // SAFETY: exclusive writer by contract; the file was just created (copy-on-write) or is the operator-named target.
-    let mut map = unsafe { MmapMut::map_mut(&file) }.map_err(|e| Error::msg(format!("mmap {} for editing: {}", target, e)))?;
+    let mut image = PatchImage::open(base_path, out_path, mode)?;
     let mut report = PatchReport {
         schema: PATCH_SCHEMA.into(),
         base: base_path.into(),
         out: out_path.into(),
-        format: layout.format.clone(),
-        base_sha256: base_hash,
-        out_bytes: base_bytes,
+        format: image.layout.format.clone(),
+        base_sha256: image.base_sha256.clone(),
+        out_bytes: image.bytes.len() as i64,
         ..Default::default()
     };
     let mut edits = Vec::new();
     for edit in &plan.edits {
-        let tpr = apply_edit(&mut map, &layout, edit).map_err(|e| Error::msg(format!("edit {}: {}", edit.id, e)))?;
+        let tpr = apply_edit(&mut image.bytes, &image.layout, edit).map_err(|e| Error::msg(format!("edit {}: {}", edit.id, e)))?;
         edits.push(tpr);
     }
-    map.flush().map_err(|e| Error::msg(format!("sync {}: {}", target, e)))?;
-    drop(map);
-    drop(file);
-    let (out_hash, out_bytes) = file_sha256(target)?;
-    report.out_sha256 = out_hash;
-    report.out_bytes = out_bytes;
-    let expect: Vec<String> = edits.iter().map(|e| e.tensor.clone()).collect();
+    report.out_sha256 = sha256_hex(&image.bytes);
+    let expect = image.changed_targets(edits.iter().map(|e| e.tensor.as_str()));
     report.edits = Some(edits);
-    let verify = match &snapshot {
-        None => verify_patch(base_path, out_path, &expect),
-        Some(s) => s.verify_after(base_path, &expect),
-    }
-    .map_err(|e| Error::msg(format!("post-patch verify: {}", e)))?;
+    let verify = image.publish(base_path, out_path, mode, &expect)?;
     let ok = verify.ok;
     let summary = verify.failure_summary();
     report.verify = Some(verify);
@@ -1639,20 +1686,187 @@ fn apply_plan_inner(base_path: &str, out_path: &str, plan: &Plan, mode: PatchMod
     Ok(())
 }
 
+/// An owned, pinned input snapshot. All geometry checks and edits run on
+/// private bytes before any filesystem mutation. Callers must serialize writers
+/// to base/output paths until publication completes; hashes detect changes but
+/// cannot exclude a writer racing the final rename.
+pub(crate) struct PatchImage {
+    pub layout: Layout,
+    pub bytes: Vec<u8>,
+    pub base_sha256: String,
+    original: Vec<u8>,
+    input: File,
+}
+
+fn same_file(a: &std::fs::Metadata, b: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        a.dev() == b.dev() && a.ino() == b.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (a, b);
+        false
+    }
+}
+
+impl PatchImage {
+    pub fn open(base: &str, out: &str, mode: PatchMode) -> Result<Self> {
+        let mut input = open_regular_file(base)?;
+        let identity = input.metadata()?;
+        if mode == PatchMode::CopyOnWrite {
+            if Path::new(base).canonicalize().ok() == Path::new(out).canonicalize().ok()
+                || std::fs::metadata(out).map(|m| same_file(&identity, &m)).unwrap_or(false)
+            {
+                return Err(Error::msg("copy-mode base and output must name different files"));
+            }
+        }
+        let mut original = Vec::new();
+        input.read_to_end(&mut original)?;
+        let layout = layout_of_bytes(&original, base)?;
+        let base_sha256 = sha256_hex(&original);
+        Ok(Self { bytes: original.clone(), original, layout, base_sha256, input })
+    }
+
+    pub fn changed_targets<'a>(&self, names: impl Iterator<Item = &'a str>) -> Vec<String> {
+        let mut changed = std::collections::BTreeSet::new();
+        for name in names {
+            if let Ok(t) = self.layout.tensor(name) {
+                let r = t.offset as usize..(t.offset + t.size) as usize;
+                if self.original[r.clone()] != self.bytes[r] {
+                    changed.insert(name.to_owned());
+                }
+            }
+        }
+        changed.into_iter().collect()
+    }
+
+    fn check_base(&mut self, base: &str) -> Result<()> {
+        if !same_file(&self.input.metadata()?, &std::fs::metadata(base)?) {
+            return Err(Error::Gate("base file identity changed before publication".into()));
+        }
+        self.input.seek(SeekFrom::Start(0))?;
+        let mut hash = Sha256::new();
+        std::io::copy(&mut self.input, &mut hash)?;
+        if hex(&hash.finalize()) != self.base_sha256 {
+            return Err(Error::Gate("base bytes changed before publication".into()));
+        }
+        Ok(())
+    }
+
+    pub fn publish(&mut self, base: &str, out: &str, mode: PatchMode, expect: &[String]) -> Result<VerifyReport> {
+        let target = if mode == PatchMode::InPlace { base } else { out };
+        let report = verify_patch_images(&self.original, &self.bytes, base, target, expect)?;
+        if !report.ok {
+            return Err(Error::Gate(format!("post-patch verify failed: {}", report.failure_summary())));
+        }
+        self.check_base(base)?;
+        let dir = Path::new(target).parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+        let (mut file, temp) = crate::heal::create_temp(dir, ".secant-patch-")?;
+        let result = (|| -> Result<()> {
+            file.write_all(&self.bytes)?;
+            file.set_permissions(self.input.metadata()?.permissions())?;
+            file.sync_all()?;
+            let staged = std::fs::read(&temp)?;
+            if staged != self.bytes {
+                return Err(Error::Gate("staged output differs from validated image".into()));
+            }
+            self.check_base(base)?;
+            // Recheck identity immediately before publishing, including aliases.
+            let identity = self.input.metadata()?;
+            if mode == PatchMode::CopyOnWrite && std::fs::metadata(out).map(|m| same_file(&identity, &m)).unwrap_or(false) {
+                return Err(Error::Gate("output now aliases the base".into()));
+            }
+            std::fs::rename(&temp, target)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temp);
+        }
+        result?;
+        Ok(report)
+    }
+}
+
 pub fn copy_file(src: &str, dst: &str) -> Result<()> {
     let mut input = open_regular_file(src)?;
-    let perm = input.metadata()?.permissions();
-    let tmp = format!("{}.secant-tmp", dst);
-    let mut out =
-        OpenOptions::new().create(true).truncate(true).write(true).open(&tmp).map_err(|e| Error::msg(format!("create {}: {}", tmp, e)))?;
-    if let Err(e) = std::io::copy(&mut input, &mut out) {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(Error::msg(format!("copy {} -> {}: {}", src, tmp, e)));
+    let identity = input.metadata()?;
+    if std::fs::metadata(dst).map(|m| same_file(&identity, &m)).unwrap_or(false) {
+        return Err(Error::msg("copy base and output must name different files"));
     }
-    drop(out);
-    let _ = std::fs::set_permissions(&tmp, perm);
-    std::fs::rename(&tmp, dst).map_err(|e| {
+    let dir = Path::new(dst).parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let (mut out, tmp) = crate::heal::create_temp(dir, ".secant-copy-")?;
+    let result = (|| -> Result<()> {
+        std::io::copy(&mut input, &mut out)?;
+        out.set_permissions(identity.permissions())?;
+        out.sync_all()?;
+        std::fs::rename(&tmp, dst)?;
+        Ok(())
+    })();
+    if result.is_err() {
         let _ = std::fs::remove_file(&tmp);
-        Error::msg(format!("install {}: {}", dst, e))
-    })
+    }
+    result
+}
+
+#[cfg(test)]
+mod patch_snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn publication_rejects_changed_input_bytes_and_identity() {
+        let dir = std::env::temp_dir().join(format!(
+            "secant-snapshot-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let base = dir.join("base");
+        let out = dir.join("out");
+        let bytes = crate::builder::build_safetensors(
+            &[crate::builder::BuildTensor { name: "w".into(), dtype: "F32".into(), shape: vec![1], data: vec![0; 4] }],
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        for replace in [false, true] {
+            std::fs::write(&base, &bytes).unwrap();
+            std::fs::write(&out, b"keep").unwrap();
+            let mut image = PatchImage::open(base.to_str().unwrap(), out.to_str().unwrap(), PatchMode::CopyOnWrite).unwrap();
+            if replace {
+                let replacement = dir.join("replacement");
+                std::fs::write(&replacement, &bytes).unwrap();
+                std::fs::rename(replacement, &base).unwrap();
+            } else {
+                let mut changed = bytes.clone();
+                *changed.last_mut().unwrap() = 1;
+                std::fs::write(&base, changed).unwrap();
+            }
+            assert!(image.publish(base.to_str().unwrap(), out.to_str().unwrap(), PatchMode::CopyOnWrite, &[]).is_err());
+            assert_eq!(std::fs::read(&out).unwrap(), b"keep");
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn non_ssm_zero_group_count_metadata_is_allowed_when_no_ssm_out_tensor_exists() {
+        use crate::builder::{build_gguf, BuildTensor, MetaValue};
+        let bytes = build_gguf(
+            &[
+                ("general.architecture".into(), MetaValue::Str("deepseek4".into())),
+                ("deepseek4.ssm.group_count".into(), MetaValue::U32(0)),
+                ("deepseek4.ssm.time_step_rank".into(), MetaValue::U32(0)),
+                ("deepseek4.ssm.inner_size".into(), MetaValue::U32(0)),
+                ("deepseek4.ssm.state_size".into(), MetaValue::U32(0)),
+            ],
+            &[BuildTensor { name: "blk.0.attn_q.weight".into(), dtype: "F32".into(), shape: vec![2, 2], data: vec![0; 16] }],
+            32,
+        )
+        .unwrap();
+        let p = std::env::temp_dir().join(format!("secant-deepseek4-{}.gguf", std::process::id()));
+        std::fs::write(&p, &bytes).unwrap();
+        let rep = inspect_model(p.to_str().unwrap()).unwrap();
+        let _ = std::fs::remove_file(&p);
+        assert!(!rep.qwen35_gdn_ssm_out.unwrap().detected);
+    }
 }

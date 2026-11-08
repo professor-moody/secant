@@ -1,4 +1,4 @@
-// Bound to the native `crucible harness template single-buffer` contract.
+// Single-buffer libFuzzer readiness harness for the Secant C ABI (`secant.h`).
 // Every supplied byte participates in a finite numerical FFI input. This is a
 // readiness driver, not a container parser or an inference harness.
 #include <cstddef>

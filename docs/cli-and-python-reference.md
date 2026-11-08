@@ -17,10 +17,10 @@ Command shapes were checked against the installed binary's `--help` and Rust arg
 Every `secant` CLI command obeys a three-state exit code contract:
 
 | Exit Code | Meaning | Example |
-|---:|---|---|
-| **`0`** | **PASS**: Operation or verification gate succeeded. | `verify-patch` confirmed every non-target tensor is byte-identical; `verify-subspace` confirmed $\max \lvert D \Delta W\rvert \le$ `--tol` for row basis $D \in \mathbb{R}^{k \times d_{\text{out}}}$. |
-| **`1`** | **GATE FAILED**: A deterministic check ran to completion and found a violation. | `verify-subspace` measured leakage above `--tol`; `sanitize` finished its scan and findings remain. |
-| **`2`** | **USAGE / IO / UNDETERMINABLE**: Invalid arguments, missing file, malformed container, or a verdict that cannot be computed. | Missing `--model`, an unknown subcommand, a truncated GGUF header, or a `verify-subspace` tensor holding NaN/Inf (verdict `unknown`, never pass). |
+|---|---|---|
+| **0** | **PASS**: Operation or verification gate succeeded. | verify-patch confirmed every non-target tensor is byte-identical; verify-subspace confirmed max abs(D ΔW) ≤ --tol for row basis D with k rows and dout columns. |
+| **1** | **GATE FAILED**: A deterministic check ran to completion and found a violation. | verify-subspace measured leakage above --tol; sanitize finished its scan and findings remain. |
+| **2** | **USAGE / IO / UNDETERMINABLE**: Invalid arguments, missing file, malformed container, or a verdict that cannot be computed. | Missing --model, an unknown subcommand, a truncated GGUF header, or a verify-subspace tensor holding NaN/Inf (verdict unknown, never pass). |
 
 The C ABI uses a separate five-value return code (Section 4).
 
@@ -76,7 +76,7 @@ secant analyze \
 ### `secant compose`
 Turns directions, reference activations, and an edit profile into a plan. Orthogonalizing removes overlap between directions. Calibration chooses the edit size for the reference input, not for every possible prompt.
 
-Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes. `--profile` takes a built-in name (`adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`) or a `.json` path to a `secant.wsp.profile.v1` file. If neither `--target-shift` nor `--gamma` is given, the profile's `default_target_shift` (or else `default_gamma`) applies. When `--analysis <analysis.json>` (`secant.wsp.analyze.v1` or `crucible.wsp.analyze.v1`) is provided, automatic layer slots (`layer: -1`) bind in the analysis family's Borda order ($L_{\text{loop}}^*$, $L_{\text{ref}}^*$, $L_{\text{root}}^*$) instead of sorted vector filenames.
+Orthogonalizes behavioral directions via two-pass modified Gram-Schmidt in `float64` and calibrates step sizes. `--profile` takes a built-in name (`adversarial-moe-router-probe`, `adversarial-nan-probe`, `refusal-ablate`, `security-auditor-b1b2b3`, `think-loop-fix`) or a `.json` path to a `secant.wsp.profile.v1` file. If neither `--target-shift` nor `--gamma` is given, the profile's `default_target_shift` (or else `default_gamma`) applies. When `--analysis <analysis.json>` (`secant.wsp.analyze.v1`) is provided, automatic layer slots (`layer: -1`) bind in the analysis family's Borda order ($L_{\text{loop}}^*$, $L_{\text{ref}}^*$, $L_{\text{root}}^*$) instead of sorted vector filenames.
 ```bash
 secant compose \
   --profile <name-or-json> \
@@ -88,7 +88,11 @@ secant compose \
 ```
 
 ### `secant patch` & `secant verify-patch`
-`patch` applies a plan's weight edits directly to payload bytes (`F32`, `F16`, `BF16`) of a SafeTensors or GGUF file, writing a patched copy unless `--in-place` is given. `verify-patch` checks header identity and 100% byte-identity of every tensor not named in `--expect-changed`.
+`patch` applies a plan's weight edits to an owned snapshot of a SafeTensors or GGUF file. It validates all edits before writing an exclusively created temporary file, verifies the result, and atomically publishes the output. Copy mode rejects a base/output alias, including hard links and symlinks. `--in-place` atomically replaces the base path; other hard links retain the original inode. Failed edits and publication failures preserve existing base/output bytes. No-op plans are valid.
+
+`verify-patch` checks total file length, header identity, every inter-tensor gap and trailing byte, and 100% byte-identity of every tensor not named in `--expect-changed`. Expected tensors must actually differ. All shared readers/writers reject overlapping nonempty tensor extents, invalid GGUF alignment/offsets, and partial quantized rows; empty SafeTensors extents remain valid.
+
+Callers must serialize external writers to base/output paths through publication. Patching uses private memory and rechecks the pinned input's identity and SHA-256 before publication. Hash bracketing detects changes; it is not synchronization and cannot exclude a writer racing the final rename. Read-only `Model` mappings also require callers to exclude writes and truncation for their lifetime. Patching temporarily holds two full model images in memory.
 ```bash
 secant patch --base <base> --plan <plan.json> --out <patched> [--in-place] [--json]
 secant verify-patch --base <base> --patched <patched> --expect-changed <tensor1,tensor2,...> [--json]
@@ -128,15 +132,18 @@ secant verify-subspace \
 ```
 
 ### `secant sanitize`, `secant probe` & `secant read --detect-anomalies`
-`sanitize` scans static weight values and can publish a repaired copy. Its checks cover non-finite and extreme values, subnormal floats, tiny-norm vectors, and invalid or duplicate routing ids. `--receipt` and `--attempt-id` are required. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`.
+`sanitize` scans static weight values and can publish a repaired copy. Its checks cover non-finite and extreme values, tiny-norm vectors, divisor scales, and invalid or duplicate routing ids. For `Q8_0` and `Q4_K`, Rule B3-2A permits zero and FP16 subnormal multiplicative block scales by default; `--flush-subnormal` opts into stricter subnormal diagnostics and repair. `--receipt` and `--attempt-id` are required. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`.
 
 `probe` generates header-valid boundary-value fixtures and requires `--out-dir`, `--receipt` and `--attempt-id`; it does not scan a model.
 
-`sanitize` also scans `Q8_0` / `Q4_K` GGUF scale headers (`quant_scale_*` findings); other quantized types exit `2`. `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. `scan-sinks` ranks C/C++/CUDA/Rust source sites for the four weight-value sink classes. Rules and exit codes: [Payload Security](payload-security.md).
+`sanitize` also scans all 10 standard GGUF quantized scale-header formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K` -> `quant_scale_*` findings); other quantized types exit `2`. `secant probe --class all --format both --out-dir <new_dir> --receipt <new.json> --attempt-id <id>` deterministically generates self-verified synthetic witness bundles across all four Boundary-3 failure classes (`class1` router/gate NaN/-Inf, `class2` scale/bias NaN/+-1e38, `class3` NaN/sign/payload/tie arrays, `class4` I32/I64 routing tables and zero/subnormal norm vectors) so users can test `secant sanitize` out of the box. `read --detect-anomalies` reports `zero_rows`, `collapsed_rows` and `spike_cols`. `audit-trojan` runs a two-stage spectral detector: Stage 1 iteratively peels outlier singular values ($\sigma_i > \sigma_{MP}$) from the Frobenius energy ($\|W\|_F^2 - \sum_{i=1}^k \sigma_i^2$) until the residual Marchenko-Pastur bulk edge $\sigma_{MP}$ converges to a fixed point, alongside row/column norm spike detection; Stage 2 ranks each tensor's peeled $\sigma_1/\sigma_{MP}$ ratio against its architectural sibling layer family via the Iglewicz-Hoaglin modified $z$-score ($z > 3.5$) and projects $u_1$ onto `--vocab-tensor` ($E \cdot u_1$). `scan-sinks` ranks C/C++/CUDA/Rust source sites for the weight-value sink classes. Rules and exit codes: [Payload Security](payload-security.md).
 ```bash
 secant sanitize --model <in_path> --receipt <new.json> --attempt-id <id> \
   [--num-experts <N>] [--routing-tensor <glob>]... [--norm-tensor <glob>]... \
-  [--max-abs <default 10000>] [--min-norm <default 1e-12>] [--max-examples <1..10000>] \
+  [--divisor-scale-tensor <glob>]... [--no-default-divisor-scales] \
+  [--index-tensor <glob>]... [--index-bound <N>] \
+  [--max-abs <default 10000>] [--min-norm <default 1e-12>] [--divisor-floor <default 1e-12>] \
+  [--max-examples <1..10000>] [--strict-subnormal] [--dry-run] \
   [--clamp-nonfinite] [--dedup-routing-rows] [--clamp-extreme] [--flush-subnormal] \
   [--out <new_clean_path>] [--json]
 secant probe --class <class1|class2|class3|class4|all> --format <safetensors|gguf|both> \
@@ -153,7 +160,7 @@ secant scan-sinks --source <dir> [--top <N, default 100>] [--attempt-id <id>] \
 
 Check the schema, producer, and scope before comparing results. Similar field names can measure different objects: the adapter factor, the full weight update, or the error after storage rounding.
 
-Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.analyze.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1`, `secant.wsp.probe.v1` and `secant.wsp-sink-scan.v1` (`scan-sinks`) for the corresponding commands; `audit-trojan` writes `secant.wsp.read.v1`. `quant witness` (`verify`) uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Older banked receipts and the Go interface may use a `crucible` prefix; retain the producer identity instead of relabeling those receipts.
+Rust emits `secant.wsp.profiles.v1`, `secant.wsp.inspect.v1`, `secant.wsp.read.v1`, `secant.wsp.analyze.v1`, `secant.wsp.compose.v1`, `secant.wsp.patch.v1`, `secant.wsp.verify.v1`, `secant.wsp.heal.v1`, `secant.wsp.verify-subspace.v1`, `secant.wsp.sanitize.v1`, `secant.wsp.probe.v1` and `secant.wsp-sink-scan.v1` (`scan-sinks`) for the corresponding commands; `audit-trojan` writes `secant.wsp.read.v1`. `quant witness` (`verify`) uses `secant.quant.witness.v1`, and `quant patch` uses `secant.quant.patch.v1`. `quant roundtrip` currently emits `format`, `rows`, `cols`, `bytes`, `max_abs_error`, `rmse` and `sha256` without a `schema` field. Retain the producer identity on all archived receipts.
 
 - `read`: `pre_sha256`, `post_sha256` and `input_unchanged` bracket the model read; a successful command can still contain `status: "nonfinite"` tensors.
 - `verify-patch`: `header_bytes_identical`, `other_tensors_byte_identical` and `ok` test byte invariants. The allowlist permits changes; it does not establish that the intended numerical edit occurred.
@@ -207,7 +214,7 @@ class ProjectThenHealLinear(nn.Module):
         """B_locked = P (P B_tilde) [d_out, r], float64 accumulation, cast to the working dtype."""
 
     def leakage(self) -> float:
-        """max |D B_locked| in float64, measured on the working-dtype B_locked that forward() uses."""
+        """max |D B_locked| in float64, measured on the stored-dtype B_locked (`lora_B_tilde.dtype`). Note: if `forward(x)` runs with a lower-precision `x.dtype` (e.g. `bfloat16`) or inside `torch.autocast`, `F.linear` casts `B_locked` to that lower dtype (`~1e-3` BF16 floor); wrap `forward()` in `torch.amp.autocast(device_type, enabled=False)` with `float32`/`float64` activations if runtime matmul precision must match `leakage()`."""
 
     def orthonormality_error(self) -> float:
         """max |D D^T - I| (float64)."""

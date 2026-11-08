@@ -114,13 +114,13 @@ Gram-Schmidt subtracts components that earlier directions already cover, then no
 
 When $k$ behavioral edits $b \in \{1, \dots, k\}$ share the coordinate basis $\mathbb{R}^{d_{\text{model}}}$, non-orthogonal directions $\langle v_b, v_{b'} \rangle \ne 0$ can interfere constructively or destructively.
 
-Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce a normalized row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$ with pairwise post-cosine below `1e-12`. The Python API separately enforces the full Gram-matrix contract (`python/secant/_linalg.py`, `ORTHONORMALITY_TOL`):
+Given $V = [v_1, \dots, v_k] \in \mathbb{R}^{d_{\text{model}} \times k}$, `secant compose` applies **two-pass modified Gram-Schmidt orthogonalization in `float64`** to produce a normalized row basis $D = [q_1, \dots, q_k]^\top \in \mathbb{R}^{k \times d_{\text{model}}}$. Rust and Python enforce the full Gram-matrix contract (`python/secant/_linalg.py`, `ORTHONORMALITY_TOL`):
 
 $$
 \max_{i,j} \big|(D D^\top - I_k)_{ij}\big| < 10^{-12}
 $$
 
-The Python implementation rejects a residual norm below $10^{-9}$ of the input norm and a full Gram error at or above `1e-12`. Rust `compose` instead uses an absolute residual-norm floor of `1e-9` and checks off-diagonal pairwise cosines (`crates/secant-core/src/subspace.rs:289`, `:311`). These are different acceptance contracts for unnormalized inputs. The full Gram bound is the Python contract. The **measured** `float64` residual on tested bases is below $10^{-15}$: the maximum over 120 seeded Gaussian bases ($d \in \{1024, 2560, 3584, 4096, 5120, 8192\}$, $k \in \{3, 4\}$, $r \in \{8,16\}$, 5 seeds each) was $9.99 \times 10^{-16}$.
+Both implementations reject a residual norm below $10^{-9}$ of the input norm, non-finite inputs/intermediates, and full Gram error at or above `1e-12`. Norms use overflow-resistant fallback/scaling for finite rescalings. The **measured** `float64` residual on tested bases is below $10^{-15}$: the maximum over 120 seeded Gaussian bases ($d \in \{1024, 2560, 3584, 4096, 5120, 8192\}$, $k \in \{3, 4\}$, $r \in \{8,16\}$, 5 seeds each) was $9.99 \times 10^{-16}$.
 
 The multi-subspace update is then synthesized over the orthogonalized directions $q_b$:
 
@@ -161,29 +161,58 @@ $$
 \gamma_b(\alpha) = \alpha \cdot \frac{\tau_b \, \|W_\ell\|_{\mathrm{F}}}{\|q_b\|_2 \, \|u_b\|_2}
 $$
 
-The modes size different quantities: the calibrated step $\beta$ depends on the measured activation $h_S$, the ratio step $\gamma_b(\alpha)$ only on $\|W_\ell\|_{\mathrm{F}}$. The signed $\Delta_{\text{target}}$ in this derivation is the target after the profile's sign and value rules have been applied. Rust takes its magnitude from the selected calibration value and its sign from `slot.sign`; `projector-subtract` uses its own gamma path (`crates/secant-core/src/subspace.rs:587` and `:640`).
+The modes size different quantities: the calibrated step $\beta$ depends on the measured activation $h_S$, the ratio step $\gamma_b(\alpha)$ only on $\|W_\ell\|_{\mathrm{F}}$. The signed $\Delta_{\text{target}}$ in this derivation is the target after the profile's sign and value rules have been applied. Rust takes its magnitude from the selected calibration value and its sign from `slot.sign`; a nonzero slot target precedes the flag, followed by the profile default. `projector-subtract` uses its own gamma path.
+
+Target-shift composition preserves the combined rank1 contribution along the **original unit directions**. Write their columns as $U=QR$ with upper-triangular $R$. For a common reference activation and support, solve $R^\top a=t$, equivalently $a=R^{-\top}t$. With different reference activations or selected columns, the triangular entry also includes the sparse coefficient row evaluated on the requesting activation. Distinct tensor pairs are independent systems. Projector edits remain separate, base-dependent transformations; their weight changes are not included in the additive target-shift promise. Inconsistent GGUF/SafeTensors tensor bindings are rejected in target-shift mode. The NumPy helper `cross_projection_compensate` implements the common-reference system. For $(1,0)$ and $(1,1)/\sqrt{2}$ with targets $(1,1)$, the combined update is $(1,\sqrt{2}-1)$, giving both requested projections. Gamma mode continues to dose the orthogonalized basis.
+
+**Relation to prior associative-memory and abliteration estimators.** Algebraically, $\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$ is the isotropic ($C = I$, minimum-Frobenius-norm Moore-Penrose pseudoinverse) special case of the rank-1 [ROME](https://arxiv.org/abs/2202.05262) update (Meng et al., NeurIPS 2022; extended to multi-edit [MEMIT](https://arxiv.org/abs/2210.07229), ICLR 2023) restricted to sparse top-$K$ column support $S$, while whitened concept erasure was formalized in [LEACE](https://arxiv.org/abs/2306.03819) (Belrose et al., NeurIPS 2023). Multi-vector Gram-Schmidt orthogonalization and ridge-regularized projection appear in [G-Abliteration](https://arxiv.org/abs/2512.18901) (Gülmez, Dec 2025), [Norm-Preserving Biprojected Abliteration](https://huggingface.co/blog/grimjim/norm-preserving-biprojected-abliteration) (Lai, Nov 2025), [Obliteratus](https://github.com/elder-plinius/OBLITERATUS), [llm-abliteration](https://github.com/jim-plus/llm-abliteration), [apostate KCRN](https://github.com/heterodoxin/apostate), and [weightless](https://github.com/msuiche/weightless). Secant's specific contributions here are using activation-calibrated target shifts ($\beta(d_{\text{model}}, \ell) = |\Delta_{\text{target}}(\ell)| / \|h_S(\ell)\|_2^2$ and RMS-relative dosing $\Delta_{\text{target}} = \alpha\,\sigma_{\text{writer}}$) for cross-model-size edit transfer (`0.8B` to `32.8B` across 15 full models, plus `70.6B` and `72.7B` single-shard evaluations) and solving the upper-triangular $R^{-1}$ cross-projection compensation system ($Q^\top \Delta W = R^{-\top} \Delta_{\text{target}}$) for heterogeneous non-orthogonal directional edits.
 
 **Reported experiments.** Full Target-Shift Calibration ($\beta = |\Delta_{\text{target}}| / \|h_S\|_2^2$) was used on `Qwen3.5-4B` (all `B1+B2+B3` edits; `<think>` closure `0/30` in `a05`, where only `B1` was at $0.5\times$ and `B2` and `B3` were held at $1.0\times$, then `21/30` with all three at $1.0\times$ and `30/30` in `a15`, where `B1` was at $1.5\times$ and `B2` and `B3` again at $1.0\times$) and on the `B3` edit of `SmolLM2-1.7B` and of `Qwen2.5-1.5B` (see [the calibration figure](#fig-snr-and-calibration), panel B). The 14-checkpoint H100 sweep (`7.2B` to `72.7B`) used the fixed-ratio mode ($\gamma = 0.045\,\|W\|_{\mathrm{F}}$); there, aligned directions separate from equal-norm random directions by `29.1x` to `1,269.9x` by magnitude. A random unit direction projects onto $v$ with expected magnitude about $1/\sqrt{d_{\text{model}}}$, so this is a geometric sanity check, not evidence of behavioural change.
 
 The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-stage1-receipt.json`, SHA-256 `00f4fe2afc4ff630c7c9ac55b5b2c0a85342477a5b32a0b0c455abd5b4c5056f`) applied full Target-Shift Calibration to `B2` and `B3` on every model, with $\lvert\Delta_{\text{target}}\rvert = 7.382$ and 128 selected input columns. Across `B2`, $\lVert h_S\rVert_2$ spans `1.41 to 15.91` and $\beta$ spans `0.0292 to 3.7192`; across `B3`, `2.53 to 27.47` and `0.0098 to 1.1508`. Every one of the 30 edits realizes its target at $h_{\text{ref}}$ with maximum error approximately `7.99e-15` in `float64` (10 of them exactly 0). Each random control is norm-matched. This run has no `BF16`-storage witness and its behavioral benchmarks are `NOT_RUN`, so it establishes that the step is solved correctly at every width tested, not what the edit does to generated output.
 
-| Model | Size | `B2` layer | `B2` $\lVert h_S\rVert_2$ | `B2` $\beta$ | `B3` layer | `B3` $\lVert h_S\rVert_2$ | `B3` $\beta$ | max float64 shift error |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `Qwen3.5-0.8B` | `0.8B` | `L17` | `3.57` | `0.5801` | `L14` | `4.53` | `0.3595` | `8.9e-16` |
-| `SmolLM2-1.7B` | `1.7B` | `L17` | `14.14` | `0.0369` | `L12` | `5.20` | `0.2727` | `1.8e-15` |
-| `Qwen3.5-4B` | `4B` | `L23` | `12.35` | `0.0484` | `L16` | `4.40` | `0.3805` | `3.6e-15` |
-| `Mistral-7B-v0.3` | `7.2B` | `L12` | `2.81` | `0.9352` | `L19` | `12.03` | `0.0510` | `3.6e-15` |
-| `Qwen2.5-7B` | `7.6B` | `L8` | `7.77` | `0.1224` | `L14` | `7.05` | `0.1484` | `2.7e-15` |
-| `Llama-3.1-8B` | `8B` | `L23` | `4.03` | `0.4556` | `L16` | `3.82` | `0.5070` | `1.8e-15` |
-| `R1-Llama-8B` | `8B` | `L23` | `4.12` | `0.4343` | `L16` | `3.96` | `0.4701` | `5.3e-15` |
-| `Qwen3-8B` | `8.2B` | `L14` | `4.33` | `0.3931` | `L21` | `9.82` | `0.0766` | `5.3e-15` |
-| `Gemma-2-9B` | `9.2B` | `L16` | `1.41` | `3.7192` | `L25` | `2.53` | `1.1508` | `1.8e-15` |
-| `OLMo-2-13B` | `13.7B` | `L16` | `8.08` | `0.1130` | `L20` | `15.06` | `0.0325` | `3.6e-15` |
-| `Phi-4` | `14.7B` | `L12` | `2.54` | `1.1436` | `L29` | `20.61` | `0.0174` | `4.4e-15` |
-| `Qwen3-14B` | `14.8B` | `L16` | `4.97` | `0.2994` | `L23` | `11.62` | `0.0547` | `1.8e-15` |
-| `R1-Qwen-14B` | `14.8B` | `L28` | `14.66` | `0.0343` | `L35` | `20.44` | `0.0177` | `3.6e-15` |
-| `Gemma-2-27B` | `27.2B` | `L14` | `9.35` | `0.0845` | `L27` | `27.47` | `0.0098` | `8.0e-15` |
-| `Qwen3-32B` | `32.8B` | `L47` | `15.91` | `0.0292` | `L25` | `10.00` | `0.0738` | `3.6e-15` |
+- B2 / B3: refusal / root-cause directions; L: layer; support norm: L2 norm of the selected reference activations; β: calibrated step size.
+- Max error: largest float64 reference-shift error over B2 and B3; it is repeated to keep each direction readable on its own.
+
+**B2 calibration**
+
+| Model (size) | B2 layer | Support norm | B2 β | Max error |
+|---|---:|---:|---:|---:|
+| Qwen3.5-0.8B (0.8B) | L17 | 3.57 | 0.5801 | 8.9e-16 |
+| SmolLM2-1.7B (1.7B) | L17 | 14.14 | 0.0369 | 1.8e-15 |
+| Qwen3.5-4B (4B) | L23 | 12.35 | 0.0484 | 3.6e-15 |
+| Mistral-7B-v0.3 (7.2B) | L12 | 2.81 | 0.9352 | 3.6e-15 |
+| Qwen2.5-7B (7.6B) | L8 | 7.77 | 0.1224 | 2.7e-15 |
+| Llama-3.1-8B (8B) | L23 | 4.03 | 0.4556 | 1.8e-15 |
+| R1-Llama-8B (8B) | L23 | 4.12 | 0.4343 | 5.3e-15 |
+| Qwen3-8B (8.2B) | L14 | 4.33 | 0.3931 | 5.3e-15 |
+| Gemma-2-9B (9.2B) | L16 | 1.41 | 3.7192 | 1.8e-15 |
+| OLMo-2-13B (13.7B) | L16 | 8.08 | 0.1130 | 3.6e-15 |
+| Phi-4 (14.7B) | L12 | 2.54 | 1.1436 | 4.4e-15 |
+| Qwen3-14B (14.8B) | L16 | 4.97 | 0.2994 | 1.8e-15 |
+| R1-Qwen-14B (14.8B) | L28 | 14.66 | 0.0343 | 3.6e-15 |
+| Gemma-2-27B (27.2B) | L14 | 9.35 | 0.0845 | 8.0e-15 |
+| Qwen3-32B (32.8B) | L47 | 15.91 | 0.0292 | 3.6e-15 |
+
+**B3 calibration**
+
+| Model (size) | B3 layer | Support norm | B3 β | Max error |
+|---|---:|---:|---:|---:|
+| Qwen3.5-0.8B (0.8B) | L14 | 4.53 | 0.3595 | 8.9e-16 |
+| SmolLM2-1.7B (1.7B) | L12 | 5.20 | 0.2727 | 1.8e-15 |
+| Qwen3.5-4B (4B) | L16 | 4.40 | 0.3805 | 3.6e-15 |
+| Mistral-7B-v0.3 (7.2B) | L19 | 12.03 | 0.0510 | 3.6e-15 |
+| Qwen2.5-7B (7.6B) | L14 | 7.05 | 0.1484 | 2.7e-15 |
+| Llama-3.1-8B (8B) | L16 | 3.82 | 0.5070 | 1.8e-15 |
+| R1-Llama-8B (8B) | L16 | 3.96 | 0.4701 | 5.3e-15 |
+| Qwen3-8B (8.2B) | L21 | 9.82 | 0.0766 | 5.3e-15 |
+| Gemma-2-9B (9.2B) | L25 | 2.53 | 1.1508 | 1.8e-15 |
+| OLMo-2-13B (13.7B) | L20 | 15.06 | 0.0325 | 3.6e-15 |
+| Phi-4 (14.7B) | L29 | 20.61 | 0.0174 | 4.4e-15 |
+| Qwen3-14B (14.8B) | L23 | 11.62 | 0.0547 | 1.8e-15 |
+| R1-Qwen-14B (14.8B) | L35 | 20.44 | 0.0177 | 3.6e-15 |
+| Gemma-2-27B (27.2B) | L27 | 27.47 | 0.0098 | 8.0e-15 |
+| Qwen3-32B (32.8B) | L25 | 10.00 | 0.0738 | 3.6e-15 |
 
 **What the same edits do to generated output.** A later public-benchmark receipt (`public-benchmarks/irrefutable-receipt.json`, SHA-256 `9859ef3e...3132`) ran these exact aligned edits on 14 of the 15 models (`Gemma-2-27B` is `HOLD`). Each model answered GSM8K, MATH-500, MMLU-Pro, HumanEval, and 30 crash traces at `1.0x` and `1.5x`. A control set ran with **norm-matched random** directions: the same $\beta$ and support $S$, with $q$ replaced by a random unit vector orthogonal to it. The control is what makes the result readable. A correct reference shift does not by itself say what an edit costs, and comparing against an equal-size random edit separates the effect of direction from the effect of magnitude.
 
@@ -192,7 +221,7 @@ The 15-model H100 Stage-1 run (`0.8B` to `32.8B`, receipt `irrefutable-15models-
 :alt: Small multiples of paired change from base for 14 models on GSM8K, MATH-500, MMLU-Pro, HumanEval and ASan-30, comparing calibrated 1.0x edits with norm-matched random 1.0x edits
 :width: 100%
 
-Paired change from base for each model and benchmark, calibrated `1.0x` (blue) against norm-matched random `1.0x` (orange). No calibrated cell survives Holm correction (`0/70`). Pooled over 14 models, calibrated edits move each benchmark by `-2.0` to `+2.1` points, and random edits by `-1.4` to `+0.4`. The one model that moves a lot, `Gemma-2-9B`, has the sweep's largest step, $\beta_{B2} = 3.72$ from $\lVert h_S\rVert_2 = 1.41$, and its random control moves as far as its calibrated edit. A small $\lVert h_S\rVert_2$ makes $\beta = \lvert\Delta\rvert / \lVert h_S\rVert_2^2$ large, so check it before trusting a reference shift as a dose. Method and tables: [paper, Section 4.4](#sec-paper-public-benchmarks).
+Paired change from base for each model and benchmark, calibrated `1.0x` (blue) against norm-matched random `1.0x` (orange). No calibrated cell survives Holm correction (`0/70`). Pooled over 14 models, calibrated edits move each benchmark by `-2.0` to `+2.1` points, and random edits by `-1.4` to `+0.4`. The one model that moves a lot, `Gemma-2-9B`, has the sweep's largest step, $\beta_{B2} = 3.72$ from $\lVert h_S\rVert_2 = 1.41$, and its random control moves as far as its calibrated edit. A small $\lVert h_S\rVert_2$ makes $\beta = \lvert\Delta\rvert / \lVert h_S\rVert_2^2$ large, so check it before trusting a reference shift as a dose. Method and tables: [paper, Section 4.2](#sec-paper-public-benchmarks).
 ```
 
 ### Size the Target Relative to the Writer's Output (RMS-Relative Dosing)
@@ -203,4 +232,6 @@ $$
 \sigma_{\text{writer}} = \sqrt{\tfrac{1}{N}\textstyle\sum_{i} \lVert W h_i\rVert_2^2}, \qquad \Delta_{\text{target}} = \alpha\,\sigma_{\text{writer}}, \qquad \beta = \frac{\Delta_{\text{target}}}{\lVert h_S\rVert_2^2}.
 $$
 
-The step $\beta$ is solved exactly as above, so the reference-input identity still holds. Only the size of the request changes. On layer 19 of `Qwen2.5-Math-7B-Instruct`, $\sigma_{\text{writer}} = 74.607$ over 24 references. An earlier run that asked for a shift of `1.0` was therefore at $\alpha = 0.0134$: `1.34%` of the output norm, too small to change greedy answers (`GSM8K` `87`, `MATH-500` `43` of 100, with no complete cell moving more than 1 point). At $\alpha = 0.25$ to $2.0$, a four-domain composed edit and its norm-matched random control both stayed within 2 points of base. Only the arm that added Project-Then-Heal training moved `GSM8K` (`87` to `93`, unadjusted `p = 0.031`, not significant after Holm correction across 110 tests), and the run has no control that separates the healing from the edit. Two practical rules follow. Report $\alpha$ next to any absolute target, so readers can tell a negligible dose from a large one. And treat calibration as exact only at the reference inputs: on benchmark prompts the same $\alpha = 1.0$ edits moved the writer output by `0.5%` to `14.8%` of its norm, depending on direction. Full table: [paper, Section 4.7](#sec-paper-rms-dosing).
+The step $\beta$ is solved exactly as above, so the reference-input identity still holds. Only the size of the request changes. Across our 6-model RMS-calibrated sweep (`Qwen2.5-Math-7B-Instruct`, `Qwen2.5-Coder-7B-Instruct`, `DeepSeek-R1-Distill-Llama-8B`, `Qwen3-4B`, `Qwen3-8B`, and `Qwen3-14B`, totaling `24,000` benchmark evaluations), $\sigma_{\text{writer}}$ spans `5.847` (`DeepSeek-R1-Distill-Llama-8B` layer 21) to `78.148` (`Qwen3-8B` layer 24). On layer 19 of `Qwen2.5-Math-7B-Instruct`, $\sigma_{\text{writer}} = 74.607$ over 24 references, so an earlier run that asked for a unit shift of `1.0` was at $\alpha = 0.0134$ (`1.34%` of the output norm), too small to change greedy answers (`GSM8K` `87`, `MATH-500` `43` of 100, with no complete cell moving more than 1 point). Across all 6 models at $\alpha = 1.0$, the unhealed four-domain composed edit matched its norm-matched random control. Adding `ProjectThenHealLinear` (`composed_healed_rms_1p0x`, `3.18e-17` to `5.07e-17` relative subspace leakage) raised `GSM8K` from `87` to `93` on `Qwen2.5-Math-7B-Instruct` (unadjusted `p = 0.031`), `HumanEval` from `36` to `42` on `Qwen2.5-Coder-7B-Instruct` (unadjusted `p = 0.238`), and `HumanEval` from `5` to `12` on `DeepSeek-R1-Distill-Llama-8B` (unadjusted `p = 0.092`), though none survives Holm correction across the full test family and the sweep has no control that separates the healing pass from the linear composition.
+
+On the paired **`ASAN-120`** vulnerability and patched-benign twin benchmark (`9` models $\times$ `7` arms, `7,560` evaluations; [paper, Section 4.5](#sec-paper-asan120)), pairing 60 vulnerable C/C++ snippets with 60 patched benign twins shows that all 5 non-reasoning models (`0.8B` to `8B`) collapse to trivial one-sided predictors (`BA = 0.475` to `0.533`, `RC <= 0.067`), whereas on the 4 `<think>` reasoning models (`R1-Distill-Llama-8B`, `Qwen3-8B`, `Qwen3-14B`, `Qwen3-32B`), `composed_rms_1p0x` beats `random_rms_1p0x` `4/4` on balanced accuracy (`6W / 1L / 2T` across all 9 models, exact sign-test `p = 0.125`, mean `dBA = +0.017`) and lifts strict root-cause recall (`RC = verdict + class + sink`) from `0.183` to `0.250` (`+6.7` pp over `base`, `+11.7` pp over `random_rms_1p0x`) on `R1-Distill-Llama-8B` and from `0.450` to `0.550` (`+10.0` pp over `base`, `+8.3` pp over `random_rms_1p0x`) on `Qwen3-14B`. Two practical rules follow. Report $\alpha$ next to any absolute target, so readers can tell a negligible dose from a large one. And treat calibration as exact only at the reference inputs: on benchmark prompts the same $\alpha = 1.0$ edits moved the writer output by `0.5%` to `14.8%` of its norm, depending on direction. Full tables: [paper, Sections 4.4 and 4.5](#sec-paper-rms-dosing).

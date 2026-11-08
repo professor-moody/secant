@@ -38,7 +38,9 @@ pub fn not_run(test: &str) {
 pub struct Scratch(pub PathBuf);
 impl Scratch {
     pub fn new(tag: &str) -> Scratch {
-        let p = std::env::temp_dir().join(format!("secant-test-{}-{}-{}", tag, std::process::id(), nanos()));
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let p = std::env::temp_dir().join(format!("secant-test-{}-{}-{}-{}", tag, std::process::id(), nanos(), seq));
         std::fs::create_dir_all(&p).unwrap();
         Scratch(p)
     }

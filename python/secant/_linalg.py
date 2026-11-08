@@ -69,14 +69,19 @@ def orthonormalize_rows(
     basis = np.zeros_like(rows)
     for i in range(k):
         u = rows[i].copy()
-        n0 = float(np.sqrt(np.dot(u, u)))
+        n0 = float(np.sqrt(np.dot(u, u))) if np.max(np.abs(u)) < 1e150 and np.max(np.abs(u)) > 1e-150 else float(np.hypot.reduce(u))
         if not (n0 > 0.0) or not np.isfinite(n0):
             raise DirectionError(f"direction {i} has zero or non-finite norm")
+        scaled = n0 > 1e150 or n0 < 1e-150
+        if scaled:
+            u /= n0
         for _ in range(2):
             for j in range(i):
                 u -= np.dot(u, basis[j]) * basis[j]
         n1 = float(np.sqrt(np.dot(u, u)))
-        if not (n1 >= dependence_tol * n0):
+        if not (np.isfinite(n1) and n1 > 0.0):
+            n1 = float(np.hypot.reduce(u))
+        if not np.isfinite(n1) or not (n1 > 0.0 and n1 >= dependence_tol * (1.0 if scaled else n0)):
             raise DirectionError(
                 f"direction {i} is linearly dependent on earlier directions "
                 f"(residual norm {n1:.3e} vs input norm {n0:.3e})"
@@ -86,6 +91,29 @@ def orthonormalize_rows(
     if not (gram_err < orthonormality_tol):
         raise DirectionError(f"orthonormalization residual max|D D^T - I| = {gram_err:.3e} >= {orthonormality_tol:.0e}")
     return basis
+
+
+def cross_projection_compensate(directions: Any, shifts: Any) -> tuple[np.ndarray, np.ndarray]:
+    """Return Q rows and amplitudes a with U @ (Q.T @ a) == shifts.
+
+    U holds the original unit directions. U.T = Q.T R, so the required
+    compensation is a = R^-T shifts, solved by forward substitution. This
+    helper covers a common activation/support; compose also includes each
+    sparse coefficient row's response to the requesting reference activation.
+    """
+    rows = as_rows_f64(directions)
+    unit = rows / np.hypot.reduce(rows, axis=1)[:, None]
+    basis = orthonormalize_rows(rows)
+    targets = np.asarray(shifts, dtype=np.float64)
+    if targets.shape != (len(rows),) or not np.all(np.isfinite(targets)):
+        raise DirectionError("shifts must be a finite vector with one entry per direction")
+    r_transpose = unit @ basis.T
+    amplitudes = np.zeros_like(targets)
+    for i in range(len(rows)):
+        amplitudes[i] = (targets[i] - r_transpose[i, :i] @ amplitudes[:i]) / r_transpose[i, i]
+    if not np.all(np.isfinite(amplitudes)):
+        raise DirectionError("non-finite cross-projection compensation")
+    return basis, amplitudes
 
 
 def project_out(b: np.ndarray, basis: np.ndarray, passes: int = 2) -> np.ndarray:

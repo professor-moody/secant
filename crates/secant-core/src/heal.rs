@@ -99,7 +99,12 @@ fn axpy_nf(acc: &mut [f64], s: f64, x: &[f64]) {
 }
 
 fn norm2_nf(a: &[f64]) -> f64 {
-    dot_nf(a, a).sqrt()
+    let ordinary = dot_nf(a, a).sqrt();
+    if ordinary.is_finite() {
+        ordinary
+    } else {
+        a.iter().fold(0.0f64, |n, x| n.hypot(*x))
+    }
 }
 
 /// `max_{k,j} |D_k . x_j|` for the columns of the row-major `[d x r]` matrix.
@@ -112,6 +117,9 @@ fn leakage_of_columns(basis: &[Vec<f64>], m: &[f64], d: usize, r: usize) -> f64 
         }
         for e in basis {
             let a = dot_nf(e, &col).abs();
+            if !a.is_finite() {
+                return f64::INFINITY;
+            }
             if a > worst {
                 worst = a;
             }
@@ -123,7 +131,7 @@ fn leakage_of_columns(basis: &[Vec<f64>], m: &[f64], d: usize, r: usize) -> f64 
 /// Replace every column `x` of the row-major `[d x r]` matrix by
 /// `(I - D D^T) x`, applied twice so the residual is at rounding level of the
 /// remaining vector rather than of the original one.
-fn project_columns(basis: &[Vec<f64>], m: &mut [f64], d: usize, r: usize) {
+fn project_columns(basis: &[Vec<f64>], m: &mut [f64], d: usize, r: usize) -> Result<()> {
     let mut col = vec![0f64; d];
     for j in 0..r {
         for i in 0..d {
@@ -132,13 +140,20 @@ fn project_columns(basis: &[Vec<f64>], m: &mut [f64], d: usize, r: usize) {
         for _pass in 0..2 {
             for e in basis {
                 let p = dot_nf(e, &col);
+                if !p.is_finite() {
+                    return Err(Error::msg("non-finite projection accumulator"));
+                }
                 axpy_nf(&mut col, -p, e);
+                if col.iter().any(|x| !x.is_finite()) {
+                    return Err(Error::msg("non-finite projected column"));
+                }
             }
         }
         for i in 0..d {
             m[i * r + j] = col[i];
         }
     }
+    Ok(())
 }
 
 // ---------------------------------------------------------------- protected directions
@@ -292,7 +307,7 @@ pub fn project_then_heal_f32(directions: &[f32], k: usize, d_out: usize, b: &mut
     let (basis_map, _) = gram_schmidt(&named, &order)?;
     let basis: Vec<Vec<f64>> = order.iter().map(|n| basis_map[n].clone()).collect();
     let mut m: Vec<f64> = b.iter().map(|x| *x as f64).collect();
-    project_columns(&basis, &mut m, d_out, r);
+    project_columns(&basis, &mut m, d_out, r)?;
     for (dst, src) in b.iter_mut().zip(m.iter()) {
         *dst = *src as f32;
     }
@@ -766,7 +781,7 @@ fn path_is_free(p: &str) -> bool {
     matches!(std::fs::symlink_metadata(p), Err(e) if e.kind() == std::io::ErrorKind::NotFound)
 }
 
-fn create_temp(dir: &Path, prefix: &str) -> Result<(File, PathBuf)> {
+pub(crate) fn create_temp(dir: &Path, prefix: &str) -> Result<(File, PathBuf)> {
     static CTR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     for _ in 0..10000 {
         let n = CTR.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -913,10 +928,13 @@ fn heal_inner(o: &HealOptions, rep: &mut HealReport, cleanup: &mut Vec<PathBuf>)
             ..Default::default()
         };
         hp.leak_before = leakage_of_columns(&ps.basis, &b, d, r);
-        project_columns(&ps.basis, &mut b, d, r);
+        project_columns(&ps.basis, &mut b, d, r)?;
         hp.b_fro_after = norm2_nf(&b);
         hp.leak_after_f64 = leakage_of_columns(&ps.basis, &b, d, r);
         hp.leak_inf_float64 = hp.leak_after_f64;
+        if [hp.b_fro_before, hp.b_fro_after, hp.leak_before, hp.leak_after_f64].iter().any(|x| !x.is_finite()) {
+            return Err(Error::msg("non-finite heal norm or leakage metric"));
+        }
         if hp.leak_after_f64 >= HEAL_F64_TOL {
             return Err(Error::gate(format!(
                 "module {}: float64 residual leakage {} is not below {} (column magnitudes too large for an absolute bound)",
@@ -1328,6 +1346,21 @@ fn verify_subspace_inner(o: &VerifySubspaceOptions, rep: &mut VerifySubspaceRepo
     };
     rep.protected = Some(ps.clone());
 
+    if ps.k == 0 || ps.k != ps.basis.len() || ps.k != ps.names.len() || ps.k > ps.dim {
+        return Err(Error::msg("invalid protected basis geometry"));
+    }
+    for (i, a) in ps.basis.iter().enumerate() {
+        if a.len() != ps.dim || a.iter().any(|x| !x.is_finite()) {
+            return Err(Error::msg("invalid protected basis row"));
+        }
+        for (j, b) in ps.basis.iter().enumerate() {
+            let error = (dot_nf(a, b) - if i == j { 1.0 } else { 0.0 }).abs();
+            if !error.is_finite() || error >= 1e-12 {
+                return Err(Error::msg("protected basis Gram matrix is not orthonormal"));
+            }
+        }
+    }
+
     let base = open_strict(&o.base)?;
     let healed = open_strict(&o.healed)?;
     rep.base_pre_sha256 = base.sha256.clone();
@@ -1400,6 +1433,10 @@ fn verify_subspace_inner(o: &VerifySubspaceOptions, rep: &mut VerifySubspaceRepo
                 d_row[c] = d;
                 let dd: f64 = d * d;
                 sq += dd;
+                if !sq.is_finite() {
+                    nonfinite = true;
+                    break;
+                }
                 if d != 0.0 {
                     st.changed_elements += 1;
                 }
@@ -1409,12 +1446,16 @@ fn verify_subspace_inner(o: &VerifySubspaceOptions, rep: &mut VerifySubspaceRepo
             }
             for k in 0..ps.k {
                 axpy_nf(&mut acc[k], ps.basis[k][r], &d_row);
+                if acc[k].iter().any(|x| !x.is_finite()) {
+                    nonfinite = true;
+                    break;
+                }
             }
             r += 1;
         }
         st.elements = rows as i64 * cols as i64;
         if nonfinite {
-            fail(st, "a non-finite weight in the base or healed tensor makes the difference undefined".into(), rep);
+            fail(st, "non-finite weight, norm, or projection accumulator makes the difference undefined".into(), rep);
             continue;
         }
         let mut worst = 0f64;
@@ -1596,7 +1637,7 @@ mod tests {
         let basis = vec![vec![1.0, 0.0, 0.0], vec![0.0, 1.0, 0.0]];
         let mut m = vec![3.0, 1.0, 4.0, 1.0, 5.0, 9.0]; // 3 x 2 row-major
         assert_eq!(leakage_of_columns(&basis, &m, 3, 2), 4.0);
-        project_columns(&basis, &mut m, 3, 2);
+        project_columns(&basis, &mut m, 3, 2).unwrap();
         assert_eq!(m, vec![0.0, 0.0, 0.0, 0.0, 5.0, 9.0]);
         assert_eq!(leakage_of_columns(&basis, &m, 3, 2), 0.0);
     }

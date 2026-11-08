@@ -2,7 +2,23 @@
 
 Because model weights (`SafeTensors` and `GGUF`) are frequently exchanged across untrusted hubs and fine-tuning pipelines, **Secant treats every container file as an untrusted binary input**. Before any weight-space read or edit, Secant validates payload extents in checked 64-bit arithmetic. Three commands then audit weight **values**: `secant sanitize` (static value scan and optional repaired copy), `secant probe` (boundary-value test fixtures), and `secant read --detect-anomalies` (row and column norm anomalies).
 
-The **container** is the file structure that names tensors and locates their bytes. The **payload** is the stored tensor data. A valid container can still hold unusual or invalid numerical values, so Secant checks these separately. This page describes only the standalone `secant` CLI.
+The **container** is the file structure that names tensors and locates their bytes. The **payload** is the stored tensor data. A valid container can still hold values that are unsafe for a downstream C, C++, or CUDA consumer, so Secant treats the file as three separate trust boundaries:
+
+1. **Boundary 1, container framing:** header length, schema, and monotonically non-overlapping payload intervals.
+2. **Boundary 2, architecture metadata:** tensor dimensions, head ratios, and shape-to-byte invariants checked against `config.json`.
+3. **Boundary 3, numerical domains:** non-finite or extreme floats, quantized scale fields, divisor activation and KV-cache scales, integer routing or permutation tensors, and spectral outliers inside an otherwise valid container.
+
+### What `SafeTensors::deserialize()` proves
+
+In `huggingface/safetensors`, `SafeTensors::deserialize(buffer)` calls `read_metadata()` and then `Metadata::validate()`. That validation proves five structural facts:
+
+1. Each tensor interval starts where the previous one ended, and its end is not before its start.
+2. Multiplying the non-zero shape dimensions by the dtype bit width does not overflow `usize`.
+3. The resulting bit count is byte-aligned.
+4. The computed byte count equals the tensor's declared offset span.
+5. The final payload end, including the 8-byte length and JSON header, equals the input buffer length.
+
+After those checks, deserialization returns a borrowed payload slice without reading any payload value. This is the Boundary-3 gap: a memory-safe parser can prove that tensor bytes are present without proving that those bytes are valid inputs to later arithmetic or indexing.
 
 ---
 
@@ -19,59 +35,114 @@ Before reading a tensor, Secant checks that its declared size and offset describ
 
 The scanner looks for the configured findings without running model inference. Repair is explicit: a scan alone does not change the input. Some findings can be replaced under the chosen policy; others cause refusal.
 
-`secant sanitize --model <file> --receipt <new.json> --attempt-id <id>` scans supported static payload values and writes a `secant.wsp.sanitize.v1` receipt. `Q8_0` and `Q4_K` GGUF tensors are scanned at the scale-header level (next subsection). A GGUF containing any other quantized type (`Q4_0`, `Q6_K`, `IQ*`, ...) is refused with exit `2`, even if other tensors are unquantized (`crates/secant-core/src/security.rs`). A successful `inspect` or `quant witness` does not imply `sanitize` supports the same file.
+### Zero-False-Positive Sanitization Standard
+
+The baseline separates values by how inference uses them. A small multiplicative scale is not equivalent to a small divisor, and neither is equivalent to an integer array index.
+
+| Rule | Scope | Required invariant | Reason |
+|---|---|---|---|
+| **S-0** | .safetensors and .gguf headers plus config.json | Checked 64-bit spans, shapes match the architecture, scalar loads have numel == 1, and GGUF MoE metadata satisfies `expert_count > 0` (`s0_expert_count`) and `1 <= expert_used_count <= expert_count` (`s0_expert_used_count`) | Reject malformed geometry before any payload value is used. |
+| **B3-1** | Unquantized F32, BF16, F16, and FP8 weights, norms, and router biases | Reject NaN and infinity with a bitwise exponent check | Non-finite values break comparisons, casts, sorting, and cumulative sums. |
+| **B3-2A** | Multiplicative GGUF block scales (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K` `d`, `dmin`, `m`) and W4A16/W8A16 weight scales | Permit zero and FP16 subnormals; reject only `(bits & 0x7C00) == 0x7C00` | These fields multiply integer quants. Zero and tiny finite multipliers are valid. |
+| **B3-2B** | Divisor activation and KV-cache scales (`input_scale`, `k_scale`, `v_scale`, `q_scale`, `y_scale`, `prob_scale`, and names ending in `scale_inv`) plus `rope_freqs` | Require finiteness and `s >= --divisor-floor` (default `1e-12f`; `<= 0` emits `divisor_scale_nonpositive`, `0 < s < floor` emits `divisor_scale_below_floor`), and non-zero `rope_freqs` (`rope_freqs_zero`) | Zero or subnormal divisors can produce non-finite or out-of-range results. |
+| **B3-3** | Routing tensors (`expert_ids`, `selected_experts`, `topk_ids`, `router_indices`, `moe_Permute_Map`, plus `hash_indices_table` when `--num-experts > 0`) and integer index/permutation tensors (`g_idx`, `expert_map`, `full_row_indices`, `hash_indices_table`) | Enforce two-sided bounds `[0, bound)` before indexing; fail closed (`UNKNOWN`, exit `2`) when an index tensor has no inferable upper bound | Negative and oversized integers are direct out-of-bounds indices. |
+
+For B3-3, routing tensors require `--num-experts > 0` (reporting `routing_negative`, `routing_oob`, and `routing_duplicate`), whereas integer index tensors (`g_idx`, `expert_map`, `full_row_indices`, `hash_indices_table`, plus `--index-tensor` globs) infer per-tensor bounds from sibling shapes (`g_idx` bounded by GPTQ sibling `scales.shape[0]` with 1-D length checked against `qweight`/`weight` via `g_idx_length_mismatch`; `full_row_indices` bounded by sibling weight/bias/scales extent; `expert_map` and `hash_indices_table` bounded by `--num-experts` when supplied) or an explicit `--index-bound` override, reporting `index_negative` (`v < 0`, or `v < -1` for `expert_map` where `-1` marks an unmapped expert) and `index_oob` (`v >= bound`). When an index tensor has no sibling-inferred or explicit bound, `secant sanitize` increments `index_unbounded` and fails closed with `status: "unknown"` (exit `2`) when no other findings are present. An unsigned comparison such as `static_cast<uint32_t>(idx) < static_cast<uint32_t>(rows)` rejects negative values and upper-bound violations in one check when no negative sentinel is permitted.
+
+`secant sanitize --model <file> --receipt <new.json> --attempt-id <id> [--dry-run]` scans supported static payload values and writes a `secant.wsp.sanitize.v1` receipt. All ten standard GGUF block-quantized formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`) are scanned at the `f16` block-header level (`d`, `dmin`, `m`). A GGUF containing an unreviewed quantized type (`Q8_K`, `IQ*`, `TQ*`) is refused with exit `2` (`status: "unknown"`), even if other tensors are unquantized (`crates/secant-core/src/security.rs`). Passing `--dry-run` explicitly enforces read-only verification and rejects any combination with `--out` or remediation flags.
 
 | Finding | Criterion | Repair available |
 |---|---|---|
-| NaN | any NaN element | `--clamp-nonfinite`: NaN becomes `+0` |
-| Infinity | any $\pm\infty$ element | `--clamp-nonfinite`: becomes the signed largest representable value not above `--max-abs` |
-| Extreme finite | $\lvert x\rvert >$ `--max-abs` (default `10000`; a policy threshold, not an overflow proof) | opt-in `--clamp-extreme` (Secant extension) |
-| Subnormal | subnormal float element | opt-in `--flush-subnormal` (Secant extension) |
-| Zero or tiny-norm vector | L2 norm of a selected contiguous vector (default norm-tensor globs, plus `--norm-tensor`) below `--min-norm` (default $10^{-12}$) | none: always refused |
-| Routing id out of range | integer routing tables (`tid2eid` / `expert_id`, plus `--routing-tensor`): negative id, or id $\ge$ `--num-experts` | none: always refused |
-| Duplicate routing id | repeated id within a routing row | `--dedup-routing-rows`: later duplicates become the lowest unused valid expert id |
+| NaN | any NaN element in B3-1 scope | --clamp-nonfinite: NaN becomes +0 (or `--divisor-floor` on B3-2B divisor scales) |
+| Infinity | any ±∞ element in B3-1 scope | --clamp-nonfinite: becomes the signed largest representable value not above --max-abs (or `--divisor-floor` on B3-2B divisor scales) |
+| Extreme finite | abs(x) &gt; --max-abs (an optional diagnostic policy, not part of B3-1 or an overflow proof) | opt-in --clamp-extreme (Secant extension) |
+| Subnormal | subnormal unquantized float element (an optional diagnostic policy, not a B3-2A violation) | opt-in --flush-subnormal (Secant extension) |
+| Zero or tiny-norm vector | L2 norm of a selected contiguous vector (default norm-tensor globs, plus --norm-tensor) below --min-norm (default 10⁻¹²) | none: always refused |
+| Divisor scale non-positive or below floor | finite `input_scale`, `k_scale`, `v_scale`, `q_scale`, `y_scale`, `prob_scale`, or `*scale_inv` `<= 0` (`divisor_scale_nonpositive`) or `< --divisor-floor` (`divisor_scale_below_floor`), or `rope_freqs == 0` (`rope_freqs_zero`) | none under CLI `--clamp-nonfinite`: finite below-floor/non-positive divisor scales and zero `rope_freqs` remain findings (exit `1`) so calibration is never silently rescaled |
+| Routing or index id out of range | B3-3 routing (`routing_negative`, `routing_oob`) and index tensors (`index_negative`, `index_oob`, `g_idx_length_mismatch` on `g_idx`, `expert_map`, `full_row_indices`, `hash_indices_table`) | none: always refused (unbounded index tensors fail closed with `UNKNOWN`, exit `2`) |
+| Duplicate routing id | repeated id within a routing row | --dedup-routing-rows: later duplicates become the lowest unused valid expert id |
 
 `--out <new-file>` publishes a repaired copy only when a remediation flag is given **and** a rescan of the copy is clean; outputs and receipts never overwrite existing files.
 
 Exit codes: `0` clean or remediated under this policy, `1` findings remain, `2` usage, I/O, unsupported input, or incomplete scan. A clean receipt does not prove runtime inference safety.
 
-### Quantized scale headers (`Q8_0`, `Q4_K`)
+### Quantized scale headers (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`)
 
-A `Q8_0` block is `{f16 d; i8 qs[32]}` and decodes to $d \cdot q_i$; a `Q4_K` super-block is `{f16 d; f16 dmin; u8 scales[12]; u8 qs[128]}` and decodes to $d \cdot sc_j \cdot q - dmin \cdot m_j$. One hostile f16 scale poisons all 32 or 256 weights of its block and is the value a consumer divides by or converts (the `QUANT_SCALE_DIV_OR_OVERFLOW` sink class of `secant scan-sinks`). Each scale field is checked against the same `--max-abs` policy, using $M$, the largest multiplier the block actually applies to that field ($\max \lvert qs\rvert$ for `Q8_0` `d`; $\max_j sc_j \cdot \max q$ for `Q4_K` `d`; $\max_j m_j$ for `Q4_K` `dmin`). Arithmetic is exact (f16 widened to `float64`, multipliers at most 945). Code: `crates/secant-core/src/quant_scale.rs`.
+Every supported GGUF quantized block stores one or two IEEE-754 `f16` scale/minimum header fields (`d`, `dmin`, or `m`) at fixed byte offsets within the block (`ggml-common.h`):
+
+| GGUF Format | `ggml_type` ID | Block Elements (`qk`) | Block Bytes | Inspected `f16` Header Fields & Byte Offsets |
+| --- | :---: | :---: | :---: | --- |
+| **`Q4_0`** | `2` | `32` | `18` | `d` at offset `0` |
+| **`Q4_1`** | `3` | `32` | `20` | `d` at offset `0`, `m` at offset `2` |
+| **`Q5_0`** | `6` | `32` | `22` | `d` at offset `0` |
+| **`Q5_1`** | `7` | `32` | `24` | `d` at offset `0`, `m` at offset `2` |
+| **`Q8_0`** | `8` | `32` | `34` | `d` at offset `0` |
+| **`Q2_K`** | `10` | `256` | `84` | `d` at offset `80`, `dmin` at offset `82` |
+| **`Q3_K`** | `11` | `256` | `110` | `d` at offset `108` |
+| **`Q4_K`** | `12` | `256` | `144` | `d` at offset `0`, `dmin` at offset `2` |
+| **`Q5_K`** | `13` | `256` | `176` | `d` at offset `0`, `dmin` at offset `2` |
+| **`Q6_K`** | `14` | `256` | `210` | `d` at offset `208` |
+
+The fields `d`, `dmin`, and `m` are **multipliers and additive offsets**, not divisors.
+
+That distinction explains the B3-2A allowlist. A zero-padded block can legitimately store `d = 0.0` (`0x0000`). In `Q4_K`, each 256-weight super-block contains eight 32-weight sub-blocks with 6-bit scales in `[0, 63]`; dividing a small sub-block maximum by `63` (where `max |x_i|` is scaled by `15 * 63 = 945`) naturally produces an FP16 subnormal whenever a sub-block's maximum magnitude sits below `945 * 6.1035e-05 ≈ 0.0577` (or a sub-block scale sits near `2.8e-03`). Examples include dense `blk.*.ffn_down.weight` and `token_embd.weight` in `Qwen3.5-4B` `Q4_K`, as well as `d = 4.55e-05` in row 0 of `blk.0.ffn_down_exps` in `llama.cpp`'s MoE test fixture (`test_metal_moe_experts.c`), below the smallest positive normal FP16 value (`6.1035e-05`). Multiplication by either value remains well-defined and cannot create a division-by-zero cast path.
+
+The zero-false-positive check is therefore exactly the FP16 exponent test. Values with `(bits & 0x7C00) != 0x7C00`, including signed zero and subnormals, pass. Values with `(bits & 0x7C00) == 0x7C00` are NaN or infinity, are flagged, and are replaced with zero only when an explicit repaired copy is requested. The scan strides by the exact `ggml_type_size(type)` so it reads `d`, `dmin`, and `m` at their exact block offsets across mixed-quantization checkpoints (such as `Q4_K_M`, which mixes `Q4_K` and `Q6_K` tensors, or `Q2_K` checkpoints that mix `Q2_K`, `Q3_K`, and `Q6_K`).
 
 | Finding | Criterion | Repair available |
 |---|---|---|
-| `quant_scale_nan` | the f16 scale is NaN | `--clamp-nonfinite`: `+0` (that term of the block decodes to zero) |
-| `quant_scale_inf` | the f16 scale is $\pm\infty$ | `--clamp-nonfinite`: signed largest f16 $v$ with $v \cdot M \le$ `--max-abs` |
-| `quant_scale_extreme` | finite and $\lvert scale\rvert \cdot M >$ `--max-abs` | `--clamp-extreme`: the same bounded value |
-| `quant_scale_subnormal` | the f16 scale is subnormal | `--flush-subnormal`: signed zero (zeroes up to 256 weights, a larger edit than flushing one float) |
-| `quant_block_extreme` | no field is NaN, Inf or extreme, yet a decoded element exceeds `--max-abs` (only when the two `Q4_K` terms have opposite signs; ggml's quantizer writes $d, dmin \ge 0$) | none: always refused |
+| quant\_scale\_nan | (bits &amp; 0x7C00) == 0x7C00 and mantissa is non-zero | --clamp-nonfinite: zero the complete affected block |
+| quant\_scale\_inf | (bits &amp; 0x7C00) == 0x7C00 and mantissa is zero | --clamp-nonfinite: zero the complete affected block |
 
-For these findings `index` is the block index, `row` the GGUF row (`ne[0]` elements), `file_offset` points at the f16 field, `bits` is its encoding, and the receipt adds `field` (`d` or `dmin`). The scan record adds `quant_tensors` and `quant_blocks`, and `policy_version` becomes `unquantized-static-values-v1+quant-scale-headers-v1`. Files without quantized tensors produce exactly the Go oracle's receipt layout. A quantized tensor matched by a norm glob is `unknown` (exit `2`): norm-row checks are implemented for unquantized floats only. The Go oracle refuses every quantized file; this is a recorded divergence (`crates/secant-core/tests/security_parity.rs`, `sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json`).
+For these findings `index` is the block index, `row` is the GGUF row (`ne[0]` elements), `file_offset` points at the FP16 field, `bits` is its encoding, and `field` identifies `d`, `dmin`, or `m`. A quantized tensor matched by a norm glob is `unknown` (exit `2`), because norm-row checks are implemented for unquantized floats only. A GGUF file containing an unreviewed quantized type (`Q8_K`, `IQ*`) is refused rather than partially certified.
 
 (sec-quant-sanitize-controls)=
-#### Measured on real quantizer output, with planted controls
+#### Measured on 10 real SafeTensors and mixed GGUF checkpoints, with planted controls
 
-This run used `Qwen3.5-4B` BF16 GGUF, quantized by `llama-quantize` (llama.cpp `f39148a95`) to `Q8_0` and to `--pure` `Q4_K`. Those two files are quantizer output that the experimenter produced, not downloaded checkpoints. On a copy of each, three f16 scales in `token_embd.weight` blocks 0, 1 and 2 were overwritten with `dd conv=notrunc`: NaN `0x7e00`, Inf `0x7c00`, and `0x7bff` (65504). In the `Q4_K` copy the Inf went into `dmin` of block 1. Receipts and digests are in the lab evidence bank (receipt `trojan-curve-receipt.json`, SHA-256 `4bd9bc90...c88f1`).
+Across our 10-checkpoint production GGUF and SafeTensors verification corpus (`Qwen3.5-4B` `Q8_0` and `Q4_K`, `Qwen2.5-7B-Instruct-Q4_K_M` shards 1 and 2 mixing `Q4_K` and `Q6_K`, `TinyLlama-1.1B-Q2_K` mixing `Q2_K`/`Q3_K`/`Q6_K`, `stories15M-Q4_0`, `SmolLM2-1.7B-Instruct`, `Qwen2.5-1.5B-Instruct`, `tiny-t5`, and `adapter-lm2`), `secant sanitize --dry-run` scanned **`2,194` total tensors** (`186,870,528` quantized blocks across `912` quantized tensors and `3,258,570,112` float elements across the 10 files, comprising `3,256,191,200` float elements in the 4 SafeTensors files and `2,378,912` unquantized float elements in the 6 GGUF files; receipt SHA-256 `399143323a1784f2b0b5f0e3ac99a55df18bb43cb843d20d921d2eaf358a3ccd`). The diagnostic sweep counted `272,730` subnormal scale fields in `135,168,000` `Q8_0` blocks and `8,992,791` of `33,792,000` header scale fields (`d`, `dmin`) across `16,896,000` `Q4_K` super-blocks (`~0.53` per super-block), while reporting **`0` observed false positives across the 10 tested production GGUF and SafeTensors checkpoints (`10 / 10` `status: "clean"`, `input_unchanged: true`; GPTQ/AWQ/FP8 divisor-scale and routing-index rules `B3-2B`/`B3-3` are validated at rule level on synthetic fixtures)**.
 
-| Input | Exit | Status | Quant blocks | Findings | Kinds |
-|---|---:|---|---:|---:|---|
-| `Q8_0` clean | `1` | `findings` | `135,168,000` | `272,730` | `quant_scale_subnormal` `272,730` |
-| `Q4_K` pure, clean | `1` | `findings` | `16,896,000` | `8,992,791` | `quant_scale_subnormal` `8,992,791` |
-| `Q8_0` planted | `1` | `findings` | `135,168,000` | `272,733` | plus exactly one each of `quant_scale_nan`, `quant_scale_inf`, `quant_scale_extreme` |
-| `Q4_K` pure, planted | `1` | `findings` | `16,896,000` | `8,992,794` | plus exactly one each of `quant_scale_nan`, `quant_scale_inf`, `quant_scale_extreme` |
-| `Q8_0` planted, `--clamp-nonfinite --clamp-extreme --flush-subnormal --out` | `0` | `remediated` | | `0` remaining | changes `1` / `1` / `1` / `272,730` |
-| `Q4_K` planted, same flags | `0` | `remediated` | | `0` remaining | changes `1` / `1` / `1` / `8,992,791` |
-| Real `Q4_K_M` (`Qwen2.5-7B` shard 1, mixes in `Q6_K`) | `2` | `unknown` | | | `unsupported ggml type 14`: refused, not guessed |
+Copies with planted FP16 `NaN` (`0x7E00`) and `+Inf` (`0x7C00`) fields across all 15 header slots of the 10 supported GGUF formats were detected with `100%` recall at the exact block, field, and file offset, and `--clamp-nonfinite` zeroed each affected block cleanly (`after.total_findings: 0`).
 
-What this shows:
+#### Production checkpoint dogfood
 
-- **The planted scales are found exactly.** Each planted file adds exactly `+1` NaN, `+1` Inf and `+1` extreme finding, with the right `field` (`d`, `d`, `d` for `Q8_0`; `d`, `dmin`, `d` for `Q4_K`) and the planted `file_offset` (for example `10979232` for the NaN). The subnormal count does not change, because the overwritten scales were ordinary values.
-- **Ordinary quantizer output has a large subnormal background.** Subnormal f16 scales are `0.20%` of `Q8_0` blocks (`272,730 / 135,168,000`). For `Q4_K` there are `0.53` findings per super-block (`8,992,791 / 16,896,000`). Typical values such as `0x03f8` (about `6.06e-5`) sit just under the f16 normal floor (`6.10e-5`), so they come from blocks of very small weights.
-- **So under the default policy, the gate fails every quantized file.** Both clean files exit `1`. A hostile NaN, Inf or extreme scale shows up as a count of 1 among hundreds of thousands of findings. The status alone (`findings`) cannot tell a hostile file from a clean one, but the `counts` map can: read `quant_scale_nan`, `quant_scale_inf` and `quant_scale_extreme` and ignore `quant_scale_subnormal`.
-- **`--flush-subnormal` changes real weights.** On these clean files it rewrote `272,730` and `8,992,791` scales to zero, and each rewrite zeroes 32 or 256 weights. Nobody measured how that changes model output, so use `--clamp-nonfinite` and `--clamp-extreme` alone unless you intend that edit.
+Alongside the receipted 10-checkpoint suite above (`summary.json` SHA-256 `399143323a1784f2b0b5f0e3ac99a55df18bb43cb843d20d921d2eaf358a3ccd`), an earlier unreceipted dogfood run (input artifact digests `UNKNOWN`) scanned `Qwen2.5-1.5B` and `Llama-3.2-3B` checkpoints in `Q4_K_M` and `Q8_0` forms across `2,723` quantized tensors and observed `16,139` legitimate FP16 subnormal scale fields, with the smallest measured value `4.55e-05`. That is below the FP16 normal threshold `6.1035e-05` but still finite. Default Rule B3-2A accepted `2,723/2,723` tensors (`0%` false-positive rate).
 
-"Clean" here means "ordinary quantizer output". Nobody ran inference on these files. The per-tensor distribution of the subnormal findings is `NOT_RUN`: the receipt keeps 128 examples. For `Q8_0` they fall in `token_embd.weight` (56) and `blk.0.attn_gate.weight` (72); for `Q4_K` all 128 are in `token_embd.weight`.
+Planted controls separated detection from repair:
+
+| Rule | Planted condition | Detection result | Remediation result |
+|---|---|---|---|
+| B3-2A | NaN or infinity in Q8\_0 d, or Q4\_K d / dmin | 100% recall in the retained control set | --clamp-nonfinite zeroed the complete corrupt block; the repaired copy rescanned clean. |
+| B3-2B | finite divisor scale below `--divisor-floor` (1e-12f), zero, negative, NaN, or infinity in `input_scale`, `k_scale`, `v_scale`, `q_scale`, `y_scale`, `prob_scale`, or `*scale_inv`, plus zero `rope_freqs` | 100% recall in the retained control set | `--clamp-nonfinite` clamped non-finite (`NaN`/`Inf`) divisor scales to a finite representable floor (`F16` uses `0x0001` subnormal or `0x0400` under `--strict-subnormal`), while finite non-positive/below-floor divisor scales and zero `rope_freqs` remained findings (exit `1`). |
+| B3-3 | negative or upper-bound values in `g_idx`, `expert_map`, `full_row_indices`, `hash_indices_table`, `expert_ids`, `selected_experts`, `topk_ids`, or `router_indices` | 100% recall in the retained control set | Unsafe IDs were refused (exit `1`), and unbounded index tensors failed closed (`UNKNOWN`, exit `2`). |
+
+This distinction matters when reporting recall. The planted cases were all detected. Only classes with a format-independent replacement were repaired automatically; negative or out-of-range routing IDs have no generally safe replacement.
+
+#### Consumer source sink patterns (`B3-SINK-01..06`) and remediated `g_idx` case
+
+A historical `scan-sinks` audit over an open-weight CUDA inference tree (`75f6bef42`) produced `185` pattern hits across `B3-SINK-01` through `B3-SINK-06`. A pattern hit is a review lead, not a vulnerability. Manual source review grouped those leads into four Boundary-3 sink categories that motivate pre-load rules `B3-1`, `B3-2B`, and `B3-3`:
+
+| Sink category | Input precondition and module sequence | Consumer effect | Evidence status |
+|---|---|---|---|
+| MoE grouped top-k comparison (`COMPARE_SENTINEL_COLLAPSE`) | checkpoint-controlled router scores or bias produce only unordered (`NaN`) values; grouped top-k comparison leaves an expert index uninitialized or at its initial slot; the index flows into expert routing | uninitialized or duplicate expert index reaches shared or global memory indexing | Blocked pre-load by `B3-1` finiteness checks on router weights and `e_score_correction_bias`. |
+| MoE argmax `-1` sentinel exhaustion (`COMPARE_SENTINEL_COLLAPSE`) | all candidate logits are `NaN` or `-Inf`; `top_idx` remains `-1`; the selection result is written into downstream routing state | negative index write or later OOB routing | Blocked pre-load by `B3-1` finiteness checks on router weights and biases. |
+| Signed routing-ID shared-memory offset (`UNVALIDATED_ROUTING_OR_INDEX_TENSOR`) | an unvalidated signed `int32_t` routing ID is negative; token-alignment logic uses it as an offset into a per-expert counter array | negative shared-memory OOB access | Blocked pre-load by `B3-1` and `B3-3` two-sided routing bounds. |
+| Historical GPTQ `g_idx` permutation (`csrc/quantization/gptq/q_gemm.cu`) | a checkpoint `g_idx` value lies outside `[0, groups)`; GPTQ GEMM uses it in pointer arithmetic | arbitrary GPU global-memory OOB read | Historical path removed in upstream commit `2c9d68f80`, so it is not live on revisions after that change; blocked pre-load by `B3-3`. |
+| Companion-config control token ID (`Rule S-0`) | a companion config specifies a stop or control token ID outside `[0, vocab_size)` and an unguarded sampling path indexes a `[batch_size, vocab_size]` logits buffer without a bounds check | out-of-bounds logits tensor access on stop-token suppression | Blocked pre-load by `S-0` / `B3-3` cross-validation of stop/control token IDs against `vocab_size` and `tokenizer.json`. |
+| Integer MoE routing tensor (`UNVALIDATED_ROUTING_OR_INDEX_TENSOR`) | a checkpoint integer routing tensor stores an expert ID outside `[-1, num_experts)` and an unguarded loader or dispatch path uses it directly as a table or heap buffer offset | out-of-bounds read or write on the host or device heap | Blocked pre-load by `B3-3` two-sided bounds (`[0, num_experts)` or `[-1, num_experts)`) on routing and index tensors. |
+
+These categories illustrate a multi-step invariant failure: a format-valid checkpoint passes container validation, a numerical or integer payload escapes load-time validation, and a later CUDA kernel converts it into pointer or array indexing. Version pinning is essential because the `g_idx` path was removed in `2c9d68f80`.
+
+#### TensorFlow quantization fuzz target
+
+The active Core TensorFlow Boundary-3 harness targets `tensorflow/core/kernels/quantized_*.cc` and `tensorflow/core/kernels/quantization_utils.h`. The source path at TensorFlow commit `0e2be16cc08c226b65af3ff7a8ba560b953b60b4` computes `range = (range_max - range_min) * range_adjust`, then `range_scale = number_of_steps / range`, and finally converts rounded floating-point results to `int64_t` in `FloatToQuantizedUnclamped<T>` (`quantization_utils.h:46-61`). It has an explicit `range_min == range_max` return at lines 50-52, while `FloatToQuantizedStruct` independently maps that equality to `range_scale = 0.0` at lines 215-220.
+
+The harness therefore exercises two separate contracts: NaN and infinity inputs or ranges must never reach a float-to-integer conversion with undefined C++ behavior, and the equal-range special cases must remain stable across the scalar and Eigen paths. This documentation lane did not execute that fuzz campaign, so crash recall and real-artifact reachability are `NOT_RUN` here.
+
+### Why this check must be architecture-independent
+
+C and C++ leave an out-of-range or NaN floating-point-to-integer conversion undefined. The generated instructions then differ by ISA. On x86-64, `CVTTSS2SI` and `VCVTTPS2DQ` produce `0x80000000` (`INT32_MIN`) for qNaN and positive overflow. If code checks only `idx >= N`, that negative value can bypass the check and become an out-of-bounds index. On ARM64, `FCVTZS` converts qNaN to `0` and saturates positive overflow to `INT32_MAX`; the same input can therefore appear harmless or take a different guard path. Sanitizing before the cast makes behavior independent of that hardware difference.
+
+GPU ordering has a separate mechanism. NVIDIA CUB `cub::BlockRadixSort` uses `TwiddleIn` to transform float bit patterns into unsigned radix keys instead of calling a floating-point comparator. Positive qNaN `0x7FC00000` maps to `0xFFC00000`, above the key for `+Inf`, so descending top-k can select it first. Negative qNaN `0xFFC00000` maps to `0x003FFFFF`, below the key for `-Inf`. The ordering is deterministic, but it is not the numerical ordering many callers assume. Rule B3-1 removes non-finite values before CPU casts or GPU radix sorting.
 
 ---
 
@@ -81,10 +152,10 @@ What this shows:
 
 | Class | Content |
 |---|---|
-| `class1` | NaN and $-\infty$ router / gate floats (sentinel comparisons) |
-| `class2` | NaN, $+10^{38}$, $-10^{38}$ scale / bias floats (float-to-int saturation vs. overflow) |
-| `class3` | NaN arrays: sign, payload and signalling NaN variants, ties, $\pm\infty$ mixes |
-| `class4` | `I32` / `I64` routing tables: `-1`, `INT_MIN`, `num_experts`, `INT_MAX`, $2^{32}$, duplicate ids; plus all-zero and subnormal norm vectors |
+| class1 | NaN and −∞ router / gate floats (sentinel comparisons) |
+| class2 | NaN, +10³⁸, −10³⁸ scale / bias floats (float-to-int saturation vs. overflow) |
+| class3 | NaN arrays: sign, payload and signalling NaN variants, ties, ±∞ mixes |
+| class4 | I32 / I64 routing tables: -1, INT\_MIN, num\_experts, INT\_MAX, 2³², duplicate ids; plus all-zero and subnormal norm vectors |
 
 `secant probe --class <class1..class4|all> --format <safetensors|gguf|both> --out-dir <new-dir> --receipt <new.json> --attempt-id <id>`. With `--base <model>`, probe cells replace selected values in a copy of an existing model. Each fixture is self-verified before publication (container inspection, and `sanitize` must report the intended finding kinds). Fixtures are byte-deterministic for a given class, format and `--num-experts`. Exit codes: `0` generated and self-verified, `2` usage, I/O, or could not verify.
 
@@ -98,9 +169,9 @@ During `secant read --detect-anomalies`, each selected 2-D tensor is scanned in 
 
 | Field | Criterion |
 |---|---|
-| **`zero_rows`** | $\rho_i = 0$ |
-| **`collapsed_rows`** | $0 < \rho_i < 10^{-3} \cdot \mathrm{median}_r \rho_r$ |
-| **`spike_cols`** | $c_j > \mathrm{median}(c) + 10 \cdot 1.4826 \cdot \mathrm{MAD}(c)$ **and** $c_j > 2.0 \cdot \mathrm{median}(c)$, where $\mathrm{MAD}(c) = \mathrm{median}_j \lvert c_j - \mathrm{median}(c)\rvert$ |
+| **zero\_rows** | ρi = 0 |
+| **collapsed\_rows** | 0 &lt; ρi &lt; 10⁻³ × median(ρr) |
+| **spike\_cols** | cj &gt; median(c) + 10 × 1.4826 × MAD(c) **and** cj &gt; 2.0 × median(c), where MAD(c) = median over j of abs(cj − median(c)) |
 
 The record also carries up to 32 example indices per class, `median_row_l2`, the rule text, and `flagged = (zero_rows + collapsed_rows + spike_cols > 0)`. Detection is informational: `read` exits `0` whether or not anomalies are flagged.
 
@@ -130,10 +201,12 @@ secant read --model edited.gguf --marchenko-pastur --mp-threshold 2.0 --json
 
 This experiment planted a rank-1 edit of known size in two real checkpoints, then ran `secant audit-trojan` on every edited copy. It measures the edit size at which each signal appears. Edit: `rank1-columns` on the layer-12 MLP down projection. The direction is the unit-normalized embedding row of a trigger token T. The edit touches 16 evenly spaced input columns with equal coefficients. The **dose** is $g = \lVert\Delta W\rVert_F / \lVert W\rVert_F$, measured from the patch receipt after `BF16` rounding.
 
-| Arm | Checkpoint | Layer family audited | Trigger token | $\lVert W\rVert_F$ |
-|---|---|---|---|---:|
-| A | `SmolLM2-1.7B-Instruct` SafeTensors (tied embeddings) | `model.layers.*.mlp.down_proj.weight` (24) | `41401` (" giraffe") | `458.666` |
-| C | `Qwen3.5-4B` BF16 GGUF | `blk.*.ffn_down.weight` (33) | `16657` (" cheese") | `41.581` |
+| Arm | Checkpoint | Layer family audited | Trigger token | ‖W‖F |
+|---|---|---:|---|---|
+| A | SmolLM2-1.7B-Instruct SafeTensors (tied embeddings) | model.layers.*.mlp.down\_proj.weight (24) | 41401 (" giraffe") | 458.666 |
+| C | Qwen3.5-4B BF16 GGUF | blk.*.ffn\_down.weight (33 = blk.0..31 + MTP blk.32) | 16657 (" cheese") | 41.581 |
+
+*(The underlying evaluation campaign designated the quantized scale-sanitization sweep in Section 5.2 as `Arm B`, so the two spectral dose sweeps retain their campaign labels `Arm A` and `Arm C`. On `Qwen3.5-4B`, the GGUF glob `blk.*.ffn_down.weight` has `family_size = 33` because `llama.cpp` exports the 32 decoder blocks `blk.0..31` plus `blk.32`, the Multi-Token Prediction / MTP `blk.32.nextn.*` head block.)*
 
 All 24 audits (12 doses on each model) exit `0`. Each run brackets its input: the patched file's SHA-256 equals the audit's `pre_sha256` and `post_sha256`, and `input_unchanged` is true. That is a non-adversarial host-filesystem check, not descriptor-bound execution. Doses `0` to `4%` were specified before the run. They showed nothing, so `6`, `8`, `10`, `12` and `16%` were **added afterwards**. That is a recorded deviation: every threshold below is post-hoc, and since the true threshold lies somewhere between two tested doses, each first-detection dose is an upper bound.
 
@@ -142,52 +215,132 @@ All 24 audits (12 doses on each model) exit `0`. Each run brackets its input: th
 :alt: Two panels against relative Frobenius dose from 0 to 16 percent for SmolLM2-1.7B and Qwen3.5-4B. Panel A shows the sibling modified z-score crossing 3.5 at 12 percent, sigma_1 over sigma_MP rising from 8 percent, and sigma_2 jumping at 6 percent. Panel B shows the cosine between the planted direction and u_1 jumping from below 0.2 to above 0.98 between 6 and 10 percent, and the trigger token entering the promoted top-16 at rank 1 or 2 at 8 percent.
 :width: 100%
 
-The planted edit stays hidden until its singular value $\sigma_{trojan} = g\,\lVert W\rVert_F$ reaches the unedited layer's $\sigma_1$. That happens at exactly $g^* = \sigma_1/\lVert W\rVert_F$: `6.57%` for `Qwen3.5-4B` and `8.65%` for `SmolLM2-1.7B` (dashed lines). **Panel A** shows the automatic family statistics. The sibling z-score crosses `3.5` only at `12%`, and $\sigma_2$ is the first quantity to move, at `6%`. **Panel B** shows the vocabulary projection of $u_1$. The trigger token is rank 1 (Qwen) or rank 2 (SmolLM2) at `8%`, one tested dose after the crossing, while the sibling flag is still silent.
+The standalone singular-value equality reference (nominal crossover) where the planted perturbation's spectral norm $\sigma_{\text{trojan}} = g\,\lVert W\rVert_F$ equals the unedited layer's leading singular value $\sigma_1(W)$ is $g^* = \sigma_1(W)/\lVert W\rVert_F$: `6.57%` for `Qwen3.5-4B` and `8.65%` for `SmolLM2-1.7B` (dashed lines). **Panel A** shows the automatic family statistics. The sibling z-score crosses `3.5` only at `12%`, and $\sigma_2$ is the first quantity to move, at `6%`. **Panel B** shows the vocabulary projection of $u_1$. The trigger token is rank 1 (Qwen) or rank 2 (SmolLM2) at `8%`, while the sibling flag is still silent.
 ```
 
 **Arm A, `SmolLM2-1.7B`, layer 12 of 24.** $\sigma_{trojan}/\sigma_1$ is the realized edit norm divided by the unedited layer's $\sigma_1$.
 
-| Dose | $\sigma_{trojan}/\sigma_1$ | $\sigma_1$ | $\sigma_2$ | $\sigma_1/\sigma_{MP}$ | Sibling z | Outlier | Family rank | $\cos(u, u_1)$ | Rank of T in top 16 |
-|---:|---:|---:|---:|---:|---:|---|---:|---:|---|
-| `0.00%` | `0` | `39.697` | `25.31` | `2.632` | `1.42` | no | `4` | `0.059` | none |
-| `0.10%` | `0.012` | `39.697` | `25.31` | `2.632` | `1.42` | no | `4` | `0.059` | none |
-| `0.25%` | `0.029` | `39.697` | `25.31` | `2.632` | `1.42` | no | `4` | `0.059` | none |
-| `0.50%` | `0.058` | `39.698` | `25.31` | `2.632` | `1.42` | no | `4` | `0.060` | none |
-| `1.00%` | `0.116` | `39.699` | `25.31` | `2.632` | `1.42` | no | `4` | `0.061` | none |
-| `2.00%` | `0.231` | `39.704` | `25.31` | `2.632` | `1.42` | no | `4` | `0.064` | none |
-| `4.00%` | `0.462` | `39.725` | `25.31` | `2.632` | `1.42` | no | `4` | `0.081` | none |
-| `6.00%` (post-hoc) | `0.693` | `39.789` | **`30.10`** | `2.636` | `1.43` | no | `4` | `0.133` | none |
-| `8.00%` (post-hoc) | `0.924` | `40.450` | `37.93` | `2.679` | `1.58` | no | `3` | `0.569` | **`2`** |
-| `10.00%` (post-hoc) | `1.155` | `47.700` | `39.47` | `3.160` | `3.12` | no | **`1`** | `0.984` | `1` |
-| `12.00%` (post-hoc) | `1.386` | `56.533` | `39.56` | `3.745` | **`5.01`** | **yes** | `1` | `0.993` | `1` |
-| `16.00%` (post-hoc) | `1.849` | `74.529` | `39.60` | `4.937` | `8.84` | yes | `1` | `0.997` | `1` |
+- Dose: edit Frobenius norm as a percentage of the base weight norm.
+- σt / σ1: planted singular value relative to the base leading value; σMP: Marchenko-Pastur reference; z: sibling score; T: trigger token.
+- Cosine measures alignment of the planted left direction with the leading left singular vector.
+
+**Spectral magnitudes**
+
+| Dose | σt / σ1 | σ1 | σ2 | σ1 / σMP |
+|---|---:|---:|---:|---:|
+| 0.00% | 0 | 39.697 | 25.31 | 2.632 |
+| 0.10% | 0.012 | 39.697 | 25.31 | 2.632 |
+| 0.25% | 0.029 | 39.697 | 25.31 | 2.632 |
+| 0.50% | 0.058 | 39.698 | 25.31 | 2.632 |
+| 1.00% | 0.116 | 39.699 | 25.31 | 2.632 |
+| 2.00% | 0.231 | 39.704 | 25.31 | 2.632 |
+| 4.00% | 0.462 | 39.725 | 25.31 | 2.632 |
+| 6.00% (post-hoc) | 0.693 | 39.789 | **30.10** | 2.636 |
+| 8.00% (post-hoc) | 0.924 | 40.450 | 37.93 | 2.679 |
+| 10.00% (post-hoc) | 1.155 | 47.700 | 39.47 | 3.160 |
+| 12.00% (post-hoc) | 1.386 | 56.533 | 39.56 | 3.745 |
+| 16.00% (post-hoc) | 1.849 | 74.529 | 39.60 | 4.937 |
+
+**Sibling detection**
+
+| Dose | Sibling z | Outlier | Family rank |
+|---|---:|---|---:|
+| 0.00% | 1.42 | no | 4 |
+| 0.10% | 1.42 | no | 4 |
+| 0.25% | 1.42 | no | 4 |
+| 0.50% | 1.42 | no | 4 |
+| 1.00% | 1.42 | no | 4 |
+| 2.00% | 1.42 | no | 4 |
+| 4.00% | 1.42 | no | 4 |
+| 6.00% (post-hoc) | 1.43 | no | 4 |
+| 8.00% (post-hoc) | 1.58 | no | 3 |
+| 10.00% (post-hoc) | 3.12 | no | **1** |
+| 12.00% (post-hoc) | **5.01** | **yes** | 1 |
+| 16.00% (post-hoc) | 8.84 | yes | 1 |
+
+**Direction and vocabulary signal**
+
+| Dose | Cosine | T rank in top 16 |
+|---|---:|---:|
+| 0.00% | 0.059 | none |
+| 0.10% | 0.059 | none |
+| 0.25% | 0.059 | none |
+| 0.50% | 0.060 | none |
+| 1.00% | 0.061 | none |
+| 2.00% | 0.064 | none |
+| 4.00% | 0.081 | none |
+| 6.00% (post-hoc) | 0.133 | none |
+| 8.00% (post-hoc) | 0.569 | **2** |
+| 10.00% (post-hoc) | 0.984 | 1 |
+| 12.00% (post-hoc) | 0.993 | 1 |
+| 16.00% (post-hoc) | 0.997 | 1 |
 
 **Arm C, `Qwen3.5-4B` GGUF, layer 12 of 33.**
 
-| Dose | $\sigma_{trojan}/\sigma_1$ | $\sigma_1$ | $\sigma_2$ | $\sigma_1/\sigma_{MP}$ | Sibling z | Outlier | Family rank | $\cos(u, u_1)$ | Rank of T in top 16 |
-|---:|---:|---:|---:|---:|---:|---|---:|---:|---|
-| `0.00%` | `0` | `2.7311` | `2.112` | `2.189` | `0.33` | no | `10` | `0.008` | none |
-| `0.10%` | `0.015` | `2.7311` | `2.112` | `2.189` | `0.33` | no | `10` | `0.008` | none |
-| `0.25%` | `0.038` | `2.7311` | `2.112` | `2.189` | `0.33` | no | `10` | `0.008` | none |
-| `0.50%` | `0.076` | `2.7311` | `2.112` | `2.189` | `0.33` | no | `10` | `0.008` | none |
-| `1.00%` | `0.152` | `2.7311` | `2.112` | `2.188` | `0.33` | no | `10` | `0.008` | none |
-| `2.00%` | `0.304` | `2.7311` | `2.112` | `2.188` | `0.33` | no | `10` | `0.009` | none |
-| `4.00%` | `0.609` | `2.7312` | `2.115` | `2.187` | `0.33` | no | `10` | `0.014` | none |
-| `6.00%` (post-hoc) | `0.913` | `2.7326` | **`2.678`** | `2.188` | `0.33` | no | `10` | `0.168` | none |
-| `8.00%` (post-hoc) | `1.218` | `3.4657` | `2.731` | `2.775` | `1.28` | no | `3` | **`0.991`** | **`1`** |
-| `10.00%` (post-hoc) | `1.523` | `4.2710` | `2.731` | `3.420` | `2.43` | no | **`1`** | `0.994` | `1` |
-| `12.00%` (post-hoc) | `1.827` | `5.0850` | `2.731` | `4.071` | **`3.58`** | **yes** | `1` | `0.996` | `1` |
-| `16.00%` (post-hoc) | `2.436` | `6.7265` | `2.731` | `5.386` | `5.92` | yes | `1` | `0.998` | `1` |
+- Dose: edit Frobenius norm as a percentage of the base weight norm.
+- σt / σ1: planted singular value relative to the base leading value; σMP: Marchenko-Pastur reference; z: sibling score; T: trigger token.
+- Cosine measures alignment of the planted left direction with the leading left singular vector.
+
+**Spectral magnitudes**
+
+| Dose | σt / σ1 | σ1 | σ2 | σ1 / σMP |
+|---|---:|---:|---:|---:|
+| 0.00% | 0 | 2.7311 | 2.112 | 2.189 |
+| 0.10% | 0.015 | 2.7311 | 2.112 | 2.189 |
+| 0.25% | 0.038 | 2.7311 | 2.112 | 2.189 |
+| 0.50% | 0.076 | 2.7311 | 2.112 | 2.189 |
+| 1.00% | 0.152 | 2.7311 | 2.112 | 2.188 |
+| 2.00% | 0.304 | 2.7311 | 2.112 | 2.188 |
+| 4.00% | 0.609 | 2.7312 | 2.115 | 2.187 |
+| 6.00% (post-hoc) | 0.913 | 2.7326 | **2.678** | 2.188 |
+| 8.00% (post-hoc) | 1.218 | 3.4657 | 2.731 | 2.775 |
+| 10.00% (post-hoc) | 1.523 | 4.2710 | 2.731 | 3.420 |
+| 12.00% (post-hoc) | 1.827 | 5.0850 | 2.731 | 4.071 |
+| 16.00% (post-hoc) | 2.436 | 6.7265 | 2.731 | 5.386 |
+
+**Sibling detection**
+
+| Dose | Sibling z | Outlier | Family rank |
+|---|---:|---|---:|
+| 0.00% | 0.33 | no | 10 |
+| 0.10% | 0.33 | no | 10 |
+| 0.25% | 0.33 | no | 10 |
+| 0.50% | 0.33 | no | 10 |
+| 1.00% | 0.33 | no | 10 |
+| 2.00% | 0.33 | no | 10 |
+| 4.00% | 0.33 | no | 10 |
+| 6.00% (post-hoc) | 0.33 | no | 10 |
+| 8.00% (post-hoc) | 1.28 | no | 3 |
+| 10.00% (post-hoc) | 2.43 | no | **1** |
+| 12.00% (post-hoc) | **3.58** | **yes** | 1 |
+| 16.00% (post-hoc) | 5.92 | yes | 1 |
+
+**Direction and vocabulary signal**
+
+| Dose | Cosine | T rank in top 16 |
+|---|---:|---:|
+| 0.00% | 0.008 | none |
+| 0.10% | 0.008 | none |
+| 0.25% | 0.008 | none |
+| 0.50% | 0.008 | none |
+| 1.00% | 0.008 | none |
+| 2.00% | 0.009 | none |
+| 4.00% | 0.014 | none |
+| 6.00% (post-hoc) | 0.168 | none |
+| 8.00% (post-hoc) | **0.991** | **1** |
+| 10.00% (post-hoc) | 0.994 | 1 |
+| 12.00% (post-hoc) | 0.996 | 1 |
+| 16.00% (post-hoc) | 0.998 | 1 |
 
 What the curve shows:
 
-1. **Below $\sigma_1$, the edit is hidden.** Through `4%` (the whole pre-specified range) neither model shows anything a reviewer could act on. The sibling z moves by under `0.01`, $\sigma_1$ by under `0.1%`, and T never enters the top 16 of $u_1$. This follows from the arithmetic: at `4%`, $\sigma_{trojan}$ is `0.46` (SmolLM2) and `0.61` (Qwen) of the unedited $\sigma_1$, so the edit sits inside the trained spectrum.
+1. **At the tested sub-$g^*$ doses (`<= 4%`), the tested single-file metrics remain silent on both placements.** Through `4%` (the whole pre-specified range) neither tested model placement shows a signal in the measured single-file metrics (`sigma_1/sigma_{MP}`, sibling z, or top-16 token projection of $u_1$). The sibling z moves by under `0.01`, $\sigma_1$ by under `0.1%`, and T never enters the top 16 of $u_1$; at `4%`, the standalone perturbation norm $\sigma_{trojan}$ is `0.46` (SmolLM2) and `0.61` (Qwen) of the unedited $\sigma_1$.
 2. **$\sigma_2$ moves first, but you need the base checkpoint to see it.** At `6%`, $\sigma_2$ rises from `2.112` to `2.678` on Qwen and from `25.31` to `30.10` on SmolLM2, while $\sigma_1$ and the ratio stay flat. `audit-trojan` ranks only $\sigma_1/\sigma_{MP}$, so this precursor appears only when the edited file is compared against its base. The data do not show that such a comparison would catch doses below `6%`: at `4%` on SmolLM2, $\sigma_{trojan}$ is below $\sigma_4$ (`18.3` vs. `23.45`).
-3. **The vocabulary projection comes before the automatic flag.** At `8%` the trigger token is the top promoted token of $u_1$ on Qwen and the second on SmolLM2, with $\cos(u, u_1)$ of `0.991` and `0.569`. The sibling z is still `1.28` and `1.58`. Someone reading the `PROMOTED TOKENS` column would see it; the automatic flag would not. The jump in $\cos(u, u_1)$ straddles the exact crossing dose $g^*$ (`6.57%` Qwen, `8.65%` SmolLM2): this is the edit's singular value overtaking the trained $\sigma_1$, so the top singular vector switches to the planted direction.
-4. **Family rank 1 at `10%`, sibling flag at `12%`.** At `10%` the edited layer becomes the family's largest $\sigma_1/\sigma_{MP}$ on both models. The automatic sibling outlier ($z > 3.5$) first fires at `12%`, and only just on Qwen ($z = 3.58$). Whether another layer, token or column placement would move that threshold is `UNKNOWN`.
+3. **The vocabulary projection comes before the automatic flag.** At `8%` the trigger token is the top promoted token of $u_1$ on Qwen and the second on SmolLM2, with $\cos(u, u_1)$ of `0.991` and `0.569`. The sibling z is still `1.28` and `1.58`. Someone reading the `PROMOTED TOKENS` column would see it; the automatic flag would not. Because $\Delta W$ and $W$ are not orthogonal in general, the exact dose at which the top singular vector of $W + \Delta W$ aligns with the trigger direction depends on the overlap between $\Delta W$ and the leading singular triplets of $W$; empirically, the jump in $\cos(u, u_1)$ occurs across the sampled doses (`6%`, `8%`, `10%`) bracketing the nominal singular-value equality reference $g^* = \sigma_1(W)/\lVert W\rVert_F$ (`6.57%` Qwen, `8.65%` SmolLM2).
+4. **Family rank 1 at `10%`, sibling flag at `12%`.** At `10%` the edited layer becomes the family's largest $\sigma_1/\sigma_{MP}$ on both models. The automatic sibling outlier ($z > 3.5$) first fires at `12%` ($z = 3.58$ across all 33 `blk.*.ffn_down.weight` tensors on Qwen). Excluding the MTP head block `blk.32` (`32`-tensor decoder family `blk.0..31`) leaves the `12%` crossover dose unchanged while raising Qwen layer 12's modified z-score from `2.43` to `2.85` at `10%`, from `3.58` to `4.21` at `12%`, and from `5.92` to `6.94` at `16%` (`0 / 32` false positives on the unedited base). Whether another layer, token or column placement would move that threshold is `UNKNOWN`.
 5. **No false positives on the unedited bases.** The unedited bases have 0 sibling outliers among 24 SmolLM2 and 33 Qwen layers. At `12%` and `16%` the planted layer is the only sibling outlier in each family. Nearly every tensor is `flagged` as outside the i.i.d. bulk, as Section 5 predicts for trained weights, so `flagged` is not a detector.
 
-Limits stated plainly: this is a static weight audit. It tested one layer, one token and one 16-column placement per model, and ran no inference, so it says nothing about whether the planted edit changes model behaviour. `secant audit-trojan` reports only the top-16 promoted and suppressed tokens, so a full-vocabulary rank of T is `NOT_RUN`. The rank-1 crossing holds for any rank-1 edit, but these thresholds are measured for this layer only. SmolLM2 layer 20, which has a much lower baseline ratio, is `NOT_RUN`.
+Limits stated plainly: this is a static weight audit. It tested one layer, one token and one 16-column placement per model, and ran no inference, so it says nothing about whether the planted edit changes model behaviour. `secant audit-trojan` reports only the top-16 promoted and suppressed tokens, so a full-vocabulary rank of T is `NOT_RUN`. The standalone singular-value equality $g^* = \sigma_1(W)/\lVert W\rVert_F$ is a nominal reference rather than a universal exact detector theorem, and these empirical thresholds are measured for this layer and placement only. SmolLM2 layer 20, which has a much lower baseline ratio, is `NOT_RUN`.
 
 ---
 
@@ -197,28 +350,32 @@ Limits stated plainly: this is a static weight audit. It tested one layer, one t
 
 | Sink class | Shape |
 |---|---|
-| `FLOAT_TO_INDEX_CAST` | a float, logit, score or weight cast to an integer type (C cast, `static_cast`, `lrint` family, Rust `as`) |
-| `UNVALIDATED_ROUTING_OR_INDEX_TENSOR` | an expert-id, token-id, index or permutation tensor used as a subscript or pointer offset |
-| `QUANT_SCALE_DIV_OR_OVERFLOW` | a reciprocal of, division by, or f16 conversion of a quantization scale (`d`, `dmin`, `scale`, `amax`, ...) |
-| `WEIGHT_VALUE_RELEASE_ASSERT` | a release-mode abort (`GGML_ASSERT`, `CHECK*`, `TORCH_CHECK`, `ORT_ENFORCE`, ...) over loaded values; `assert`, `DCHECK*`, `OP_REQUIRES*` and `RET_CHECK*` are excluded |
+| FLOAT\_TO\_INDEX\_CAST | a float, logit, score or weight cast to an integer type (C cast, static\_cast, lrint family, Rust as) |
+| UNVALIDATED\_ROUTING\_OR\_INDEX\_TENSOR | an expert-id, token-id, index or permutation tensor used as a subscript or pointer offset |
+| QUANT\_SCALE\_DIV\_OR\_OVERFLOW | a reciprocal of, division by, or f16 conversion of a quantization scale (d, dmin, scale, amax, ...) |
+| WEIGHT\_VALUE\_RELEASE\_ASSERT | a release-mode abort (GGML\_ASSERT, CHECK*, TORCH\_CHECK, ORT\_ENFORCE, ...) over loaded values; assert, DCHECK*, OP\_REQUIRES* and RET\_CHECK* are excluded |
 
-Each hit records whether a guard-shaped expression (`isnan`/`isfinite`, a bound check, a scale-vs-zero test) appears on the sink line or earlier in the same function, and a `risk_score` (kernel and loader paths raise it, guards and test paths lower it, Rust float `as` casts saturate and are down-weighted). Comments and string literals are blanked first; hidden and VCS directories and symlinks are skipped; files over 4 MiB are counted in `files_skipped`. The `secant.wsp-sink-scan.v1` receipt (`--out <new.json>`, or `--json` to stdout) carries exact per-class and unguarded counts, the ranked list cut to `--top` (default 100), and `tree_digest_sha256` over every scanned `(path, sha256)` pair, so the same tree gives the same receipt. Exit `0` when the scan completes, `2` on usage or I/O errors.
+Each hit records whether a guard-shaped expression (`isnan`/`isfinite`, a bound check, a scale-vs-zero test) appears on the sink line or earlier in the same function, and a `risk_score` (kernel and loader paths raise it, guards and test paths lower it, Rust float `as` casts saturate and are down-weighted). Comments and string literals are blanked first; hidden and VCS directories and symlinks are skipped; files over 4 MiB or containing a line over 1 MiB are skipped as a whole, recorded in `skipped` with `incomplete: true`, and counted in `files_skipped`. The `secant.wsp-sink-scan.v1` receipt (`--out <new.json>`, or `--json` to stdout) carries exact per-class and unguarded counts, the ranked list cut to `--top` (default 100), and `tree_digest_sha256` over every scanned `(path, sha256)` pair, so the same tree gives the same receipt. Exit `0` when the scan completes, `2` on usage or I/O errors.
 
-The receipt is byte-identical to the Go oracle's `wsp scan-sinks` except for `schema`, the third `limitations` sentence, and the timestamps; that is verified on nine source trees (`crates/secant-cli/tests/scan_sinks_cli.rs`, `receipt_is_byte_identical_to_the_oracle`). One recorded divergence: a source line longer than 1 MiB stops the oracle's scan of that file silently, while Secant scans every line. A hit is a hypothesis: replay it and read the source at the site before calling it a bug.
+The receipt is byte-identical to the Go oracle's `wsp scan-sinks` except for `schema`, the third `limitations` sentence, and the timestamps; that is verified across the synthetic fixture and seven external inference and ML source trees (`crates/secant-cli/tests/scan_sinks_cli.rs`, `receipt_is_byte_identical_to_the_oracle`). A hit is a hypothesis: replay it and read the source at the site before calling it a bug.
 
-The nine parity trees hold `9,612` hits in total. Seven are inference and ML source trees: llama.cpp `ggml/src` `2,328`, whisper.cpp `2,547`, vLLM `csrc` `572`, XNNPACK `3,613`, tract `204`, sentencepiece `131` and OpenCV `modules/dnn` `137`, which together account for `9,532`. The other two are a 12-hit synthetic fixture (CRLF, invalid UTF-8, hidden and symlinked files) and `68` hits in crucible's own native code. These are pattern matches used for oracle parity. They are not counts of bugs, and nobody has triaged them.
+Across clean `git archive HEAD` exports of the seven pinned external inference and ML source trees (excluding any gitignored local `build/` or `target/` directories), `secant scan-sinks` and the Go oracle produce byte-identical receipts totaling **`14,512`** pattern hits across `13,675` scanned files (`4,404,757` lines): `llama.cpp` `ggml/src` (`@ 223373742b`, `607` files, `266,809` lines) `2,498`, `whisper.cpp` (`@ 95ea8f9`, `866` files, `506,132` lines) `2,725`, `vLLM` `csrc` (`@ ee0da84ab9e`, `275` files, `108,017` lines) `692`, `XNNPACK` (`@ 0d17d45`, `10,491` files, `2,990,199` lines) `8,070`, `tract` (`@ 5b7ef4f8c`, `924` files, `222,094` lines) `239`, `sentencepiece` (`@ bcd4d8c`, `92` files scanned and `1` file `src/normalization_rule.h` skipped `> 4 MiB` with `incomplete: true`, `46,629` lines) `15`, and `OpenCV` `modules/dnn` (`@ 51ba88b`, `420` files, `264,877` lines) `273`, plus `13` hits in the 7-file synthetic parity fixture (CRLF, invalid UTF-8, hidden and symlinked files). Because `scan-sinks` walks the directory tree as given (skipping hidden and VCS directories and symlinks rather than evaluating `.gitignore`), scanning uncleaned local working checkouts that include gitignored `build/` or `target/` directories yields `14,734` hits (`XNNPACK` `8,171` across `12,423` files, `sentencepiece` `136` across `2,931` files, `whisper.cpp` `2,725` across `870` files, `tract` `239` across `930` files), with `secant` and the Go oracle producing byte-identical masked receipts on both the pristine `git archive HEAD` exports and the working checkouts. These are pattern matches used for oracle parity. They are not counts of bugs, and nobody has triaged them.
+
+The `692` vLLM parity count above (`@ ee0da84ab9e`) is not the same experiment as the `185`-hit historical audit at `75f6bef42`. The parity run used the current four-class Secant scanner and a different commit; the historical run used the six `B3-SINK-01..06` taxonomy. Counts from different rule sets or commits are not comparable.
+
+**Relation to prior non-finite payload advisories and hardware cast divergence (`FLOAT_TO_INDEX_CAST`).** On August 5, 2026, Vincenzo Fornaro ([`JustVugg/colibri`, `GHSA-5xpg-vw35-2687`](https://github.com/JustVugg/colibri/security/advisories/GHSA-5xpg-vw35-2687)) reported that NaN weights in an MoE router or gate can make every `val > best_val` comparison false, leave `best = -1`, and pass that negative value to heap indexing or `pread`. Separately, [Hanzo AI `HIP-0113` (Section 4.5, 2026)](https://github.com/hanzo-apps/HIPs/blob/main/HIPs/hip-0113-cognitive-sidecar-and-hanzo-engine-provider-runtime.md) documented the ARM64 `FCVTZS` (`NaN -> 0`) and x86-64 `CVTTSD2SI` (`NaN -> -2147483648`) difference. The engineering consequence is straightforward: a consumer must validate the finite domain and both index bounds before casting or indexing. Secant's `class2` fixture was run on the same SHA-256 checkpoint (`f0797fa931211b0a2be82df14bdd1876c4e11c5a16f37076b50afc9b7364448a`) on a local Apple M-series ARM64 workstation and a Linux x86-64 workstation (AMD Ryzen AI Max+ 395); it reproduced the `0` or `INT32_MAX` ARM64 results and the `INT32_MIN` x86-64 result described above.
 
 ---
 
-## 7. A Static Atlas of 46 Local Checkpoints
+## 7. A Static Atlas of a 46-File Local Inventory (2,619 Analyzed Weight Matrices: 14 Full Reads and 16 Scoped Variants)
 
-To see what genuine, unedited weights look like to these commands, `secant read --top-k-singular 3 --top-cols 8 --detect-anomalies [--vocab-tensor ...] --json` was run on 46 local checkpoints. It used the shipped release binary (SHA-256 `0060b2ee...a682`) and is evidence of stored weight values only. Every input was hashed before and after the whole sweep (46 of 46 identical). Every `read` receipt also carries `pre_sha256 == post_sha256`.
+To see how our local checkpoint inventory behaves under these commands, `secant read --top-k-singular 3 --top-cols 8 --detect-anomalies [--vocab-tensor ...] --json` was run across our 46-file local inventory (`2,619` analyzed weight matrices in total: `2,574` across `14` checkpoints read in full and `45` across `16` scoped edited variants, plus `16` vocab-only files skipped; manifest SHA-256 `0a7194ce33f83dbc93b2ebbd20349a0f88ff0d5d4dcbfd10a8ecd513db240686`). It used the shipped release binary (SHA-256 `0060b2ee47296ddb1e7ec8a0d99b46925829f39eebcca7dd570ddf94e2c3a682`) and is evidence of stored weight values only. Every input was hashed before and after the whole sweep (46 of 46 identical). Every `read` receipt also carries `pre_sha256 == post_sha256`.
 
 | Coverage | Files | Meaning |
-|---|---:|---|
+|---|---|---|
 | Full | 14 | every tensor read |
-| Scoped | 16 | 12 `Qwen3.5-4B` and 4 `SmolLM2` edited variants, read only where `verify-patch --base` reports a difference |
-| None | 16 | vocab-only GGUF files: `read` exits `2` with `empty or invalid tensor layout` |
+| Scoped | 16 | 12 Qwen3.5-4B and 4 SmolLM2 edited variants, read only where verify-patch --base reports a difference |
+| None | 16 | vocab-only GGUF files: read exits 2 with empty or invalid tensor layout |
 
 The sweep produced 429 non-empty `read` receipts. Across them it analyzed `2,619` tensors and skipped `253` whose quantization `read` cannot decode (`Q4_0`, `Q2_K`, `Q3_K`, others). It found `0` tensors with non-finite values, which agrees with the 26 `clean` results from `sanitize`. Of `5,101` computed singular triplets, `323` (`6.3%`) reached the 1000-iteration cap without converging. Treat $\sigma_2$ and $\sigma_3$ from those as less reliable.
 

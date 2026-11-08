@@ -241,6 +241,8 @@ static MSG_DIFFS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new
 
 fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], lenient_error: bool) -> Cmp {
     let (g, r) = (Side::new(root, &format!("{}-go", label)), Side::new(root, &format!("{}-rs", label)));
+    let prior_g = std::fs::read(g.sub("receipt.json")).ok();
+    let prior_r = std::fs::read(r.sub("receipt.json")).ok();
     let og = run_go(go, &g.args(args));
     let or = run_rs(rs, &r.args(args));
     let (cg, cr) = (og.status.code().unwrap_or(-1), or.status.code().unwrap_or(-1));
@@ -272,8 +274,6 @@ fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], 
                 panic!("[{}] --json stdout differs: {}", label, d);
             }
         }
-    } else {
-        assert_eq!(sg, sr, "[{}] stdout differs", label);
     }
     // stderr: the error message (after "Error: ") must agree when the oracle reports one.
     let (eg, er) = (norm(&String::from_utf8_lossy(&og.stderr), &g.dir), norm(&String::from_utf8_lossy(&or.stderr), &r.dir));
@@ -281,28 +281,25 @@ fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], 
         println!("NOTE [{}] stderr differs:\n   go: {}\n   rs: {}", label, eg.trim(), er.trim());
     }
     match (&rec_g, &rec_r) {
+        (Some(a), Some(b)) if prior_g.is_some() || prior_r.is_some() => {
+            // A no-clobber control deliberately preinstalls non-JSON bytes.
+            // These are preserved files, not newly emitted machine receipts.
+            assert_eq!(prior_g.as_deref(), Some(a.as_bytes()), "[{}] oracle clobbered an existing receipt", label);
+            assert_eq!(prior_r.as_deref(), Some(b.as_bytes()), "[{}] secant clobbered an existing receipt", label);
+            assert_eq!(a.as_bytes(), b.as_bytes(), "[{}] preserved receipt bytes differ", label);
+        }
         (Some(a), Some(b)) => {
-            let (mut la, mut lb) = (stable_lines(&canon_side(a, &map), &g.dir), stable_lines(&canon_side(b, &map), &r.dir));
-            if lenient_error && la != lb {
-                let is_err = |l: &str| l.trim_start().starts_with("\"error\"");
-                let ea: Vec<&str> = la.lines().filter(|l| is_err(l)).collect();
-                let eb: Vec<&str> = lb.lines().filter(|l| is_err(l)).collect();
-                if ea != eb {
-                    MSG_DIFFS.lock().unwrap().push(format!(
-                        "[{}]\n      go: {}\n      rs: {}",
-                        label,
-                        ea.join("").trim(),
-                        eb.join("").trim()
-                    ));
+            let mut jg = canon_value(&parse_json(norm(&canon_side(a, &map), &g.dir).as_bytes()));
+            let mut jr = canon_value(&parse_json(norm(&canon_side(b, &map), &r.dir).as_bytes()));
+            if lenient_error {
+                if jg.get("error") != jr.get("error") {
+                    MSG_DIFFS.lock().unwrap().push(format!("[{}] go: {:?}; rs: {:?}", label, jg.get("error"), jr.get("error")));
                 }
-                la = la.lines().filter(|l| !is_err(l)).collect::<Vec<_>>().join("\n");
-                lb = lb.lines().filter(|l| !is_err(l)).collect::<Vec<_>>().join("\n");
+                jg.as_object_mut().unwrap().remove("error");
+                jr.as_object_mut().unwrap().remove("error");
             }
-            if la != lb {
-                let al: Vec<&str> = la.lines().collect();
-                let bl: Vec<&str> = lb.lines().collect();
-                let i = al.iter().zip(bl.iter()).position(|(x, y)| x != y).unwrap_or(al.len().min(bl.len()));
-                panic!("[{}] receipt text differs at line {}:\n go: {:?}\n rs: {:?}", label, i, al.get(i), bl.get(i));
+            if let Some(d) = json_diff(&jg, &jr, &["started_utc", "finished_utc", "receipt_sha256"]) {
+                panic!("[{}] structured receipt differs: {}", label, d);
             }
         }
         (None, None) => {}
@@ -313,6 +310,16 @@ fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], 
         t.iter().filter(|(k, _)| k.as_str() != "receipt.json").map(|(k, v)| (k.clone(), v.clone())).collect::<BTreeMap<_, _>>()
     };
     assert_eq!(strip(&tg), strip(&tr), "[{}] file trees (names/sha256) differ", label);
+    for (name, kind) in &tg {
+        if name == "receipt.json" || kind == "<dir>" {
+            continue;
+        }
+        let (a, b) = (std::fs::read(g.sub(name)).unwrap(), std::fs::read(r.sub(name)).unwrap());
+        // The sole container normalization maps legacy metadata keys. Tensor
+        // payloads stay verbatim; non-container outputs compare raw bytes.
+        let (a, b) = (canon_container(&a).unwrap_or(a), canon_container(&b).unwrap_or(b));
+        assert_eq!(a, b, "[{}] output bytes differ: {}", label, name);
+    }
     Cmp { code: cg, go_stdout: sg, go_receipt: rec_g, rs_receipt: rec_r, go_tree: tg }
 }
 
@@ -683,6 +690,11 @@ fn sanitize_probe_fixtures_findings_and_exit_codes() {
         for (k, _) in v["before"]["counts"].as_object().unwrap() {
             seen.insert(k.clone());
         }
+        if let Some(info) = v["before"]["info"].as_object() {
+            for (k, _) in info {
+                seen.insert(k.clone());
+            }
+        }
         // truncated examples (max 3) keep aggregate counts exact
         let c = compare(&format!("fx{}-trunc", i), &go, &rs, &root, &san_args(f, &["--num-experts", "8", "--max-examples", "3", "--json"]));
         assert_eq!(c.code, 1);
@@ -715,7 +727,7 @@ fn sanitize_probe_fixtures_findings_and_exit_codes() {
         "nan",
         "inf",
         "extreme_finite",
-        "subnormal",
+        "subnormal_tolerated",
         "norm_all_zero",
         "norm_below_min",
         "routing_negative",
@@ -816,6 +828,19 @@ fn sanitize_unrepairable_classes_refuse_to_publish() {
     ];
     for (name, t) in cases {
         let model = put(&root, &format!("{}.safetensors", name), &st(&[t]));
+        if name == "subnormal" {
+            let c_tol = compare(
+                "subnormal-tolerated",
+                &go,
+                &rs,
+                &root,
+                &san_args(&model, &["--num-experts", "8", "--clamp-nonfinite", "--dedup-routing-rows", "--out", "{OUT}"]),
+            );
+            assert_eq!(c_tol.code, 0);
+            assert_eq!(status_of(&c_tol), "remediated");
+            assert!(c_tol.go_tree.contains_key("out"));
+            continue;
+        }
         let c = compare(
             name,
             &go,
@@ -1054,16 +1079,21 @@ fn sanitize_malformed_and_unsupported_layouts_fail_closed() {
         let c = compare_opt(&format!("gguf-v{}", v), &go, &rs, &root, &san_args(&put(&root, &format!("v{}.gguf", v), &b), &[]), true);
         println!("gguf v{} -> exit {}", v, c.code);
     }
-    // Quantized GGUF: the Go scanner rejects the whole file; Secant lists it and the sanitizer must refuse.
-    // Q4_0 (type 2), not Q8_0: Secant scans Q8_0 / Q4_K scale headers (a deliberate
-    // divergence, tested in secant-cli/tests/quant_sanitize_cli.rs); every other
-    // quantized type is still refused on both sides.
+    // Quantized GGUF: B3-2A block-quantized formats (e.g. Q4_0, type 2) scan clean;
+    // unsupported quantized types (e.g. IQ2_XXS, type 16) are refused on both sides.
     let mut q = gg(&[bt("w", "F32", &[32], raw_bits("F32", &[0; 32]))]);
     // find "w" tensor info: name_len(1) 'w' ndims(1) dim(32) type(0)
     let pat: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 1u32.to_le_bytes().to_vec(), 32u64.to_le_bytes().to_vec()].concat();
     let at = q.windows(pat.len()).position(|w| w == pat.as_slice()).expect("tensor info");
     q[at + pat.len()..at + pat.len() + 4].copy_from_slice(&2u32.to_le_bytes()); // Q4_0
     let c = compare_opt("gguf-q4_0", &go, &rs, &root, &san_args(&put(&root, "q4_0.gguf", &q), &[]), true);
+    assert_eq!(c.code, 0);
+    assert_eq!(status_of(&c), "clean");
+    let mut iq2 = gg(&[bt("w", "F32", &[256], raw_bits("F32", &[0; 256]))]);
+    let pat256: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 1u32.to_le_bytes().to_vec(), 256u64.to_le_bytes().to_vec()].concat();
+    let at256 = iq2.windows(pat256.len()).position(|w| w == pat256.as_slice()).expect("tensor info");
+    iq2[at256 + pat256.len()..at256 + pat256.len() + 4].copy_from_slice(&16u32.to_le_bytes()); // IQ2_XXS
+    let c = compare_opt("gguf-iq2_xxs", &go, &rs, &root, &san_args(&put(&root, "iq2_xxs.gguf", &iq2), &[]), true);
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
     println!("quantized GGUF error go: {}", serde_json::from_str::<Value>(c.go_receipt.as_ref().unwrap()).unwrap()["error"]);
@@ -1225,6 +1255,7 @@ impl Flags {
             clamp_nonfinite: self.cnf,
             clamp_extreme: self.ce,
             flush_subnormal: self.fs,
+            strict_subnormal: true,
             output: out.into(),
             ..Default::default()
         }
@@ -1512,7 +1543,11 @@ fn extension_defaults_leave_the_receipt_unchanged() {
     let (rep, _) = sanitize_file_report(&model, &SanitizeOptions { attempt_id: ATT.into(), ..Default::default() });
     let text = rep.to_json_pretty();
     assert!(!text.contains("clamp_extreme") && !text.contains("flush_subnormal"), "default receipt grew new keys");
-    assert!(text.contains("\"dedup_routing_rows\": false,\n    \"output\": \"\"\n"), "options layout moved");
+    assert!(
+        text.contains("\"dedup_routing_rows\": false,\n    \"output\": \"\",\n    \"divisor_floor\": 1e-12\n"),
+        "options layout moved: {}",
+        text
+    );
     // used flags appear, between dedup_routing_rows and output, and the seal still holds
     let out = root.path("o.safetensors");
     let (rep, _) = sanitize_file_report(
@@ -1571,10 +1606,11 @@ fn extension_cli_flags_and_oracle_equivalence_on_nonfinite_only() {
     assert_eq!(got, vec![0x447a, 0xc47a, 0x0000, 0x8000]); // 1000.0 rounded down from 1000.5, signs kept, subnormals flushed
 }
 
-/// Milestone S-4, JSON mode (immune to the human-report wording): a Q4_0 GGUF
-/// is refused identically by both tools, while Q8_0 / Q4_K files are a
-/// deliberate, recorded divergence. The oracle refuses them (exit 2, unknown);
-/// Secant scans their scale headers (exit 0, clean, `+quant-scale-headers-v1`).
+/// Milestone S-4, JSON mode (immune to the human-report wording): an IQ2_XXS GGUF
+/// is refused identically by both tools (exit 2, unknown), and standard f16-header
+/// block-quantized GGUF files (Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K,
+/// Q5_K, Q6_K) scan their scale headers identically on both tools (exit 0, clean,
+/// `zero-false-positive-b3-v2`).
 #[test]
 fn sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json() {
     let Some((go, rs)) = bins("sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json") else { return };
@@ -1586,29 +1622,265 @@ fn sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json() {
         q[at + pat.len()..at + pat.len() + 4].copy_from_slice(&id.to_le_bytes());
         q
     };
-    let p = put(&root, "q4_0.gguf", &retag(2));
+    let p = put(&root, "iq2_xxs.gguf", &retag(16));
     let mut args = san_args(&p, &[]);
     args.push("--json");
-    let c = compare_opt("gguf-q4_0-json", &go, &rs, &root, &args, true);
+    let c = compare_opt("gguf-iq2_xxs-json", &go, &rs, &root, &args, true);
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
-    for (id, name) in [(8u32, "Q8_0"), (12, "Q4_K")] {
+    for (id, name) in [(2u32, "Q4_0"), (8, "Q8_0"), (10, "Q2_K"), (12, "Q4_K"), (14, "Q6_K")] {
         let p = put(&root, &format!("{}.gguf", name), &retag(id));
-        let (a, b) = (Side::new(&root, &format!("{}-go", name)), Side::new(&root, &format!("{}-rs", name)));
         let mut args = san_args(&p, &[]);
         args.push("--json");
-        let og = run_go(&go, &a.args(&args));
-        let or = run_rs(&rs, &b.args(&args));
-        let gv: Value = serde_json::from_str(&std::fs::read_to_string(a.sub("receipt.json")).unwrap()).unwrap();
-        let rv: Value = serde_json::from_str(&std::fs::read_to_string(b.sub("receipt.json")).unwrap()).unwrap();
-        assert_eq!((og.status.code(), gv["status"].as_str()), (Some(2), Some("unknown")), "{}: oracle refuses", name);
-        assert!(gv["error"].as_str().unwrap().contains("(quantized)"), "{}", gv["error"]);
-        assert_eq!((or.status.code(), rv["status"].as_str()), (Some(0), Some("clean")), "{}: Secant scans", name);
-        assert_eq!(rv["policy_version"], "unquantized-static-values-v1+quant-scale-headers-v1");
+        let c = compare(&format!("gguf-{}-json", name), &go, &rs, &root, &args);
+        assert_eq!(c.code, 0, "{}: both scan clean", name);
+        let rv: Value = serde_json::from_str(c.rs_receipt.as_ref().unwrap()).unwrap();
+        assert_eq!(rv["status"], "clean");
+        assert_eq!(rv["policy_version"], "zero-false-positive-b3-v2");
         assert_eq!(rv["before"]["quant_tensors"], 1);
-        println!(
-            "DIVERGENCE {}: oracle exit 2 {:?}; secant exit 0 clean, quant_blocks={}",
-            name, gv["error"], rv["before"]["quant_blocks"]
-        );
     }
+}
+
+#[test]
+fn boundary3_default_integer_selectors_and_expert_map_sentinel() {
+    let root = Scratch::new("b3i");
+    let model = put(
+        &root,
+        "indices.safetensors",
+        &st(&[
+            bt("model.g_idx", "I32", &[6], i32_bytes(&[0, 0, 1, 1, -1, 2])),
+            bt("model.scales", "F32", &[2, 4], raw_bits("F32", &[0x3f800000; 8])),
+            bt("model.qweight", "I32", &[1, 6], i32_bytes(&[0; 6])),
+            bt("model.expert_map", "I32", &[4], i32_bytes(&[-1, -1, 0, 1])),
+            bt("model.full_row_indices", "I32", &[3], i32_bytes(&[0, 3, 4])),
+            bt("model.weight", "F32", &[4, 2], raw_bits("F32", &[0x3f800000; 8])),
+            bt("model.hash_indices_table", "I32", &[3], i32_bytes(&[0, -2, 0])),
+            bt("model.expert_ids", "I32", &[2], i32_bytes(&[0, 4])),
+        ]),
+    );
+    let (rep, res) = sanitize_file_report(&model, &SanitizeOptions { attempt_id: ATT.into(), num_experts: 4, ..Default::default() });
+    res.unwrap();
+    assert_eq!(rep.status, "findings");
+    let before = rep.before.unwrap();
+    assert_eq!(before.ignored_integer_tensors, 1); // model.qweight
+    assert_eq!(before.index_elements, 16); // g_idx(6) + expert_map(4) + full_row_indices(3) + hash_indices_table(3)
+    assert_eq!(before.index_unbounded, 0); // expert_map and hash_indices_table bounded by num_experts=4
+    assert_eq!(before.index_bounds.get("model.g_idx"), Some(&2));
+    assert_eq!(before.index_bounds.get("model.full_row_indices"), Some(&4));
+    assert_eq!(before.index_bounds.get("model.expert_map"), Some(&4));
+    assert_eq!(before.index_bounds.get("model.hash_indices_table"), Some(&4));
+    assert_eq!(before.counts.get("index_negative"), Some(&2)); // g_idx(-1) + hash_indices_table(-2); expert_map(-1) is the allowed -1 sentinel
+    assert_eq!(before.counts.get("index_oob"), Some(&2)); // g_idx(2 >= 2) + full_row_indices(4 >= 4)
+    assert_eq!(before.counts.get("routing_oob"), Some(&1)); // expert_ids(4 >= 4)
+    assert!(before.examples.iter().all(|f| f.tensor != "model.expert_map"));
+
+    // Unbounded index tensor with no findings fails closed with UNKNOWN (exit 2).
+    let unbounded = put(&root, "unbounded.safetensors", &st(&[bt("model.g_idx", "I32", &[2], i32_bytes(&[0, 1]))]));
+    let (urep, ures) = sanitize_file_report(&unbounded, &SanitizeOptions { attempt_id: ATT.into(), ..Default::default() });
+    assert!(ures.is_err());
+    assert_eq!(urep.status, "unknown");
+    assert!(urep.error.contains("1 index tensor(s) have no known upper bound"));
+}
+
+#[test]
+fn boundary3_divisor_scales_are_floored_in_repair_mode() {
+    let root = Scratch::new("b3d");
+    let floor = 1e-12_f32;
+    let model = put(
+        &root,
+        "divisors.safetensors",
+        &st(&[
+            bt("model.input_scale", "F32", &[1], raw_bits("F32", &[0])),
+            bt("model.k_scale", "F32", &[1], raw_bits("F32", &[(-1.0f32).to_bits() as u64])),
+            bt("model.v_scale.weight", "F32", &[1], raw_bits("F32", &[(0.5e-12f32).to_bits() as u64])),
+            bt("model.q_scale", "F32", &[1], raw_bits("F32", &[0])),
+            bt("model.y_scale", "F32", &[1], raw_bits("F32", &[(0.5e-12f32).to_bits() as u64])),
+            bt("model.prob_scale", "F32", &[1], raw_bits("F32", &[0])),
+            bt("model.cache_scale_inv", "F32", &[2], raw_bits("F32", &[0x7fc00000, 0x7f800000])),
+            bt("model.block_scale", "F32", &[1], raw_bits("F32", &[0])),
+        ]),
+    );
+    let base = SanitizeOptions { attempt_id: ATT.into(), ..Default::default() };
+    let (before, res) = sanitize_file_report(&model, &base);
+    res.unwrap();
+    assert_eq!(before.status, "findings");
+    let bscan = before.before.unwrap();
+    assert_eq!(bscan.divisor_elements, 8);
+    assert_eq!(bscan.counts.get("divisor_scale_nonpositive"), Some(&4)); // input_scale, k_scale, q_scale, prob_scale
+    assert_eq!(bscan.counts.get("divisor_scale_below_floor"), Some(&2)); // v_scale.weight, y_scale
+    assert_eq!(bscan.counts.get("nan"), Some(&1));
+    assert_eq!(bscan.counts.get("inf"), Some(&1));
+
+    // Under CLI --clamp-nonfinite (repair=false), only NaN/Inf divisor scales are clamped;
+    // finite nonpositive and below-floor divisor scales remain findings and output is not published.
+    let out_cli = root.path("divisors-cli.safetensors");
+    let (cli_rep, cli_res) = sanitize_file_report(
+        &model,
+        &SanitizeOptions { attempt_id: ATT.into(), clamp_nonfinite: true, output: out_cli.clone(), ..Default::default() },
+    );
+    cli_res.unwrap();
+    assert_eq!(cli_rep.status, "findings");
+    assert!(!cli_rep.output_published);
+    assert_eq!(cli_rep.changes.get("nan"), Some(&1));
+    assert_eq!(cli_rep.changes.get("inf"), Some(&1));
+    assert!(!cli_rep.changes.contains_key("divisor_scale_nonpositive"));
+    assert!(!cli_rep.changes.contains_key("divisor_scale_below_floor"));
+    assert_eq!(cli_rep.after.as_ref().unwrap().total_findings, 6);
+
+    // Under internal repair=true, finite nonpositive and below-floor divisor scales are also floored.
+    let out = root.path("divisors-fixed.safetensors");
+    let (fixed, res) = sanitize_file_report(
+        &model,
+        &SanitizeOptions { attempt_id: ATT.into(), clamp_nonfinite: true, repair: true, output: out.clone(), ..Default::default() },
+    );
+    res.unwrap();
+    assert_eq!(fixed.status, "remediated");
+    assert_eq!(fixed.changes.get("divisor_scale_nonpositive"), Some(&4));
+    assert_eq!(fixed.changes.get("divisor_scale_below_floor"), Some(&2));
+    assert_eq!(fixed.changes.get("nan"), Some(&1));
+    assert_eq!(fixed.changes.get("inf"), Some(&1));
+
+    let bytes = std::fs::read(&out).unwrap();
+    let layout = secant_core::container::layout_of_bytes(&bytes, "x").unwrap();
+    for name in [
+        "model.input_scale",
+        "model.k_scale",
+        "model.v_scale.weight",
+        "model.q_scale",
+        "model.y_scale",
+        "model.prob_scale",
+        "model.cache_scale_inv",
+    ] {
+        let tensor = layout.tensors.iter().find(|t| t.name == name).unwrap();
+        let data = &bytes[tensor.offset as usize..(tensor.offset + tensor.size) as usize];
+        for i in 0..(tensor.size as usize / 4) {
+            let value = f32::from_bits(bits_at("F32", data, i) as u32);
+            assert!(value.is_finite() && value >= floor, "{}[{}] = {}", name, i, value);
+        }
+    }
+    let ordinary = layout.tensors.iter().find(|t| t.name == "model.block_scale").unwrap();
+    assert_eq!(bits_at("F32", &bytes[ordinary.offset as usize..], 0), 0);
+}
+
+#[test]
+fn boundary3_b1_to_b5_oracle_parity_cli() {
+    let Some((go, rs)) = bins("boundary3_b1_to_b5_oracle_parity_cli") else { return };
+    let root = Scratch::new("b1b5");
+
+    // B1 + S3: divisor scales (nonpositive, below-floor, NaN/Inf, and block_scale non-divisor).
+    let div = put(
+        &root,
+        "divisor.safetensors",
+        &st(&[
+            bt("a.input_scale", "F32", &[4], raw_bits("F32", &[0, (-1.0f32).to_bits() as u64, (1e-20f32).to_bits() as u64, 1.0f32.to_bits() as u64])),
+            bt("a.v_scale.weight", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
+            bt("a.q_scale", "F32", &[2], raw_bits("F32", &[(1e-20f32).to_bits() as u64, 1.0f32.to_bits() as u64])),
+            bt("a.y_scale", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
+            bt("a.prob_scale", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
+            bt("a.w_scale_inv", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
+            bt("a.block_scale", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
+        ]),
+    );
+    let c = compare("b1-divisor-scan", &go, &rs, &root, &san_args(&div, &[]));
+    assert_eq!(c.code, 1);
+    let c = compare("b1-divisor-clamp-refused", &go, &rs, &root, &san_args(&div, &["--clamp-nonfinite", "--out", "{OUT}"]));
+    assert_eq!(c.code, 1);
+
+    // B2 + S4 + S6: --divisor-floor and --strict-subnormal on F16 and F32 divisor scales.
+    let div_f16 = put(
+        &root,
+        "div_f16.safetensors",
+        &st(&[
+            bt("a.k_scale", "F16", &[2], raw_bits("F16", &[0x7e00, 0x3c00])),
+            bt("a.v_scale", "F32", &[2], raw_bits("F32", &[0x00100000, 0x3f800000])),
+        ]),
+    );
+    let c = compare(
+        "b2-div-floor-scan",
+        &go,
+        &rs,
+        &root,
+        &san_args(&div_f16, &["--divisor-floor", "0.001", "--strict-subnormal"]),
+    );
+    assert_eq!(c.code, 1);
+    let div_nan_only = put(&root, "div_nan.safetensors", &st(&[bt("a.k_scale", "F16", &[2], raw_bits("F16", &[0x7e00, 0x3c00]))]));
+    let c = compare(
+        "b2-div-f16-clamp-default",
+        &go,
+        &rs,
+        &root,
+        &san_args(&div_nan_only, &["--clamp-nonfinite", "--out", "{OUT}"]),
+    );
+    assert_eq!(c.code, 0);
+    let c = compare(
+        "b2-div-f16-clamp-strict-subnormal",
+        &go,
+        &rs,
+        &root,
+        &san_args(&div_nan_only, &["--clamp-nonfinite", "--strict-subnormal", "--divisor-floor", "1e-6", "--out", "{OUT}"]),
+    );
+    assert_eq!(c.code, 0);
+
+    // B3: Rule S-0 MoE GGUF metadata (s0_expert_count and s0_expert_used_count).
+    use secant_core::builder::MetaValue;
+    let moe = put(
+        &root,
+        "moe_s0.gguf",
+        &build_gguf(
+            &[
+                ("general.architecture".into(), MetaValue::Str("qwen3moe".into())),
+                ("qwen3moe.expert_count".into(), MetaValue::U32(4)),
+                ("qwen3moe.expert_used_count".into(), MetaValue::U32(8)),
+            ],
+            &[bt("w", "F32", &[2], raw_bits("F32", &[0x3f800000, 0x3f800000]))],
+            32,
+        )
+        .unwrap(),
+    );
+    let c = compare("b3-moe-s0", &go, &rs, &root, &san_args(&moe, &[]));
+    assert_eq!(c.code, 1);
+
+    // B4: rope_freqs_zero on blk.0.rope_freqs.weight.
+    let rope = put(
+        &root,
+        "rope.gguf",
+        &gg(&[bt("blk.0.rope_freqs.weight", "F32", &[4], raw_bits("F32", &[0x3f800000, 0, 0x40000000, 0x40400000]))]),
+    );
+    let c = compare("b4-rope-scan", &go, &rs, &root, &san_args(&rope, &[]));
+    assert_eq!(c.code, 1);
+    let c = compare("b4-rope-clamp", &go, &rs, &root, &san_args(&rope, &["--clamp-nonfinite", "--out", "{OUT}"]));
+    assert_eq!(c.code, 1);
+
+    // B5: g_idx, full_row_indices, expert_map, and fail-closed unbounded index tensor.
+    let gidx = put(
+        &root,
+        "gidx.safetensors",
+        &st(&[
+            bt("model.layers.0.mlp.down_proj.g_idx", "I32", &[4], i32_bytes(&[0, -1, 5, 1])),
+            bt("model.layers.0.mlp.down_proj.scales", "F16", &[2, 4], raw_bits("F16", &[0x3c00; 8])),
+            bt("model.layers.0.mlp.down_proj.qweight", "I32", &[1, 4], i32_bytes(&[0; 4])),
+        ]),
+    );
+    let c = compare("b5-gidx", &go, &rs, &root, &san_args(&gidx, &[]));
+    assert_eq!(c.code, 1);
+
+    let fri = put(
+        &root,
+        "fri.safetensors",
+        &st(&[
+            bt("layer.0.full_row_indices", "I32", &[4], i32_bytes(&[0, -2, 99, 1])),
+            bt("layer.0.weight", "F16", &[4, 4], raw_bits("F16", &[0x3c00; 16])),
+        ]),
+    );
+    let c = compare("b5-fri", &go, &rs, &root, &san_args(&fri, &[]));
+    assert_eq!(c.code, 1);
+
+    let emap = put(&root, "expert_map.safetensors", &st(&[bt("blk.0.expert_map", "I32", &[4], i32_bytes(&[-1, -2, 99, 0]))]));
+    let c = compare("b5-expert-map", &go, &rs, &root, &san_args(&emap, &[]));
+    assert_eq!(c.code, 1);
+
+    let umap = put(&root, "unbounded_map.safetensors", &st(&[bt("blk.0.expert_map", "I32", &[2], i32_bytes(&[0, 1]))]));
+    let c = compare("b5-unbounded-unknown", &go, &rs, &root, &san_args(&umap, &[]));
+    assert_eq!(c.code, 2);
+    assert_eq!(status_of(&c), "unknown");
 }

@@ -17,9 +17,7 @@ use crate::dtype::*;
 use crate::error::{Error, Result};
 use crate::numeric::fma_add;
 use crate::plan::{Edit, Plan};
-use memmap2::MmapMut;
 use serde::Serialize;
-use std::fs::OpenOptions;
 
 pub const QK8_0: usize = 32;
 pub const QK_K: usize = 256;
@@ -139,11 +137,21 @@ pub fn quantize_row_q8_0(x: &[f32], out: &mut [u8]) -> Result<()> {
         }
         let d = amax / 127.0f32;
         let id = if d != 0.0 { 1.0f32 / d } else { 0.0 };
-        let o = &mut out[i * Q8_0_BLOCK_BYTES..(i + 1) * Q8_0_BLOCK_BYTES];
-        put_u16(&mut o[..2], f16_from_f32_ieee(d));
+        let encoded_d = f16_from_f32_ieee(d);
+        if !id.is_finite() || !f32_from_f16(encoded_d).is_finite() {
+            return Err(Error::msg("Q8_0 quantize: scale is outside the supported finite range"));
+        }
+        let mut o = [0u8; Q8_0_BLOCK_BYTES];
+        put_u16(&mut o[..2], encoded_d);
         for (j, v) in blk.iter().enumerate() {
             o[2 + j] = ((v * id).round() as i8) as u8;
         }
+        let mut decoded = [0f32; QK8_0];
+        dequantize_row_q8_0(&o, &mut decoded)?;
+        if decoded.iter().zip(blk).any(|(a, b)| !a.is_finite() || !(*a as f64 - *b as f64).is_finite()) {
+            return Err(Error::msg("Q8_0 quantize: non-finite decoded value or error"));
+        }
+        out[i * Q8_0_BLOCK_BYTES..(i + 1) * Q8_0_BLOCK_BYTES].copy_from_slice(&o);
     }
     Ok(())
 }
@@ -186,7 +194,7 @@ fn make_qkx2_quants(
     rdelta: f32,
     nstep: i32,
     use_mad: bool,
-) -> f32 {
+) -> Result<f32> {
     let mut min = x[0];
     let mut max = x[0];
     let mut sum_w = weights[0];
@@ -210,10 +218,13 @@ fn make_qkx2_quants(
             *v = 0;
         }
         *the_min = -min;
-        return 0.0;
+        return Ok(0.0);
     }
     let mut iscale = nmax as f32 / (max - min);
     let mut scale = 1.0f32 / iscale;
+    if [sum_w, sum_x, iscale, scale].iter().any(|x| !x.is_finite()) {
+        return Err(Error::msg("Q4_K quantize: non-finite scale accumulator"));
+    }
     let mut best_mad = 0f32;
     for i in 0..n {
         let li = nearest_int(iscale * (x[i] - min));
@@ -221,10 +232,13 @@ fn make_qkx2_quants(
         let mut diff = scale * l[i] as f32 + min - x[i];
         diff = if use_mad { diff.abs() } else { diff * diff };
         best_mad += weights[i] * diff;
+        if !best_mad.is_finite() {
+            return Err(Error::msg("Q4_K quantize: non-finite error accumulator"));
+        }
     }
     if nstep < 1 {
         *the_min = -min;
-        return scale;
+        return Ok(scale);
     }
     for is in 0..=nstep {
         iscale = (rmin + rdelta * is as f32 + nmax as f32) / (max - min);
@@ -239,6 +253,9 @@ fn make_qkx2_quants(
             sum_xl += w * lf * x[i];
         }
         let d = sum_w * sum_l2 - sum_l * sum_l;
+        if [iscale, sum_l, sum_l2, sum_xl, d].iter().any(|x| !x.is_finite()) {
+            return Err(Error::msg("Q4_K quantize: non-finite fit accumulator"));
+        }
         if d > 0.0 {
             let mut this_scale = (sum_w * sum_xl - sum_x * sum_l) / d;
             let mut this_min = (sum_l2 * sum_x - sum_l * sum_xl) / d;
@@ -246,11 +263,17 @@ fn make_qkx2_quants(
                 this_min = 0.0;
                 this_scale = sum_xl / sum_l2;
             }
+            if !this_scale.is_finite() || !this_min.is_finite() {
+                return Err(Error::msg("Q4_K quantize: non-finite fitted scale/minimum"));
+            }
             let mut mad = 0f32;
             for i in 0..n {
                 let mut diff = this_scale * laux[i] as f32 + this_min - x[i];
                 diff = if use_mad { diff.abs() } else { diff * diff };
                 mad += weights[i] * diff;
+                if !mad.is_finite() {
+                    return Err(Error::msg("Q4_K quantize: non-finite fitted error"));
+                }
             }
             if mad < best_mad {
                 l[..n].copy_from_slice(&laux[..n]);
@@ -261,7 +284,7 @@ fn make_qkx2_quants(
         }
     }
     *the_min = -min;
-    scale
+    Ok(scale)
 }
 
 /// Quantize `x` (len multiple of 256) into `out` (144 bytes per superblock).
@@ -288,6 +311,9 @@ pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
                 sum_x2 += xs[32 * j + k] * xs[32 * j + k];
             }
             let av_x = (sum_x2 / 32.0f32).sqrt();
+            if !av_x.is_finite() {
+                return Err(Error::msg("Q4_K quantize: non-finite input energy"));
+            }
             for k in 0..32 {
                 weights[k] = av_x + xs[32 * j + k].abs();
             }
@@ -303,7 +329,7 @@ pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
                 0.1,
                 20,
                 false,
-            );
+            )?;
             if scales[j] > max_scale {
                 max_scale = scales[j];
             }
@@ -313,10 +339,8 @@ pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
         }
         let inv_scale = if max_scale > 0.0 { 63.0f32 / max_scale } else { 0.0 };
         let inv_min = if max_min > 0.0 { 63.0f32 / max_min } else { 0.0 };
-        let o = &mut out[i * Q4_K_BLOCK_BYTES..(i + 1) * Q4_K_BLOCK_BYTES];
-        for b in o.iter_mut() {
-            *b = 0;
-        }
+        let mut block = [0u8; Q4_K_BLOCK_BYTES];
+        let o = &mut block;
         // layout: d(2) dmin(2) scales(12) qs(128)
         for j in 0..QK_K / 32 {
             let ls = (nearest_int(inv_scale * scales[j]).clamp(0, 255) as u8).min(63);
@@ -334,6 +358,9 @@ pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
         put_u16(&mut o[2..4], f16_from_f32_ieee(max_min / 63.0f32));
         let dh = f32_from_f16(le_u16(&o[0..2]));
         let dmh = f32_from_f16(le_u16(&o[2..4]));
+        if !dh.is_finite() || !dmh.is_finite() || !inv_scale.is_finite() || !inv_min.is_finite() {
+            return Err(Error::msg("Q4_K quantize: encoded d/dmin is outside the supported finite range"));
+        }
         let sc_bytes: Vec<u8> = o[4..16].to_vec();
         for j in 0..QK_K / 32 {
             let (sc, m) = get_scale_min_k4(j, &sc_bytes);
@@ -356,6 +383,12 @@ pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
             qo += 32;
             j += 64;
         }
+        let mut decoded = [0f32; QK_K];
+        dequantize_row_q4_k(o, &mut decoded)?;
+        if decoded.iter().zip(xs).any(|(a, b)| !a.is_finite() || !(*a as f64 - *b as f64).is_finite()) {
+            return Err(Error::msg("Q4_K quantize: non-finite decoded value or error"));
+        }
+        out[i * Q4_K_BLOCK_BYTES..(i + 1) * Q4_K_BLOCK_BYTES].copy_from_slice(o);
     }
     Ok(())
 }
@@ -645,7 +678,7 @@ pub struct Q8PatchReport {
     pub verify: Option<VerifyReport>,
 }
 
-fn q8_edit(map: &mut MmapMut, layout: &Layout, edit: &Edit) -> Result<Q8EditReport> {
+fn q8_edit(map: &mut [u8], layout: &Layout, edit: &Edit) -> Result<Q8EditReport> {
     let name = edit.target_tensor_name(&layout.format).to_string();
     let t = layout.tensor(&name)?.clone();
     if t.dtype != "Q8_0" {
@@ -661,6 +694,10 @@ fn q8_edit(map: &mut MmapMut, layout: &Layout, edit: &Edit) -> Result<Q8EditRepo
     let orig: Vec<u8> = map[lo..hi].to_vec();
     let mut w = vec![0f32; d_out * d_in];
     dequantize_row_q8_0(&orig, &mut w)?;
+    check_finite(&w)?;
+    if edit.direction.iter().chain(&edit.coeffs).any(|x| !x.is_finite()) || !edit.gamma.is_finite() {
+        return Err(Error::msg("Q8_0 patch: non-finite edit input"));
+    }
     let mut ideal: Vec<f64> = w.iter().map(|x| *x as f64).collect();
     let mut touched = vec![false; d_out * bpr];
     let mut rep =
@@ -735,6 +772,9 @@ fn q8_edit(map: &mut MmapMut, layout: &Layout, edit: &Edit) -> Result<Q8EditRepo
             dequantize_row_q8_0(&qb, &mut dq)?;
             for j in 0..QK8_0 {
                 let err = (dq[j] as f64 - ideal[base + j]).abs();
+                if !err.is_finite() || !dq[j].is_finite() {
+                    return Err(Error::msg("Q8_0 patch: non-finite decoded value or requantization error"));
+                }
                 if err > rep.max_requant_error {
                     rep.max_requant_error = err;
                 }
@@ -755,39 +795,21 @@ fn q8_edit(map: &mut MmapMut, layout: &Layout, edit: &Edit) -> Result<Q8EditRepo
 /// rewritten; every other block, tensor and the header stay byte-identical
 /// (verified before returning).
 pub fn q8_0_patch(base_path: &str, out_path: &str, plan: &Plan, mode: PatchMode) -> Result<Q8PatchReport> {
-    let layout = load_layout(base_path)?;
-    let (base_hash, _) = file_sha256(base_path)?;
-    let target = match mode {
-        PatchMode::CopyOnWrite => {
-            copy_file(base_path, out_path)?;
-            out_path
-        }
-        PatchMode::InPlace => base_path,
-    };
-    let snapshot = if mode == PatchMode::InPlace { Some(TensorDigests::of(base_path)?) } else { None };
-    let file = OpenOptions::new().read(true).write(true).open(target)?;
-    // SAFETY: exclusive writer by contract (fresh copy or the named target).
-    let mut map = unsafe { MmapMut::map_mut(&file) }.map_err(|e| Error::msg(format!("mmap {}: {}", target, e)))?;
+    let mut image = PatchImage::open(base_path, out_path, mode)?;
     let mut rep = Q8PatchReport {
         schema: Q8_PATCH_SCHEMA.into(),
         base: base_path.into(),
         out: out_path.into(),
-        base_sha256: base_hash,
+        base_sha256: image.base_sha256.clone(),
         ..Default::default()
     };
     for e in &plan.edits {
-        let r = q8_edit(&mut map, &layout, e).map_err(|er| Error::msg(format!("edit {}: {}", e.id, er)))?;
+        let r = q8_edit(&mut image.bytes, &image.layout, e).map_err(|er| Error::msg(format!("edit {}: {}", e.id, er)))?;
         rep.edits.push(r);
     }
-    map.flush()?;
-    drop(map);
-    drop(file);
-    rep.out_sha256 = file_sha256(target)?.0;
-    let expect: Vec<String> = rep.edits.iter().filter(|e| e.blocks_rewritten > 0).map(|e| e.tensor.clone()).collect();
-    let v = match &snapshot {
-        None => verify_patch(base_path, out_path, &expect)?,
-        Some(s) => s.verify_after(base_path, &expect)?,
-    };
+    rep.out_sha256 = sha256_hex(&image.bytes);
+    let expect = image.changed_targets(rep.edits.iter().map(|e| e.tensor.as_str()));
+    let v = image.publish(base_path, out_path, mode, &expect)?;
     let ok = v.ok;
     let sum = v.failure_summary();
     rep.verify = Some(v);

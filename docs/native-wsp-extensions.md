@@ -11,7 +11,6 @@ informational, and `quant roundtrip` reports error without inventing a threshold
 ```console
 secant rotation-test --tensor-npy w.npy --directions-npy d.npy \
   --rank 4 --steps 60 --lr 0.01 --wd 0.01 --seed 0 --json
-crucible wsp rotation-test --tensor-npy w.npy --directions-npy d.npy --json
 ```
 
 The tensor is a finite C-order F32/F64 matrix `[d_out, d_in]`; directions are a
@@ -43,7 +42,7 @@ The independent Python test compares every step to PyTorch AdamW and the actual
 ```console
 secant fetch-tensor --repo org/model --revision main \
   --tensor model.norm.weight --out norm.npy --receipt norm.receipt.json
-crucible wsp fetch-tensor --repo org/model --tensor lm_head.weight \
+secant fetch-tensor --repo org/model --tensor lm_head.weight \
   --row-start 0 --row-count 32 --out rows.npy --json
 ```
 
@@ -69,18 +68,14 @@ attempt identity. It defaults to `receipt.json` beside the NPY. `HF_TOKEN` is
 optional; an explicitly empty token is rejected. Tokens and signed redirect URLs
 are not recorded. `--endpoint` supports explicit Hub mirrors and local tests.
 
-## Go and Python integration
-
-The compiled Go adapters call the same native Secant binary without a shell.
-They locate it through `SECANT_BIN`, beside Crucible, in the repository release
-directory, or on PATH. A present-but-empty override is an error. JSON output is
-translated to `crucible.wsp-rotation-test.v1` or `crucible.wsp-fetch-tensor.v1`,
-preserving numeric tokens; binary hashes bracket execution. Fetch receipts on
-disk retain the native Secant schema. Existing Go WSP implementations are unchanged.
+## Python integration
 
 Python exposes `secant.rotation_test(...)` and `secant.fetch_tensor(...)` using
-the established `CliResult` and strict-error conventions. Neither command changes
-the frozen C ABI.
+the established `CliResult` and strict-error conventions. They locate the native
+binary through `SECANT_BIN`, in the repository release directory, or on `PATH`.
+A present-but-empty override is an error. Fetch receipts on disk retain the
+native `secant.fetch-tensor.v1` schema, and binary SHA-256 digests bracket
+execution. Neither command changes the frozen C ABI.
 
 Protocol references: [SafeTensors format](https://github.com/huggingface/safetensors#format)
 and [Hugging Face Hub API](https://huggingface.co/docs/hub/en/api).

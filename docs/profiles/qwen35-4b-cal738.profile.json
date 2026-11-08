@@ -1,0 +1,103 @@
+{
+  "schema": "secant.wsp.profile.v1",
+  "name": "qwen35-4b-cal738",
+  "description": "Qwen3.5-4B B1+B2+B3 Target-Shift calibrated to the 0.8B composed-edit writer-level shifts (B1a L13 -4.518691813, B1b L8 -2.863522865, sum -7.382214678; B3 L16 +3.895616167; B2 L16 gamma 1.0 on blk.N.ssm_out.weight).",
+  "source": "secant-paper-reg-b",
+  "subspaces": [
+    {
+      "name": "resid",
+      "dim": "d_model",
+      "capture": "last-token residual stream after the block",
+      "writer_gguf": "blk.N.attn_out.weight / blk.N.ssm_out.weight",
+      "writer_st": "model.layers.N.self_attn.o_proj.weight / linear_attn.out_proj.weight"
+    },
+    {
+      "name": "attn",
+      "dim": "d_model",
+      "capture": "attention (linear-attn) block output",
+      "writer_gguf": "blk.N.ssm_out.weight",
+      "writer_st": "model.layers.N.self_attn.linear_attn.out_proj.weight",
+      "notes": "Qwen3.5 GDN: GGUF stores the logical input axis permuted in 128-wide value-head blocks"
+    },
+    {
+      "name": "mlp",
+      "dim": "d_model",
+      "capture": "MLP block output",
+      "writer_gguf": "blk.N.ffn_down.weight",
+      "writer_st": "model.layers.N.mlp.down_proj.weight"
+    },
+    {
+      "name": "h",
+      "dim": "d_ffn",
+      "capture": "SwiGLU intermediate activation (ffn_down input)",
+      "writer_gguf": "blk.N.ffn_down.weight (column space)",
+      "writer_st": "model.layers.N.mlp.down_proj.weight (column space)"
+    }
+  ],
+  "default_target_shift": -4,
+  "default_gamma": 0.3,
+  "layer_selection": {
+    "strategy": "argmax of precomputed per-subspace SNR (supplied via layer_snr.json) with Borda aggregation across subspaces",
+    "tool": "secant analyze --in <layer_snr.json> | secant compose --analysis <analysis.json>",
+    "banked": "B1a L13, B1b L8, B2 L16, B3 L16 on Qwen3.5-4B"
+  },
+  "slots": [
+    {
+      "id": "B1a",
+      "role": "loop-suppress",
+      "direction_token": "loop",
+      "op": "rank1-columns",
+      "tensor_pattern": "blk.%d.ffn_down.weight",
+      "tensor_st_pattern": "model.language_model.layers.%d.mlp.down_proj.weight",
+      "layer": 13,
+      "sign": -1,
+      "top_k": 64,
+      "requires_h_ref": true,
+      "needs_direction": true,
+      "target_shift": -4.518691813254481
+    },
+    {
+      "id": "B1b",
+      "role": "loop-suppress",
+      "direction_token": "loop",
+      "op": "rank1-columns",
+      "tensor_pattern": "blk.%d.ffn_down.weight",
+      "tensor_st_pattern": "model.language_model.layers.%d.mlp.down_proj.weight",
+      "layer": 8,
+      "sign": -1,
+      "top_k": 64,
+      "requires_h_ref": true,
+      "needs_direction": true,
+      "target_shift": -2.863522865234759
+    },
+    {
+      "id": "B2",
+      "role": "refusal-ablate",
+      "direction_token": "ref",
+      "op": "projector-subtract",
+      "tensor_pattern": "blk.%d.ssm_out.weight",
+      "tensor_st_pattern": "model.language_model.layers.%d.linear_attn.out_proj.weight",
+      "layer": 16,
+      "sign": -1,
+      "gamma": 1.0,
+      "needs_direction": true,
+      "notes": [
+        "gamma=1.0 subtracts the full projector: d^T W' h = 0 for every h"
+      ]
+    },
+    {
+      "id": "B3",
+      "role": "root-boost",
+      "direction_token": "root",
+      "op": "rank1-columns",
+      "tensor_pattern": "blk.%d.ffn_down.weight",
+      "tensor_st_pattern": "model.language_model.layers.%d.mlp.down_proj.weight",
+      "layer": 16,
+      "sign": 1,
+      "top_k": 64,
+      "target_shift": 3.895616166602729,
+      "requires_h_ref": true,
+      "needs_direction": true
+    }
+  ]
+}

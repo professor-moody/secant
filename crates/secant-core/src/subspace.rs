@@ -217,7 +217,12 @@ pub fn dot(a: &[f64], b: &[f64]) -> f64 {
 }
 
 pub fn l2_norm(v: &[f64]) -> f64 {
-    dot(v, v).sqrt()
+    let ordinary = dot(v, v).sqrt();
+    if ordinary.is_finite() && ordinary > 0.0 {
+        ordinary
+    } else {
+        v.iter().fold(0.0f64, |n, x| n.hypot(*x))
+    }
 }
 
 pub fn cosine(a: &[f64], b: &[f64]) -> f64 {
@@ -225,7 +230,11 @@ pub fn cosine(a: &[f64], b: &[f64]) -> f64 {
     if na == 0.0 || nb == 0.0 {
         return 0.0;
     }
-    dot(a, b) / (na * nb)
+    if (na * nb).is_finite() && na * nb > 0.0 {
+        dot(a, b) / (na * nb)
+    } else {
+        dot(&a.iter().map(|x| x / na).collect::<Vec<_>>(), &b.iter().map(|x| x / nb).collect::<Vec<_>>())
+    }
 }
 
 /// Indices of the k largest-magnitude entries, |v| descending, ties by
@@ -242,7 +251,7 @@ pub fn top_k_abs_indices(v: &[f64], k: usize) -> Vec<usize> {
 }
 
 /// Two-pass modified Gram-Schmidt in float64 over `order`, failing closed on a
-/// dependent vector or when `max_{i!=j} |cos| >= 1e-12`.
+/// dependent vector (relative residual < 1e-9) or a full Gram residual >= 1e-12.
 pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Result<(BTreeMap<String, Vec<f64>>, GramSchmidtReport)> {
     if order.is_empty() {
         return Err(Error::msg("gram-schmidt: no vectors given"));
@@ -250,6 +259,9 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
     let mut dim: Option<usize> = None;
     for name in order {
         let v = named.get(name).ok_or_else(|| Error::msg(format!("gram-schmidt: vector {:?} listed in order but not provided", name)))?;
+        if v.iter().any(|x| !x.is_finite()) || !l2_norm(v).is_finite() || l2_norm(v) == 0.0 {
+            return Err(Error::msg(format!("gram-schmidt: vector {:?} has zero or non-finite input/norm", name)));
+        }
         match dim {
             None => dim = Some(v.len()),
             Some(d) if v.len() != d => {
@@ -266,6 +278,9 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
     if dim == Some(0) {
         return Err(Error::msg("gram-schmidt: zero-dimension vectors"));
     }
+    if order.len() > dim.unwrap() || order.iter().collect::<std::collections::BTreeSet<_>>().len() != order.len() {
+        return Err(Error::msg("gram-schmidt: too many or repeated directions"));
+    }
     let mut rep = GramSchmidtReport { order: order.to_vec(), passes: 2, ..Default::default() };
     for i in 0..order.len() {
         for j in i + 1..order.len() {
@@ -275,10 +290,21 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
     let mut basis: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     for name in order {
         let mut u = named[name].clone();
+        let input_norm = l2_norm(&u);
+        // Scaling prevents projection overflow without changing ordinary inputs.
+        let scaled = input_norm > 1e150 || input_norm < 1e-150;
+        if scaled {
+            for x in &mut u {
+                *x /= input_norm;
+            }
+        }
         for _pass in 0..2 {
             for prev in order {
                 if let Some(e) = basis.get(prev) {
                     let proj = dot(&u, e);
+                    if !proj.is_finite() {
+                        return Err(Error::msg("gram-schmidt: non-finite projection accumulator"));
+                    }
                     for i in 0..u.len() {
                         u[i] = fma_sub(u[i], proj, e[i]);
                     }
@@ -286,7 +312,7 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
             }
         }
         let norm = l2_norm(&u);
-        if norm < 1e-9 {
+        if !norm.is_finite() || norm == 0.0 || norm < 1e-9 * if scaled { 1.0 } else { input_norm } {
             return Err(Error::msg(format!(
                 "gram-schmidt: vector {:?} is linearly dependent on earlier vectors (residual norm {:.3e})",
                 name, norm
@@ -294,6 +320,9 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
         }
         for x in u.iter_mut() {
             *x /= norm;
+            if !x.is_finite() {
+                return Err(Error::msg("gram-schmidt: non-finite normalized direction"));
+            }
         }
         basis.insert(name.clone(), u);
     }
@@ -308,10 +337,20 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
         }
     }
     rep.post_cosine_max_abs = max_abs;
-    if max_abs >= ORTHOGONALITY_TOLERANCE {
+    let mut gram_error = 0.0f64;
+    for i in 0..order.len() {
+        for j in 0..order.len() {
+            let residual = (dot(&basis[&order[i]], &basis[&order[j]]) - if i == j { 1.0 } else { 0.0 }).abs();
+            if !residual.is_finite() {
+                return Err(Error::msg("gram-schmidt: non-finite Gram matrix"));
+            }
+            gram_error = gram_error.max(residual);
+        }
+    }
+    if gram_error >= ORTHOGONALITY_TOLERANCE {
         return Err(Error::msg(format!(
             "gram-schmidt: post-orthogonalization max |cos| {:.3e} violates the <{:.0e} bound",
-            max_abs, ORTHOGONALITY_TOLERANCE
+            gram_error, ORTHOGONALITY_TOLERANCE
         )));
     }
     Ok((basis, rep))
@@ -368,6 +407,9 @@ pub fn load_vectors(dir: &str) -> Result<VectorSet> {
         };
         if values.is_empty() {
             return Err(Error::msg(format!("vector {}: empty", name)));
+        }
+        if let Some(i) = values.iter().position(|x| !x.is_finite()) {
+            return Err(Error::msg(format!("vector {}: has a non-finite entry at {}", name, i)));
         }
         vs.by_name.insert(stem.clone(), values);
         vs.sha256.insert(stem.clone(), sha256_hex(&raw));
@@ -429,6 +471,7 @@ pub struct ComposeOptions {
     pub profile_name: String,
     pub profile_path: String,
     pub vectors_dir: String,
+    pub schema_version: String,
     pub target_shift: f64,
     pub has_shift: bool,
     pub gamma: f64,
@@ -483,7 +526,14 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
         return Err(Error::msg(format!("profile {} defines no default calibration; pass --target-shift or --gamma", profile.name)));
     }
 
-    let mut plan = Plan { schema: PLAN_SCHEMA.into(), profile: profile.name.clone(), ..Default::default() };
+    let schema_ver = if opts.schema_version.is_empty() {
+        PLAN_SCHEMA.to_string()
+    } else if crate::namespace::accepts(PLAN_SCHEMA, &opts.schema_version) {
+        opts.schema_version.clone()
+    } else {
+        return Err(Error::msg(format!("unsupported --schema-version {:?} (want {:?})", opts.schema_version, PLAN_SCHEMA)));
+    };
+    let mut plan = Plan { schema: schema_ver, profile: profile.name.clone(), ..Default::default() };
 
     let analysis = if !opts.analysis_path.is_empty() {
         let rep = crate::analyze::load_analyze_report(&opts.analysis_path)?;
@@ -624,7 +674,7 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
                 for c in &cols {
                     energy = fma_add(energy, h[*c], h[*c]);
                 }
-                if energy <= 0.0 {
+                if !energy.is_finite() || energy <= 0.0 {
                     return Err(Error::msg(format!("slot {}: reference activation has zero energy on its top-{} columns", slot.id, top_k)));
                 }
                 let beta;
@@ -709,7 +759,71 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
                 )));
             }
         }
+        if edit.direction.iter().chain(&edit.h_ref).chain(&edit.coeffs).any(|x| !x.is_finite())
+            || [edit.achieved_shift, edit.delta_fro_norm, edit.gamma].iter().any(|x| !x.is_finite())
+        {
+            return Err(Error::msg("compose: non-finite input, coefficient, norm, or calibration metric"));
+        }
         plan.edits.push(edit);
+    }
+
+    // Original unit directions U = Q R. Solve R^T a = t in slot order.
+    // For differing references/supports, each triangular entry additionally
+    // includes the sparse coefficient row evaluated on the requesting h_ref.
+    // Different tensor pairs are independent systems.
+    if mode == "target-shift" {
+        for a in &plan.edits {
+            if a.op != "rank1-columns" {
+                continue;
+            }
+            for b in &plan.edits {
+                let same = a.tensor == b.tensor && a.tensor_st == b.tensor_st;
+                if (a.tensor == b.tensor || (!a.tensor_st.is_empty() && a.tensor_st == b.tensor_st)) && !same {
+                    return Err(Error::msg("target-shift tensor bindings must agree in both container formats"));
+                }
+            }
+        }
+        for i in 0..dirs.len() {
+            if plan.edits[i].op != "rank1-columns" {
+                continue;
+            }
+            let original = &vs.as_ref().unwrap().by_name[&dirs[i].stem];
+            let norm = l2_norm(original);
+            let unit: Vec<_> = original.iter().map(|x| x / norm).collect();
+            let target = plan.edits[i].achieved_shift;
+            let mut prior = 0.0;
+            for j in 0..i {
+                let a = &plan.edits[i];
+                let b = &plan.edits[j];
+                if a.tensor != b.tensor || a.tensor_st != b.tensor_st {
+                    continue;
+                }
+                if b.op != "rank1-columns" {
+                    continue;
+                }
+                if a.h_ref.len() != b.h_ref.len() {
+                    return Err(Error::msg("target-shift references on one tensor must share the input dimension"));
+                }
+                let response: f64 = b.cols.iter().zip(&b.coeffs).map(|(c, v)| a.h_ref[*c as usize] * v).sum();
+                prior += dot(&unit, &b.direction) * response;
+            }
+            let diagonal = dot(&unit, &plan.edits[i].direction) * target;
+            let scale = if (target - prior - diagonal).abs() <= 1e-14 * target.abs().max(1.0) { 1.0 } else { (target - prior) / diagonal };
+            if !target.is_finite() || !prior.is_finite() || !diagonal.is_finite() || diagonal == 0.0 || !scale.is_finite() {
+                return Err(Error::msg("target-shift compensation has a non-finite or singular triangular system"));
+            }
+            let edit = &mut plan.edits[i];
+            for c in &mut edit.coeffs {
+                *c *= scale;
+            }
+            edit.delta_fro_norm = l2_norm(&edit.coeffs);
+            if edit.coeffs.iter().any(|x| !x.is_finite()) || !edit.delta_fro_norm.is_finite() {
+                return Err(Error::msg("target-shift compensation produced non-finite coefficients"));
+            }
+            if scale != 1.0 {
+                edit.notes.push("R^-T cross-projection compensation targets the original unit direction".into());
+            }
+        }
     }
 
     // 4. Probe / permutation slots need no vectors.

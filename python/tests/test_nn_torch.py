@@ -86,6 +86,31 @@ def test_state_dict_roundtrip_and_non_orthonormal_load_rejected():
         m2.load_state_dict(sd)
 
 
+@pytest.mark.parametrize("assign", [False, True])
+@pytest.mark.parametrize("bad", ["scaled", "nan", "float32"])
+def test_parent_checkpoint_load_validates_D_before_installation(assign, bad):
+    _, layer, _ = make(seed=1)
+    parent = nn.Sequential(nn.Sequential(layer))
+    before = layer.D.clone()
+    state = parent.state_dict()
+    if bad == "scaled":
+        state["0.0.D"] = state["0.0.D"] * 1.01
+    elif bad == "nan":
+        state["0.0.D"] = torch.full_like(state["0.0.D"], float("nan"))
+    else:
+        state["0.0.D"] = state["0.0.D"].float()
+    with pytest.raises(ValueError, match="orthonormal|float64"):
+        parent.load_state_dict(state, assign=assign)
+    assert torch.equal(layer.D, before)
+    assert layer.D.dtype == torch.float64
+    assert layer.orthonormality_error() < 1e-12
+    _, other, _ = make(seed=2)
+    parent.load_state_dict(nn.Sequential(nn.Sequential(other)).state_dict(), assign=assign)
+    assert torch.equal(layer.D, other.D) and layer.D.dtype == torch.float64
+    layer.float()
+    assert layer.D.dtype == torch.float64 and layer.orthonormality_error() < 1e-12
+
+
 # ------------------------------------------------------------------ math
 
 @pytest.mark.parametrize("dtype,tol", [(torch.float64, 1e-12), (torch.float32, 1e-6)])

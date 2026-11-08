@@ -105,10 +105,8 @@ pub fn f32_from_f16(h: u16) -> f32 {
             if frac == 0 {
                 return f32::from_bits(sign << 31);
             }
-            // NOTE: the Go oracle (lowprecision.go Float32FromF16) starts this
-            // exponent at -1, which halves every F16 subnormal on widening
-            // (0x0001 -> 2^-25 instead of 2^-24). Secant decodes correctly;
-            // see tool-gaps.json TG-SECANT-ORACLE-F16-SUBNORMAL.
+            // Decode F16 subnormal: value = frac * 2^-24, matching Go's
+            // Float32FromF16 in internal/wsp/lowprecision.go.
             let mut e: i32 = 0;
             while frac & 0x400 == 0 {
                 frac <<= 1;

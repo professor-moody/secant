@@ -1,7 +1,9 @@
 //! Secant core. Self-contained: no dependency on any external internal crate.
 //!
 //! Modules mirror the Go reference implementation (`internal/wsp`) that serves
-//! as the byte-exact differential conformance oracle.
+//! as the byte-exact differential conformance oracle. The `mp` module (`secant
+//! audit-trojan` Marchenko-Pastur spectral outlier scanner) is a Rust-native
+//! extension with no Go counterpart.
 
 pub mod analyze;
 pub mod builder;

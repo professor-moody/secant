@@ -41,6 +41,7 @@ site:
   template: book-theme
   title: "Secant · Weight-Space Programming"
   options:
+    favicon: docs/assets/secant-favicon.svg
     logo: docs/assets/secant-logo.svg
     logo_text: "Secant"
     style: docs/assets/secant-theme.css

@@ -3,7 +3,23 @@
 import numpy as np
 import pytest
 
-from secant._linalg import DirectionError, leakage, orthonormalize_rows, project_out
+from secant._linalg import DirectionError, cross_projection_compensate, leakage, orthonormalize_rows, project_out
+
+
+@pytest.mark.parametrize("shifts", [[1., 1.], [-2., 0.5]])
+def test_correlated_direction_compensation_matches_original_targets(shifts):
+    directions = np.array([[1., 0.], [1., 1.]])
+    q, amplitudes = cross_projection_compensate(directions, shifts)
+    unit = directions / np.linalg.norm(directions, axis=1)[:, None]
+    assert np.max(np.abs(unit @ (q.T @ amplitudes) - shifts)) < 1e-12
+    if shifts == [1., 1.]:
+        assert amplitudes == pytest.approx([1., np.sqrt(2.) - 1.], abs=1e-14)
+
+
+@pytest.mark.parametrize("scale", [1e-300, 1e300])
+def test_finite_rescaling_preserves_full_gram_matrix(scale):
+    basis = orthonormalize_rows(np.array([[1., 1., 0.], [1., 0., 1.]]) * scale)
+    assert np.max(np.abs(basis @ basis.T - np.eye(2))) < 1e-12
 
 
 def test_orthonormalize_random_is_orthonormal_to_1e_12():

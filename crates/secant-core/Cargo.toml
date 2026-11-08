@@ -3,7 +3,11 @@ name = "secant-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 description = "Secant core: containers, subspaces, reader, Project-Then-Heal, tensor security, quantization"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
 
 [dependencies]
 memmap2.workspace = true

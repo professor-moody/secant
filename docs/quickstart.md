@@ -30,20 +30,20 @@ pytest python/tests
 
 | Stage | Subcommand | What It Does |
 | :--- | :--- | :--- |
-| **01 · Audit & Read** | `secant profiles` | Lists research profiles, such as `think-loop-fix` and `security-auditor-b1b2b3`, and their edit slots. |
-| | `secant inspect` | Lists tensor names, shapes, storage types, and byte offsets. |
-| | `secant read` | Measures matrix size, leading directions, and optional vocabulary scores. |
-| | `secant sanitize` | Static weight-value scanner and optional `--clamp-nonfinite` repair (`NaN`/`Inf`/subnormals/router IDs). |
-| | `secant probe` | Deterministic generator for boundary-value test fixtures (`class1`..`class4`). |
-| **02 · Analyze & Compose** | `secant analyze` | Combines layer rankings from captured signal-to-noise measurements. |
-| | `secant compose` | Makes supplied directions perpendicular, selects layers from `--analysis`, and sizes edits from reference activations. |
-| **03 · Patch** | `secant patch` | Edits supported `BF16`, `F16`, and `F32` weights, writing a copy by default. |
-| | `secant verify-patch` | Checks header identity and byte identity outside the supplied tensor allowlist. |
-| | `secant quant patch` | Edits selected `Q8_0` blocks, writing a new checkpoint by default. |
-| | `secant quant witness` (`verify`) | Measures quantization error and optional reordering of 128-column panels. |
-| | `secant quant roundtrip` | Encodes and decodes a matrix to measure compression error. |
-| **04 · Lock & Heal** | `secant heal` | Removes protected output components from an existing adapter and optionally merges it. |
-| | `secant verify-subspace` | Compares a base and healed checkpoint at selected tensors, checking leakage against `--tol`. |
+| **01 · Audit & Read** | secant profiles | Lists research profiles, such as think-loop-fix and security-auditor-b1b2b3, and their edit slots. |
+| | secant inspect | Lists tensor names, shapes, storage types, and byte offsets. |
+| | secant read | Measures matrix size, leading directions, and optional vocabulary scores. |
+| | secant sanitize | Static weight-value scanner and optional repair for NaN, Inf, divisor scales, and routing IDs. Q8\_0 and Q4\_K zero or FP16 subnormal block scales pass by default; --flush-subnormal is opt-in. |
+| | secant probe | Deterministic generator for boundary-value test fixtures (class1..class4). |
+| **02 · Analyze & Compose** | secant analyze | Combines layer rankings from captured signal-to-noise measurements. |
+| | secant compose | Makes supplied directions perpendicular, selects layers from --analysis, and sizes edits from reference activations. |
+| **03 · Patch** | secant patch | Edits supported BF16, F16, and F32 weights, writing a copy by default. |
+| | secant verify-patch | Checks header identity and byte identity outside the supplied tensor allowlist. |
+| | secant quant patch | Edits selected Q8\_0 blocks, writing a new checkpoint by default. |
+| | secant quant witness (verify) | Measures quantization error and optional reordering of 128-column panels. |
+| | secant quant roundtrip | Encodes and decodes a matrix to measure compression error. |
+| **04 · Lock & Heal** | secant heal | Removes protected output components from an existing adapter and optionally merges it. |
+| | secant verify-subspace | Compares a base and healed checkpoint at selected tensors, checking leakage against --tol. |
 
 ---
 
@@ -268,9 +268,7 @@ secant verify-patch --base fixtures/class3-nan-sort-arrays.safetensors --patched
 (watch-it-run)=
 ## 7. Watch It Run: Real Terminal Recordings
 
-The six recordings below are real [VHS](https://github.com/charmbracelet/vhs) captures of the compiled release binary (`secant 0.1.0`), not drawings. Each one replays one step of an actual edit on a real checkpoint, in pipeline order. Next to every GIF, `docs/assets/vhs/` holds the `.tape` script that produced it and a plain-text `.txt` transcript of the screen, so you can search and check every number shown.
-
-**What is being edited.** [`HuggingFaceTB/SmolLM2-1.7B-Instruct`](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct) at commit `31b70e2e`, one `3.4 GB` `BF16` `.safetensors` file with SHA-256 `f55217be...a0e8`. The direction vectors, `layer_snr.json`, and two-edit profile are the captured inputs from the `SmolLM2-1.7B` row of the paper's live-healing experiment (Regime A). The patched file's SHA-256, `4d036572...1f0b`, is byte-for-byte the hash recorded when that experiment first ran.
+The six terminal captures below show the compiled `secant` release binary running each step of an edit on [`HuggingFaceTB/SmolLM2-1.7B-Instruct`](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct) (`3.4 GB` `BF16` `.safetensors`, SHA-256 `f55217be...a0e8`), producing the patched file (`4d036572...4f0b`) from the paper's live-healing experiment (Regime A).
 
 **Step 1: `secant inspect` reads the file layout without loading the model.** It reports 218 `BF16` tensors behind a 25,184-byte header.
 
@@ -306,27 +304,25 @@ This profile pins its layers explicitly (`B2` at `L14`, `B3` at `L15`), so the n
 
 **Step 4: `secant patch` writes the edits into a copy of the file.** `B2` changes 3,425,789 of 4,194,304 entries in `model.layers.14.self_attn.o_proj.weight`. `B3` changes only 104,755 of 16,777,216 entries (0.6%) in `model.layers.15.mlp.down_proj.weight`. `shasum` then confirms the output hash.
 
-Copying and hashing 3.4 GB takes time: about 32 s for `patch` and 7 s for `shasum` on the recording machine. The tape pauses the recording while each command works, so the GIF shows no blank wait. Nothing is pre-printed. Both commands really run, and bash `time` prints each real elapsed time on screen as `real ... (wait cut from this recording)`.
-
 ```{figure} assets/secant-patch.gif
 :name: fig-vhs-patch
-:alt: Terminal recording of secant patch editing two tensors and printing the output SHA-256 4d036572, with the real elapsed time of each command shown by bash time
+:alt: Terminal recording of secant patch editing two tensors and printing the output SHA-256 4d036572
 :width: 100%
 
-`time secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors`. The computing time is cut from the recording; the `real` lines give the actual cost.
+`secant patch --base smollm2-1.7b.safetensors --plan plan.json --out patched.safetensors`
 ```
 
-**Step 5: `secant verify-patch` proves nothing else moved.** The header is byte-identical, only the two named tensors differ, and the other 216 tensors are byte-identical to the base. Reading both files takes several seconds, and as in Step 4 that wait is cut from the recording, with the real time printed by `time`.
+**Step 5: `secant verify-patch` proves nothing else moved.** The header is byte-identical, only the two named tensors differ, and the other 216 tensors are byte-identical to the base.
 
 ```{figure} assets/secant-verify-patch.gif
 :name: fig-vhs-verify-patch
-:alt: Terminal recording of secant verify-patch reporting an identical header and 216 byte-identical tensors, with its real elapsed time shown by bash time
+:alt: Terminal recording of secant verify-patch reporting an identical header and 216 byte-identical tensors
 :width: 100%
 
-`time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors --expect-changed ...`
+`secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors --expect-changed ...`
 ```
 
-**Step 6: `secant probe` generates the self-test fixtures.** It writes the same NaN/Inf fixture as both `.safetensors` and `.gguf`, then inspects the `.gguf` copy. The `.safetensors` hash, `22ffbb02...d503`, is the one Workflow 5 checks.
+**Step 6: `secant probe` generates the self-test fixtures.** It writes the same NaN/Inf fixture as both `.safetensors` and `.gguf`, then inspects the `.gguf` copy.
 
 ```{figure} assets/secant-probe.gif
 :name: fig-vhs-probe
@@ -336,29 +332,4 @@ Copying and hashing 3.4 GB takes time: about 32 s for `patch` and 7 s for `shasu
 `secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo`
 ```
 
-| Step | Recording | Tape | Text transcript |
-|---|---|---|---|
-| 1 | [inspect](assets/secant-inspect.gif) | [secant-inspect.tape](assets/vhs/secant-inspect.tape) | [secant-inspect.txt](assets/vhs/secant-inspect.txt) |
-| 2 | [analyze](assets/secant-analyze.gif) | [secant-analyze.tape](assets/vhs/secant-analyze.tape) | [secant-analyze.txt](assets/vhs/secant-analyze.txt) |
-| 3 | [compose](assets/secant-compose.gif) | [secant-compose.tape](assets/vhs/secant-compose.tape) | [secant-compose.txt](assets/vhs/secant-compose.txt) |
-| 4 | [patch](assets/secant-patch.gif) | [secant-patch.tape](assets/vhs/secant-patch.tape) | [secant-patch.txt](assets/vhs/secant-patch.txt) |
-| 5 | [verify-patch](assets/secant-verify-patch.gif) | [secant-verify-patch.tape](assets/vhs/secant-verify-patch.tape) | [secant-verify-patch.txt](assets/vhs/secant-verify-patch.txt) |
-| 6 | [probe](assets/secant-probe.gif) | [secant-probe.tape](assets/vhs/secant-probe.tape) | [secant-probe.txt](assets/vhs/secant-probe.txt) |
-
-**Re-record them yourself.** Use VHS `0.12.1` or newer. `0.12.0` exits 0 without writing any file ([charmbracelet/vhs#787](https://github.com/charmbracelet/vhs/issues/787)). Put the model (as `smollm2-1.7b.safetensors`), a `vectors/` directory, `layer_snr.json`, and `profile-smollm2-b2b3.json` in one directory, then run the tapes in pipeline order from the repository root. Use a dedicated scratch directory: each tape deletes its own named outputs (for example `plan.json` or `fixtures/`) before recording. The probe recording needs no model.
-
-```bash
-cargo build --release
-export SECANT_DEMO_DIR=/path/to/demo
-for t in inspect analyze compose patch verify-patch probe; do
-  vhs docs/assets/vhs/secant-$t.tape
-done
-```
-
-The tapes set `Framerate 30`, type at 35 ms per character, and hold the final screen for 6 s before the GIF loops. Output appears within 0.12 s of the last keystroke in every recording. The three slow commands (`patch`, `shasum`, `verify-patch`) get there because the wait is hidden, not because they run in under a second. The GIF format stores frame delays in hundredths of a second, so the files written by VHS 0.12.1 play at 25 frames per second (4 cs per frame).
-
-The captured direction vectors are not shipped in this repository. With vectors you capture yourself (Workflow 2), the same tapes run end to end, but the plan and patched-file hashes will differ.
-
-> **Takeaway:** Every number in these recordings comes from the shipped binary acting on a real 1.7B checkpoint, and the final file is bit-identical to the original experiment's output.
-
-The [reference](cli-and-python-reference.md) lists all sixteen root commands, including `fetch-tensor`, `rotation-test`, `audit-trojan` and `scan-sinks`, which are outside this walkthrough.
+The [CLI, Python & C-ABI Reference](cli-and-python-reference.md) documents all sixteen root commands, including `fetch-tensor`, `rotation-test`, `audit-trojan` and `scan-sinks`.

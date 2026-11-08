@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <linearGradient id="favPlane" x1="6" y1="46" x2="58" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.38"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.26"/>
+    </linearGradient>
+    <linearGradient id="favSecant" x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="55%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#0b0f17" stroke="#38bdf8" stroke-opacity="0.45" stroke-width="2.5"/>
+  <!-- Orthogonal Subspace Plane P_perp -->
+  <polygon points="8,43 29,23 56,30 35,50" fill="url(#favPlane)" stroke="#38bdf8" stroke-width="2.4" stroke-linejoin="round"/>
+  <!-- Right-angle orthogonality square -->
+  <polyline points="32,38 39,32 39,24" stroke="#10b981" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Protected Subspace Normal Vector d -->
+  <line x1="32" y1="38" x2="32" y2="12" stroke="#f85149" stroke-width="3.8" stroke-linecap="round"/>
+  <polygon points="32,6 25,16 39,16" fill="#f85149"/>
+  <!-- Secant Trajectory & Projected Chord -->
+  <path d="M 12 52 Q 30 36 51 15" stroke="url(#favSecant)" stroke-width="4.2" stroke-linecap="round" fill="none"/>
+  <circle cx="32" cy="38" r="4.5" fill="#10b981" stroke="#0b0f17" stroke-width="1.8"/>
+  <circle cx="51" cy="15" r="4.2" fill="#38bdf8" stroke="#0b0f17" stroke-width="1.5"/>
+</svg>

@@ -6,7 +6,7 @@ Quantization stores approximate weights in compact groups called blocks. Values 
 
 This page separates two operations: **reordering** whole groups of columns and **editing** their values. “Commutation” means two operations give the same result in either order. Reordering complete `Q8_0` blocks can preserve bytes exactly; changing weights introduces quantization error. Neither property guarantees model behavior.
 
-**Relation to prior work.** [OPLoRA](https://arxiv.org/abs/2510.13003), [Safe LoRA](https://arxiv.org/abs/2405.16833), and [OGPSA](https://arxiv.org/abs/2602.07892) concern constrained adaptation or alignment; their guarantees do not automatically extend through lossy storage. [Heretic](https://github.com/p-e-w/heretic), [Obliteratus](https://github.com/elder-plinius/OBLITERATUS), and [model-unfetter](https://github.com/josepha-mayo/model-unfetter) overlap in directional editing. This page evaluates Secant's block-preservation contract, not comparative performance or the absence of quantized support elsewhere. See [the paper](PAPER.md) for bibliographic details and limits.
+**Relation to prior work.** In October 2026, [Kiwimaker](https://huggingface.co/Kiwimaker/DeepSeek-V4.1-Flash-1017-Maya-S-abliterated-GGUF) (`apply_abliteration.py` / `apply_abliteration_v2.py`) demonstrated in-place `r+` `np.memmap` GGUF `Q8_0` editing with SHA-256 verification of untouched byte ranges (while empirically skipping `Q4_K` and dequantizing/re-quantizing full 2-D `Q8_0` matrices in `float64` via `gguf-py`), and [SC117](https://huggingface.co/SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF) (October 2026) demonstrated byte-level in-place GGUF tensor transplantation and scale-preserving `Q2_0` re-encoding. Existing `.safetensors` abliteration tools ([jim-plus/llm-abliteration](https://github.com/jim-plus/llm-abliteration), [NousResearch `sharded_ablate.py`](https://huggingface.co/NousResearch), and [abliterix](https://github.com/wuwangzhang1216/abliterix)) re-serialize modified shards from scratch via `save_file()`. [OPLoRA](https://arxiv.org/abs/2510.13003), [Safe LoRA](https://arxiv.org/abs/2405.16833), and [OGPSA](https://arxiv.org/abs/2602.07892) concern constrained adaptation or alignment; their guarantees do not automatically extend through lossy storage. Secant's specific contributions here are in-place zero-copy `mmap` byte-slice surgery inside `.safetensors` files, sub-tensor compressed-domain surgery directly on touched 34-byte `block_q8_0` structs (`crates/secant-core/src/quant.rs`) without full-tensor `float64` materialization, and the formal block-head alignment proof between 32-weight `Q8_0` blocks ($128 = 4 \times 32$) and 256-weight `Q4_K` superblocks under $\Pi_{128}$. See [the paper](PAPER.md) for bibliographic details and limits.
 
 ```{figure} assets/q8-vs-q4k-blocks.svg
 :name: fig-q8-vs-q4k-blocks
@@ -40,12 +40,12 @@ $$
 
 Whether a quantized format commutes with $\Pi_{128}$ depends on how its block size divides `128`:
 
-| Property | `Q8_0` (GGML Type `8`) | `Q4_K` (GGML Type `12`) |
+| Property | Q8\_0 (GGML Type 8) | Q4\_K (GGML Type 12) |
 |---|---|---|
-| **Block size & byte footprint** | **32 weights** (`34` bytes: `2B` `f16` scale + `32B` `int8` codes) | **256 weights** (`144` bytes: shared `f16` `d, dmin` + `8` sub-blocks) |
-| **Alignment with 128-col `ssm_out` panels** | **Exact ($128 = 4 \times 32$)**: `0` straddling blocks | **Fails ($256 = 2 \times 128$)**: straddles 2 value heads (`8` per 2048-col row, `16` per 4096-col row) |
-| **Reported weight-component change (`B2`)** | **`98.5%` removed** (`0.5172` $\to$ `0.0079`) | **`67%` of the component retained** (`0.5172` $\to$ `0.346`) |
-| **Secant default behavior** | Supported in-place (`secant quant patch`) | Refused (`block-aligned surgery needs Q8_0`) |
+| **Block size & byte footprint** | **32 weights** (34 bytes: 2B f16 scale + 32B int8 codes) | **256 weights** (144 bytes: shared f16 d, dmin + 8 sub-blocks) |
+| **Alignment with 128-col ssm\_out panels** | **Exact (128 = 4 × 32)**: 0 straddling blocks | **Fails (256 = 2 × 128)**: straddles 2 value heads (8 per 2048-col row, 16 per 4096-col row) |
+| **Reported weight-component change (B2)** | **98.5% removed** (0.5172 → 0.0079) | **67% of the component retained** (0.5172 → 0.346) |
+| **Secant default behavior** | Supported in-place (secant quant patch) | Refused (block-aligned surgery needs Q8\_0) |
 
 - **In `Q8_0` (`32` elements per block):** Every 128-column value-head panel is an exact union of 4 complete `Q8_0` blocks. Editing or permuting a panel never touches a neighboring panel's scale factor.
 - **In `Q4_K` (`256` elements per superblock):** Every aligned superblock spans two adjacent 128-column panels and shares top-level `FP16` scale `d` and minimum `dmin`. Editing one panel can alter the reconstructed neighbor. A panel permutation that moves whole superblocks without changing their internal layout, including the identity, can still commute. The reported `67%` retained component is a particular weight-space measurement, not a guaranteed consequence of straddling.
@@ -131,14 +131,14 @@ Sharing scale parameters across panels can make an edit affect more weights than
 
 All rows below come from one identified experiment. Reconstruction error measures the distance from the intended float result; the directional residual measures the component left along the supplied direction. Those are different quantities.
 
-The banked `exp2_receipt.json` (`crucible.secant.phase3.exp2.v1`, SHA-256 `1c437338d697ccfb6b24286ac60c84fa0c0a73f3a0120e3aefd920c5d608b0c7`) records a single `Qwen3.5-0.8B` `ssm_out` experiment with a projector edit of Frobenius norm `0.5172394742`. Under `commutation.identity_real`, both codecs commute with the identity permutation. Their reconstruction errors still differ:
+The banked `exp2_receipt.json` (`secant.phase3.exp2.v1`, SHA-256 `1c437338d697ccfb6b24286ac60c84fa0c0a73f3a0120e3aefd920c5d608b0c7`) records a single `Qwen3.5-0.8B` `ssm_out` experiment with a projector edit of Frobenius norm `0.5172394742`. Under `commutation.identity_real`, both codecs commute with the identity permutation. Their reconstruction errors still differ:
 
-| Metric under identity ordering | `Q8_0` | `Q4_K` |
-|---|---:|---:|
-| Path 1 relative Frobenius reconstruction error | `0.5836%` | `7.5863%` |
-| Path 2 relative Frobenius reconstruction error | `0.7992%` | `8.2210%` |
-| Path 2 residual along the supplied direction, L2 | `0.0078591` | `0.3457191` |
-| Path 1 versus Path 2 maximum absolute difference | `0.0021572` | `0.0238073` |
+| Metric under identity ordering | Q8\_0 | Q4\_K |
+|---|---|---|
+| Path 1 relative Frobenius reconstruction error | 0.5836% | 7.5863% |
+| Path 2 relative Frobenius reconstruction error | 0.7992% | 8.2210% |
+| Path 2 residual along the supplied direction, L2 | 0.0078591 | 0.3457191 |
+| Path 1 versus Path 2 maximum absolute difference | 0.0021572 | 0.0238073 |
 
 These are retained experimental measurements, not fresh model runs or outputs of the current Rust CLI. The separate whole-model `Q8_0` byte-preservation experiment remains in Section 4.
 
@@ -150,10 +150,25 @@ A block can be touched by the logical edit yet keep the same encoded bytes after
 
 Comparing **Path 1** (schematically, `secant patch` on `BF16` followed by external Q8_0 quantization) against **Path 2** (`secant quant patch` directly on `Qwen3.5-0.8B.Q8_0.gguf`) shows that direct 34-byte block surgery leaves all untouched blocks 100% bit-identical and matches Path 1 within **`0.179%` to `0.923%` per-tensor relative Frobenius error** (note that blocks where the float delta rounds to the same `int8` code remain byte-identical even when inside the touched column support):
 
-| Tensor (`Qwen3.5-0.8B` `Q8_0`) | Total `Q8_0` Blocks | Modified Blocks (Path 2) | Touched but Byte-Unchanged | Untouched Support Blocks (`Bit-Identical = true`) | Relative Frobenius Diff (Path 1 vs Path 2) |
-|---|---:|---:|---:|---:|---:|
-| `blk.12.ffn_down.weight` (`B2`) | `114,688` | `108,949` | `5,739` | `0` (dense row projector) | `0.923%` |
-| `blk.13.ffn_down.weight` (`B3`) | `114,688` | `48,703` | `449` | `65,536` (`100%` identical) | **`0.251%`** |
-| `blk.15.ffn_down.weight` (`B1a`) | `114,688` | `31,104` | `640` | `82,944` (`100%` identical) | **`0.225%`** |
-| `blk.19.ffn_down.weight` (`B1b`) | `114,688` | `21,842` | `686` | `92,160` (`100%` identical) | **`0.179%`** |
-| **All other 331 tensors in file** | `n/a` | **`0`** | **`0`** | **`100%` (`0` bytes differing)** | **`0.000%`** |
+- Path 1: edit, then quantize; Path 2: quantize, then edit affected blocks.
+- Unchanged touched blocks were processed but kept identical bytes. Untouched blocks lie outside the edit support.
+
+**Q8_0 block coverage**
+
+| Tensor / direction | Total blocks | Modified (Path 2) | Touched, unchanged |
+|---|---:|---:|---:|
+| blk.12.ffn\_down.weight (B2) | 114,688 | 108,949 | 5,739 |
+| blk.13.ffn\_down.weight (B3) | 114,688 | 48,703 | 449 |
+| blk.15.ffn\_down.weight (B1a) | 114,688 | 31,104 | 640 |
+| blk.19.ffn\_down.weight (B1b) | 114,688 | 21,842 | 686 |
+| **All other 331 tensors in file** | n/a | **0** | **0** |
+
+**Untouched support and numerical difference**
+
+| Tensor / direction | Untouched, byte-identical | Relative Frobenius difference |
+|---|---|---:|
+| blk.12.ffn\_down.weight (B2) | 0 (dense row projector) | 0.923% |
+| blk.13.ffn\_down.weight (B3) | 65,536 (100% identical) | **0.251%** |
+| blk.15.ffn\_down.weight (B1a) | 82,944 (100% identical) | **0.225%** |
+| blk.19.ffn\_down.weight (B1b) | 92,160 (100% identical) | **0.179%** |
+| **All other 331 tensors in file** | **100% (0 bytes differing)** | **0.000%** |

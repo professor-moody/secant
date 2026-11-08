@@ -1,7 +1,6 @@
 //! Layer SNR ranking and Borda aggregation across subspaces (`resid`, `attn`,
-//! `mlp`, `h`). Mirrors `internal/wsp/analyze.go` so `secant analyze` and
-//! `secant compose --analysis` have 100% parity with `crucible wsp analyze`
-//! and accept both `secant.wsp.analyze.v1` and `crucible.wsp.analyze.v1`.
+//! `mlp`, `h`). Used by `secant analyze` and `secant compose --analysis` to
+//! bind auto slots in Borda order from a `secant.wsp.analyze.v1` report.
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};

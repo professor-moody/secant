@@ -3,7 +3,11 @@ name = "secant-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 description = "secant command line"
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
 
 [[bin]]
 name = "secant"

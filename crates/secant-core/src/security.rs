@@ -14,19 +14,25 @@
 //! `fixtures[].path`).
 //!
 //! Policy scope (identical to the oracle, stated honestly): the sanitizer
-//! DETECTS NaN, Inf, subnormal, extreme finite values, zero or tiny-L2 norm
-//! rows and negative / out-of-range / duplicate routing ids. It REPAIRS only
-//! three of those: NaN (to +0), +-Inf (to the signed largest value not above
-//! `max_abs`) and duplicate routing ids (to the lowest unused valid expert).
-//! Subnormal, extreme-finite, norm and negative/out-of-range findings are
-//! never rewritten; a copy that still has one after the rescan is NOT
-//! published and the status stays `findings`.
-//!
-//! Secant extension (the oracle refuses every quantized GGUF): Q8_0 and Q4_K
-//! tensors are scanned at the scale-header level (`d`, `dmin`) for NaN, Inf,
-//! subnormal and extreme scales (`crate::quant_scale`), and the receipt's
-//! `policy_version` gains `+quant-scale-headers-v1`. Other quantized types
-//! are still refused with exit 2.
+//! DETECTS Rule S-0 MoE metadata mismatches (`s0_expert_count`,
+//! `s0_expert_used_count`), dense NaN/Inf/extreme finite values (and
+//! subnormals under `--strict-subnormal`), zero or tiny-L2 norm rows,
+//! Rule B3-2A NaN/Inf GGUF quantized block scales (and subnormal/extreme
+//! scales when opted in), Rule B3-2B non-positive or below-floor divisor
+//! scales (`divisor_scale_nonpositive`, `divisor_scale_below_floor`) and
+//! zero RoPE frequency elements (`rope_freqs_zero`), and Rule B3-3 negative /
+//! out-of-range / duplicate routing ids plus negative / out-of-range /
+//! length-mismatched index tensor elements (`index_negative`, `index_oob`,
+//! `index_length_mismatch`). Under `--clamp-nonfinite` it repairs NaN (to +0,
+//! or to the divisor floor on divisor scales), +-Inf (to the signed largest
+//! value not above `max_abs`, or to the divisor floor on divisor scales) and
+//! zeroes GGUF quantized blocks whose scale headers hold NaN/Inf; under
+//! `--dedup-routing-rows` it repairs duplicate routing ids to the lowest
+//! unused valid expert. Finite divisor-scale, `rope_freqs_zero`, norm,
+//! routing-range and index findings are not rewritten by `--clamp-nonfinite`;
+//! a copy that still has any finding after rescan is NOT published and the
+//! status stays `findings`. An index tensor with no inferred or configured
+//! upper bound that has zero findings fails closed as `unknown` (exit 2).
 
 pub use probe::{
     generate_probe, write_probe_receipt, ProbeFixture, ProbeOptions, ProbeReport, ProbeTensor, ProbeUnavailable, PROBE_ARCHITECTURE,
@@ -34,7 +40,7 @@ pub use probe::{
 };
 pub use sanitize::{
     sanitize_file, sanitize_file_report, write_sanitize_receipt, SanitizeFinding, SanitizeOptions, SanitizeReceipt, SanitizeScan,
-    SANITIZE_SCHEMA,
+    SANITIZE_POLICY_VERSION, SANITIZE_SCHEMA,
 };
 
 // ---------------------------------------------------------------------------
@@ -674,14 +680,18 @@ pub mod sanitize {
     use crate::container::{scan_gguf_layout, scan_safetensors_layout, sha256_hex, Layout, TensorLocation};
     use crate::dtype::dtype_size;
     use crate::error::{Error, Result};
-    use crate::quant::QuantFormat;
     use crate::quant_scale;
     use serde::{Deserialize, Serialize};
     use std::collections::{BTreeMap, HashSet};
     use std::fs::File;
 
     pub const SANITIZE_SCHEMA: &str = "secant.wsp.sanitize.v1";
+    pub const SANITIZE_POLICY_VERSION: &str = "zero-false-positive-b3-v2";
     const MAX_HEADER: i64 = 128 << 20;
+
+    fn is_zero_f64(v: &f64) -> bool {
+        *v == 0.0
+    }
 
     fn ser_vec_null<S: serde::Serializer>(v: &Vec<String>, s: S) -> std::result::Result<S::Ok, S::Error> {
         if v.is_empty() {
@@ -728,6 +738,28 @@ pub mod sanitize {
         pub flush_subnormal: bool,
         #[serde(default)]
         pub output: String,
+        /// Reports subnormal dense values and subnormal GGUF block scales as
+        /// findings; by default both are tolerated and counted in `info`.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub strict_subnormal: bool,
+        /// Additional divisor scale tensor globs (repeatable).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub divisor_scale_tensor: Vec<String>,
+        /// Disable default divisor scale leaf matching.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub no_default_divisor_scales: bool,
+        /// Rule B3-2B lower bound for divisor scales (default 1e-12).
+        #[serde(default, skip_serializing_if = "is_zero_f64")]
+        pub divisor_floor: f64,
+        /// Additional index tensor globs (repeatable).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pub index_tensor: Vec<String>,
+        /// Fallback exclusive upper bound for index tensors.
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub index_bound: i64,
+        /// Full Boundary-3 repair mode (library option matching Go `Repair`).
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        pub repair: bool,
     }
 
     impl SanitizeOptions {
@@ -752,6 +784,27 @@ pub mod sanitize {
                 v.push(("flush_subnormal", J::Bool(true)));
             }
             v.push(("output", J::s(&self.output)));
+            if self.strict_subnormal {
+                v.push(("strict_subnormal", J::Bool(true)));
+            }
+            if !self.divisor_scale_tensor.is_empty() {
+                v.push(("divisor_scale_tensor", J::strs(&self.divisor_scale_tensor)));
+            }
+            if self.no_default_divisor_scales {
+                v.push(("no_default_divisor_scales", J::Bool(true)));
+            }
+            if self.divisor_floor != 0.0 {
+                v.push(("divisor_floor", J::Float(self.divisor_floor)));
+            }
+            if !self.index_tensor.is_empty() {
+                v.push(("index_tensor", J::strs(&self.index_tensor)));
+            }
+            if self.index_bound != 0 {
+                v.push(("index_bound", J::Int(self.index_bound)));
+            }
+            if self.repair {
+                v.push(("repair", J::Bool(true)));
+            }
             J::obj(v)
         }
     }
@@ -801,16 +854,25 @@ pub mod sanitize {
         pub routing_rows: i64,
         pub norm_rows: i64,
         pub ignored_integer_tensors: i64,
-        /// Secant extension (omitted when zero): Q8_0 / Q4_K tensors and
-        /// blocks whose scale headers were scanned.
-        #[serde(default, skip_serializing_if = "is_zero_i64")]
-        pub quant_tensors: i64,
-        #[serde(default, skip_serializing_if = "is_zero_i64")]
-        pub quant_blocks: i64,
         pub total_findings: i64,
         pub counts: BTreeMap<String, i64>,
         pub examples: Vec<SanitizeFinding>,
         pub examples_truncated: bool,
+        /// Boundary-3 coverage (omitted when zero).
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub quant_tensors: i64,
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub quant_blocks: i64,
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub divisor_elements: i64,
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub index_elements: i64,
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        pub index_bounds: BTreeMap<String, i64>,
+        #[serde(default, skip_serializing_if = "is_zero_i64")]
+        pub index_unbounded: i64,
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        pub info: BTreeMap<String, i64>,
     }
 
     fn is_zero_i64(v: &i64) -> bool {
@@ -830,18 +892,32 @@ pub mod sanitize {
                 ("routing_rows", J::Int(self.routing_rows)),
                 ("norm_rows", J::Int(self.norm_rows)),
                 ("ignored_integer_tensors", J::Int(self.ignored_integer_tensors)),
+                ("total_findings", J::Int(self.total_findings)),
+                ("counts", counts_j(&self.counts)),
+                ("examples", J::Arr(self.examples.iter().map(|e| e.to_j()).collect())),
+                ("examples_truncated", J::Bool(self.examples_truncated)),
             ];
-            // omitempty-style: unquantized files serialize exactly as the oracle's.
             if self.quant_tensors != 0 {
                 v.push(("quant_tensors", J::Int(self.quant_tensors)));
             }
             if self.quant_blocks != 0 {
                 v.push(("quant_blocks", J::Int(self.quant_blocks)));
             }
-            v.push(("total_findings", J::Int(self.total_findings)));
-            v.push(("counts", counts_j(&self.counts)));
-            v.push(("examples", J::Arr(self.examples.iter().map(|e| e.to_j()).collect())));
-            v.push(("examples_truncated", J::Bool(self.examples_truncated)));
+            if self.divisor_elements != 0 {
+                v.push(("divisor_elements", J::Int(self.divisor_elements)));
+            }
+            if self.index_elements != 0 {
+                v.push(("index_elements", J::Int(self.index_elements)));
+            }
+            if !self.index_bounds.is_empty() {
+                v.push(("index_bounds", counts_j(&self.index_bounds)));
+            }
+            if self.index_unbounded != 0 {
+                v.push(("index_unbounded", J::Int(self.index_unbounded)));
+            }
+            if !self.info.is_empty() {
+                v.push(("info", counts_j(&self.info)));
+            }
             J::obj(v)
         }
     }
@@ -939,10 +1015,15 @@ pub mod sanitize {
         if o.max_examples == 0 {
             o.max_examples = 128;
         }
+        if o.divisor_floor == 0.0 {
+            o.divisor_floor = 1e-12;
+        }
         if o.attempt_id.is_empty() {
             return Err(Error::msg("attempt_id is required"));
         }
+        let f32_floor = o.divisor_floor as f32;
         if o.num_experts < 0
+            || o.index_bound < 0
             || o.max_examples < 1
             || o.max_examples > 10000
             || o.max_abs <= 0.0
@@ -951,13 +1032,23 @@ pub mod sanitize {
             || o.min_norm <= 0.0
             || o.min_norm.is_nan()
             || o.min_norm.is_infinite()
+            || !(o.divisor_floor > 0.0)
+            || o.divisor_floor.is_infinite()
+            || f32_floor <= 0.0
+            || f32_floor.is_infinite()
         {
             return Err(Error::msg("invalid sanitizer policy limits"));
         }
-        if (o.clamp_nonfinite || o.dedup_routing_rows || o.clamp_extreme || o.flush_subnormal) != (!o.output.is_empty()) {
+        if (o.clamp_nonfinite || o.dedup_routing_rows || o.repair || o.clamp_extreme || o.flush_subnormal) != (!o.output.is_empty()) {
             return Err(Error::msg("remediation flags and a separate --out must be supplied together"));
         }
-        for p in o.routing_tensor.iter().chain(o.norm_tensor.iter()) {
+        for p in o
+            .routing_tensor
+            .iter()
+            .chain(o.norm_tensor.iter())
+            .chain(o.divisor_scale_tensor.iter())
+            .chain(o.index_tensor.iter())
+        {
             if p.is_empty() {
                 return Err(Error::msg("empty tensor glob"));
             }
@@ -983,7 +1074,7 @@ pub mod sanitize {
         let mut rep = SanitizeReceipt {
             schema: SANITIZE_SCHEMA.into(),
             attempt_id: opts.attempt_id.clone(),
-            policy_version: "unquantized-static-values-v1".into(),
+            policy_version: SANITIZE_POLICY_VERSION.into(),
             status: "unknown".into(),
             started_utc: rfc3339_nano_now(),
             input: input.into(),
@@ -1020,17 +1111,30 @@ pub mod sanitize {
         res
     }
 
+    fn err_index_unbounded(n: i64) -> Error {
+        Error::msg(format!(
+            "unknown: {} index tensor(s) have no known upper bound (no sibling tensor shape, --index-bound or num_experts); only the lower bound was checked",
+            n
+        ))
+    }
+
     fn body(rep: &mut SanitizeReceipt, f: &File, st: &std::fs::Metadata, input: &str, o: &SanitizeOptions) -> Result<()> {
         let size = st.len() as i64;
         let layout = sanitize_layout(f, size)?;
         rep.format = layout.format.clone();
-        if layout.tensors.iter().any(|t| t.is_quantized()) {
-            rep.policy_version = format!("{}+{}", rep.policy_version, crate::quant_scale::POLICY_TAG);
-        }
         sanitize_selectors(&layout, o)?;
         let before = sanitize_scan(f, &layout, o, None, None)?;
-        rep.status = if before.total_findings == 0 { "clean".into() } else { "findings".into() };
-        rep.before = Some(before);
+        if before.total_findings == 0 {
+            rep.status = "clean".into();
+            let unbounded = before.index_unbounded;
+            rep.before = Some(before);
+            if unbounded > 0 {
+                return Err(err_index_unbounded(unbounded));
+            }
+        } else {
+            rep.status = "findings".into();
+            rep.before = Some(before);
+        }
         if o.output.is_empty() {
             return Ok(());
         }
@@ -1045,10 +1149,14 @@ pub mod sanitize {
         rep.changes = changes;
         let after = sanitize_scan(&tmp, &layout, o, None, None)?;
         let residual = after.total_findings != 0;
+        let after_unbounded = after.index_unbounded;
         rep.after = Some(after);
         if residual {
             rep.status = "findings".into();
             return Ok(());
+        }
+        if after_unbounded > 0 {
+            return Err(err_index_unbounded(after_unbounded));
         }
         tmp.sync_all().map_err(|e| Error::msg(io_msg(&e)))?;
         rep.output_sha256 = hash_file(&tmp)?;
@@ -1145,9 +1253,8 @@ pub mod sanitize {
 
     /// Validate the layout again before trusting it with value reads: arithmetic
     /// overflow, aliasing, duplicate names, payload extents, SafeTensors holes.
-    /// Quantized tensors other than Q8_0 / Q4_K are rejected here with the
-    /// oracle's message (the Go scanner fails the whole file on ANY quantized
-    /// tensor; Secant scans Q8_0 / Q4_K scale headers, see `quant_scale`).
+    /// Quantized tensors outside the 10 reviewed B3-2A formats are rejected
+    /// here with the same message as the oracle.
     pub fn sanitize_layout(f: &File, size: i64) -> Result<Layout> {
         let mut head = [0u8; 8];
         if size < 8 {
@@ -1172,15 +1279,14 @@ pub mod sanitize {
                     Err(e) => return Err(e),
                 }
             };
-            // Q8_0 / Q4_K scale headers are scanned (Secant extension; the
-            // oracle refuses every quantized file). Every other quantized
-            // type is still refused with the oracle's message.
+            // The 10 reviewed B3-2A block-quantized formats (Q4_0, Q4_1, Q5_0,
+            // Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K) have their f16 scale
+            // headers scanned; every other quantized type is refused.
             for t in &l.tensors {
-                if t.is_quantized() && QuantFormat::from_dtype(&t.dtype).is_none() {
+                if t.is_quantized() && quant_scale::QuantScaleFormat::from_dtype(&t.dtype).is_none() {
                     return Err(Error::msg(format!(
-                        "gguf: tensor {:?}: unsupported ggml type {} (quantized): weight surgery is implemented for F32/F16/BF16/F64/I32/I64 payloads only",
-                        t.name,
-                        t.ggml_type.map(|x| x.to_string()).unwrap_or_default()
+                        "tensor {:?}: no reviewed B3-2A block-header map for {} (supported: Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K)",
+                        t.name, t.dtype
                     )));
                 }
             }
@@ -1212,7 +1318,7 @@ pub mod sanitize {
                 n *= d;
             }
             // A quantized row (GGUF ne[0]) must hold whole blocks, as ggml requires.
-            let (w, n) = match QuantFormat::from_dtype(&t.dtype) {
+            let (w, n) = match quant_scale::QuantScaleFormat::from_dtype(&t.dtype) {
                 Some(q) => {
                     let be = q.block_elems() as i64;
                     if t.shape.is_empty() || t.shape[0] as i64 % be != 0 {
@@ -1586,6 +1692,23 @@ pub mod sanitize {
 
     // ----- selectors -----
 
+    const DIVISOR_LEAVES: [&str; 6] = ["input_scale", "k_scale", "v_scale", "q_scale", "y_scale", "prob_scale"];
+    const INDEX_LEAVES: [&str; 4] = ["g_idx", "expert_map", "full_row_indices", "hash_indices_table"];
+
+    #[derive(Default)]
+    struct TensorRole {
+        integer: bool,
+        float: bool,
+        quant: Option<quant_scale::QuantScaleFormat>,
+        routing: bool,
+        index: bool,
+        index_lo: i64,
+        index_hi: i64,
+        norm: bool,
+        divisor: bool,
+        rope: bool,
+    }
+
     pub(crate) fn sanitize_match(name: &str, patterns: &[String], automatic: &str) -> bool {
         let lower = name.to_lowercase();
         if automatic == "routing" && (lower.contains("tid2eid") || lower.contains("expert_id")) {
@@ -1595,6 +1718,125 @@ pub mod sanitize {
             return true;
         }
         patterns.iter().any(|p| matches!(gopath::path_match(p, name), Ok(true)))
+    }
+
+    fn sanitize_leaf(name: &str) -> String {
+        let lower = name.to_lowercase();
+        let parts: Vec<&str> = lower.split('.').collect();
+        let mut leaf = *parts.last().unwrap_or(&"");
+        if leaf == "weight" && parts.len() > 1 {
+            leaf = parts[parts.len() - 2];
+        }
+        leaf.to_string()
+    }
+
+    fn sanitize_sibling_dims(l: &Layout, name: &str) -> Option<Vec<usize>> {
+        for s in &l.tensors {
+            if s.name == name && !s.shape.is_empty() {
+                let mut d = s.shape.clone();
+                if l.format == "gguf" {
+                    d.reverse();
+                }
+                return Some(d);
+            }
+        }
+        None
+    }
+
+    fn sanitize_index_bound(l: &Layout, t: &TensorLocation, auto: &str, o: &SanitizeOptions) -> i64 {
+        if auto == "g_idx" {
+            if let Some(prefix) = t.name.strip_suffix("g_idx") {
+                if let Some(d) = sanitize_sibling_dims(l, &format!("{}scales", prefix)) {
+                    if d[0] > 0 {
+                        return d[0] as i64;
+                    }
+                }
+            }
+        }
+        if auto == "full_row_indices" {
+            if let Some(prefix) = t.name.strip_suffix("full_row_indices") {
+                let mut best: i64 = 0;
+                if let Some(d) = sanitize_sibling_dims(l, &format!("{}bias", prefix)) {
+                    best = best.max(d[0] as i64);
+                }
+                if let Some(d) = sanitize_sibling_dims(l, &format!("{}scales", prefix)) {
+                    best = best.max(d[d.len() - 1] as i64);
+                }
+                if let Some(d) = sanitize_sibling_dims(l, &format!("{}weight", prefix)) {
+                    best = best.max(d[0] as i64);
+                }
+                if best == 0 {
+                    if let Some(d) = sanitize_sibling_dims(l, &format!("{}qweight", prefix)) {
+                        best = best.max(d[d.len() - 1] as i64);
+                    }
+                    if let Some(d) = sanitize_sibling_dims(l, &format!("{}qzeros", prefix)) {
+                        best = best.max(d[d.len() - 1] as i64);
+                    }
+                }
+                if best > 0 {
+                    return best;
+                }
+            }
+        }
+        if o.index_bound > 0 {
+            return o.index_bound;
+        }
+        if (auto == "expert_map" || auto == "hash_indices_table") && o.num_experts > 0 {
+            return o.num_experts;
+        }
+        0
+    }
+
+    fn sanitize_g_idx_length_bad(l: &Layout, t: &TensorLocation, n: i64) -> bool {
+        let Some(prefix) = t.name.strip_suffix("g_idx") else {
+            return false;
+        };
+        let mut bad = false;
+        if let Some(d) = sanitize_sibling_dims(l, &format!("{}weight", prefix)) {
+            if d.len() == 2 {
+                bad = bad || (d[1] as i64) != n;
+            }
+        } else if let Some(d) = sanitize_sibling_dims(l, &format!("{}qweight", prefix)) {
+            if d.len() == 2 {
+                let matched = [2i64, 3, 4, 8].iter().any(|&bits| n * bits == (d[0] as i64) * 32);
+                bad = bad || !matched;
+            }
+        }
+        if let Some(d) = sanitize_sibling_dims(l, &format!("{}scales", prefix)) {
+            if (d[0] as i64) > n {
+                bad = true;
+            }
+        }
+        bad
+    }
+
+    fn classify_role(l: &Layout, t: &TensorLocation, o: &SanitizeOptions) -> TensorRole {
+        let mut r = TensorRole {
+            integer: t.dtype == "I32" || t.dtype == "I64",
+            quant: quant_scale::QuantScaleFormat::from_dtype(&t.dtype),
+            ..Default::default()
+        };
+        r.float = !r.integer && r.quant.is_none() && !t.is_quantized();
+        let leaf = sanitize_leaf(&t.name);
+        r.routing = sanitize_match(&t.name, &o.routing_tensor, "routing");
+        r.norm = sanitize_match(&t.name, &o.norm_tensor, "norm");
+        let auto_div = !o.no_default_divisor_scales && (DIVISOR_LEAVES.contains(&leaf.as_str()) || leaf.ends_with("scale_inv"));
+        r.divisor = r.float && (sanitize_match(&t.name, &o.divisor_scale_tensor, "") || auto_div);
+        r.rope = r.float && leaf.contains("rope_freqs");
+        let explicit_index = sanitize_match(&t.name, &o.index_tensor, "");
+        let mut auto_index = "";
+        for &n in &INDEX_LEAVES {
+            if leaf == n || leaf.ends_with(&format!("_{}", n)) {
+                auto_index = n;
+                break;
+            }
+        }
+        if r.integer && !r.routing && (explicit_index || !auto_index.is_empty()) {
+            r.index = true;
+            r.index_lo = if auto_index == "expert_map" { -1 } else { 0 };
+            r.index_hi = sanitize_index_bound(l, t, auto_index, o);
+        }
+        r
     }
 
     /// Contiguous slots per row: GGUF ne[0], SafeTensors shape[-1].
@@ -1609,7 +1851,7 @@ pub mod sanitize {
     }
 
     fn sanitize_selectors(l: &Layout, o: &SanitizeOptions) -> Result<()> {
-        for patterns in [&o.routing_tensor, &o.norm_tensor] {
+        for patterns in [&o.routing_tensor, &o.norm_tensor, &o.divisor_scale_tensor, &o.index_tensor] {
             for p in patterns.iter() {
                 let matched = l.tensors.iter().any(|t| matches!(gopath::path_match(p, &t.name), Ok(true)));
                 if !matched {
@@ -1618,25 +1860,29 @@ pub mod sanitize {
             }
         }
         for t in &l.tensors {
-            let routing = sanitize_match(&t.name, &o.routing_tensor, "routing");
-            let norm = sanitize_match(&t.name, &o.norm_tensor, "norm");
-            let integer = t.dtype == "I32" || t.dtype == "I64";
-            if routing {
-                if !integer || t.shape.is_empty() || t.size == 0 || o.num_experts <= 0 {
+            let r = classify_role(l, t, o);
+            if r.routing {
+                if !r.integer || t.shape.is_empty() || t.size == 0 || o.num_experts <= 0 {
                     return Err(Error::msg(format!("routing tensor {:?} requires I32/I64, nonempty rows, and --num-experts > 0", t.name)));
                 }
                 if row_width(t, &l.format) > 1 << 20 {
                     return Err(Error::msg("routing row exceeds 1048576 elements"));
                 }
             }
-            if norm && (integer || t.size == 0) {
-                return Err(Error::msg(format!("norm tensor {:?} requires nonempty floating point vectors", t.name)));
-            }
-            if norm && t.is_quantized() {
+            if r.norm && t.is_quantized() {
                 return Err(Error::msg(format!(
                     "norm tensor {:?} is {}: norm-row checks are implemented for unquantized floats only",
                     t.name, t.dtype
                 )));
+            }
+            if r.norm && (!r.float || t.size == 0) {
+                return Err(Error::msg(format!("norm tensor {:?} requires nonempty floating point vectors", t.name)));
+            }
+            if sanitize_match(&t.name, &o.divisor_scale_tensor, "") && (!r.float || t.size == 0) {
+                return Err(Error::msg(format!("divisor scale tensor {:?} requires nonempty floating point values", t.name)));
+            }
+            if sanitize_match(&t.name, &o.index_tensor, "") && (!r.integer || t.size == 0) {
+                return Err(Error::msg(format!("index tensor {:?} requires nonempty I32/I64 values", t.name)));
             }
         }
         Ok(())
@@ -1743,6 +1989,49 @@ pub mod sanitize {
         lo
     }
 
+    /// Smallest positive encoding at or above `thr`. F16 cannot represent
+    /// `1e-12f`; it gets the smallest positive F16 (`0x0001` subnormal unless
+    /// `strict` is set, in which case `0x0400` normal) so a repaired tensor
+    /// satisfies the rescan.
+    pub fn divisor_floor_bits(dtype: &str, thr: f64, strict: bool) -> u64 {
+        let mut hi: u64 = match dtype {
+            "F16" => 0x7bff,
+            "BF16" => 0x7f7f,
+            "F32" => 0x7f7fffff,
+            "F64" => 0x7fefffffffffffff,
+            _ => 0,
+        };
+        let mut lo = 1u64;
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if classify(mid, dtype).0 >= thr {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        if strict && classify(lo, dtype).1 == Kind::Subnormal {
+            lo = match dtype {
+                "F16" => 0x0400,
+                "BF16" => 0x0080,
+                "F32" => 0x00800000,
+                "F64" => 0x0010000000000000,
+                _ => lo,
+            };
+        }
+        lo
+    }
+
+    fn one_bits(dtype: &str) -> u64 {
+        match dtype {
+            "F16" => 0x3c00,
+            "BF16" => 0x3f80,
+            "F32" => 0x3f800000,
+            "F64" => 0x3ff0000000000000,
+            _ => 0,
+        }
+    }
+
     fn get_bits(b: &[u8], w: i64) -> u64 {
         match w {
             2 => u16::from_le_bytes([b[0], b[1]]) as u64,
@@ -1787,12 +2076,56 @@ pub mod sanitize {
         p * crate::numeric::fma_add(1.0, q, q).sqrt()
     }
 
+    fn add_meta(s: &mut SanitizeScan, o: &SanitizeOptions, kind: &str, key: &str) {
+        s.total_findings += 1;
+        *s.counts.entry(kind.to_string()).or_insert(0) += 1;
+        if (s.examples.len() as i64) < o.max_examples {
+            s.examples.push(SanitizeFinding {
+                kind: kind.into(),
+                tensor: key.into(),
+                dtype: String::new(),
+                index: 0,
+                row: 0,
+                file_offset: 0,
+                bits: String::new(),
+                field: String::new(),
+            });
+        } else {
+            s.examples_truncated = true;
+        }
+    }
+
+    fn sanitize_moe_parity(l: &Layout, o: &SanitizeOptions, s: &mut SanitizeScan) {
+        if l.format != "gguf" {
+            return;
+        }
+        let Some(arch) = l.metadata.get("general.architecture").filter(|a| !a.is_empty()) else {
+            return;
+        };
+        let count_key = format!("{}.expert_count", arch);
+        let used_key = format!("{}.expert_used_count", arch);
+        let Some(raw_count) = l.metadata.get(&count_key) else {
+            return;
+        };
+        let count = match raw_count.parse::<u64>() {
+            Ok(c) if c > 0 && c <= i32::MAX as u64 => c,
+            _ => {
+                add_meta(s, o, "s0_expert_count", &count_key);
+                return;
+            }
+        };
+        match l.metadata.get(&used_key).and_then(|raw| raw.parse::<u64>().ok()) {
+            Some(used) if used >= 1 && used <= count && used <= i32::MAX as u64 => {}
+            _ => add_meta(s, o, "s0_expert_used_count", &used_key),
+        }
+    }
+
     fn add(s: &mut SanitizeScan, o: &SanitizeOptions, kind: &str, t: &TensorLocation, i: i64, row: i64, bits: u64) {
         s.total_findings += 1;
         *s.counts.entry(kind.to_string()).or_insert(0) += 1;
         if (s.examples.len() as i64) < o.max_examples {
             let w = dtype_size(&t.dtype);
-            let encoded = if !kind.starts_with("norm_") && kind != "routing_width_exceeds_experts" {
+            let encoded = if !kind.starts_with("norm_") && kind != "routing_width_exceeds_experts" && kind != "index_length_mismatch" {
                 format!("0x{:0width$x}", bits, width = (w * 2) as usize)
             } else {
                 String::new()
@@ -1812,14 +2145,14 @@ pub mod sanitize {
         }
     }
 
-    /// Scale-header scan of one Q8_0 / Q4_K tensor (see `quant_scale`). With
+    /// Scale-header scan of one block-quantized tensor (see `quant_scale`). With
     /// `dst` it rewrites the repairable scale fields in the copy, classifying
     /// from the original `f`. A finding's `index` is the block index, `row`
     /// the GGUF row (`ne[0]` elements) and `file_offset` the field's offset.
     fn scan_quant_scales(
         f: &File,
         t: &TensorLocation,
-        q: QuantFormat,
+        q: quant_scale::QuantScaleFormat,
         o: &SanitizeOptions,
         s: &mut SanitizeScan,
         dst: Option<&File>,
@@ -1828,9 +2161,12 @@ pub mod sanitize {
         let bb = q.block_bytes() as i64;
         let blocks = t.size / bb;
         let per_row = std::cmp::max(1, t.shape.first().copied().unwrap_or(0) as i64 / q.block_elems() as i64);
-        let repairs =
-            quant_scale::Repairs { clamp_nonfinite: o.clamp_nonfinite, clamp_extreme: o.clamp_extreme, flush_subnormal: o.flush_subnormal };
-        let rewrite = dst.is_some() && (o.clamp_nonfinite || o.clamp_extreme || o.flush_subnormal);
+        let repairs = quant_scale::Repairs {
+            clamp_nonfinite: o.clamp_nonfinite || o.repair,
+            clamp_extreme: o.clamp_extreme,
+            flush_subnormal: o.flush_subnormal,
+        };
+        let rewrite = dst.is_some() && (o.clamp_nonfinite || o.repair || o.clamp_extreme || o.flush_subnormal);
         s.quant_tensors += 1;
         let mut buf = vec![0u8; (std::cmp::max(1, (64 << 10) / bb) * bb) as usize];
         let mut base = 0i64;
@@ -1842,7 +2178,19 @@ pub mod sanitize {
                 let blk = &mut chunk[(j * bb) as usize..((j + 1) * bb) as usize];
                 let i = base + j;
                 s.quant_blocks += 1;
-                for fd in quant_scale::scan_block(q, blk, o.max_abs) {
+                let policy = quant_scale::ScanPolicy {
+                    strict_subnormal: o.strict_subnormal || o.flush_subnormal,
+                    check_extreme: o.clamp_extreme,
+                };
+                for &(_, foff) in q.fields() {
+                    let u = u16::from_le_bytes([blk[foff], blk[foff + 1]]);
+                    if u & 0x7fff == 0 {
+                        *s.info.entry("quant_scale_zero".to_string()).or_insert(0) += 1;
+                    } else if u & 0x7c00 == 0 && !policy.strict_subnormal {
+                        *s.info.entry("quant_scale_subnormal_tolerated".to_string()).or_insert(0) += 1;
+                    }
+                }
+                for fd in quant_scale::scan_block_with_policy(q, blk, o.max_abs, policy) {
                     s.total_findings += 1;
                     *s.counts.entry(fd.kind.to_string()).or_insert(0) += 1;
                     if (s.examples.len() as i64) < o.max_examples {
@@ -1861,9 +2209,17 @@ pub mod sanitize {
                     }
                 }
                 if rewrite {
+                    let mut zeroed = false;
                     for kind in quant_scale::repair_block(q, blk, o.max_abs, repairs) {
-                        if let Some(c) = changes.as_deref_mut() {
+                        if kind == quant_scale::KIND_NAN || kind == quant_scale::KIND_INF {
+                            zeroed = true;
+                        } else if let Some(c) = changes.as_deref_mut() {
                             *c.entry(kind.to_string()).or_insert(0) += 1;
+                        }
+                    }
+                    if zeroed {
+                        if let Some(c) = changes.as_deref_mut() {
+                            *c.entry("quant_block_zeroed".to_string()).or_insert(0) += 1;
                         }
                     }
                 }
@@ -1886,81 +2242,155 @@ pub mod sanitize {
         mut changes: Option<&mut BTreeMap<String, i64>>,
     ) -> Result<SanitizeScan> {
         let mut s = SanitizeScan { tensors: l.tensors.len() as i64, examples: Vec::new(), ..Default::default() };
+        sanitize_moe_parity(l, o, &mut s);
+        let thr = (o.divisor_floor as f32) as f64;
         for t in &l.tensors {
-            if let Some(q) = QuantFormat::from_dtype(&t.dtype) {
+            let role = classify_role(l, t, o);
+            if let Some(q) = role.quant {
                 scan_quant_scales(f, t, q, o, &mut s, dst, changes.as_deref_mut())?;
                 continue;
             }
             let w = dtype_size(&t.dtype);
             let n = t.size / w;
             let width = row_width(t, &l.format);
-            if t.dtype == "I32" || t.dtype == "I64" {
-                if !sanitize_match(&t.name, &o.routing_tensor, "routing") {
-                    s.ignored_integer_tensors += 1;
-                    continue;
-                }
-                let mut row_bytes = vec![0u8; (width * w) as usize];
-                let mut base = 0i64;
-                while base < n {
-                    read_at(f, &mut row_bytes, t.offset + base * w)?;
-                    let row = base / width;
-                    s.routing_rows += 1;
-                    s.routing_elements += width;
-                    if width > o.num_experts {
-                        add(&mut s, o, "routing_width_exceeds_experts", t, base, row, 0);
-                    }
-                    let mut seen: HashSet<i64> = HashSet::new();
-                    let mut used: HashSet<i64> = HashSet::new();
-                    let mut valid = true;
-                    for j in 0..width {
-                        let slot = &row_bytes[(j * w) as usize..];
-                        let v = get_int(slot, &t.dtype);
-                        if v < 0 {
-                            add(&mut s, o, "routing_negative", t, base + j, row, get_bits(slot, w));
-                            valid = false;
-                        } else if v >= o.num_experts {
-                            add(&mut s, o, "routing_oob", t, base + j, row, get_bits(slot, w));
-                            valid = false;
+            if role.integer {
+                if role.routing {
+                    let mut row_bytes = vec![0u8; (width * w) as usize];
+                    let mut base = 0i64;
+                    while base < n {
+                        read_at(f, &mut row_bytes, t.offset + base * w)?;
+                        let row = base / width;
+                        s.routing_rows += 1;
+                        s.routing_elements += width;
+                        if width > o.num_experts {
+                            add(&mut s, o, "routing_width_exceeds_experts", t, base, row, 0);
                         }
-                        if seen.contains(&v) {
-                            add(&mut s, o, "routing_duplicate", t, base + j, row, get_bits(slot, w));
-                        }
-                        seen.insert(v);
-                        used.insert(v);
-                    }
-                    if let (Some(d), true) = (dst, o.dedup_routing_rows && valid && width <= o.num_experts) {
-                        seen = HashSet::new();
-                        let mut next = 0i64;
+                        let mut seen: HashSet<i64> = HashSet::new();
+                        let mut used: HashSet<i64> = HashSet::new();
+                        let mut valid = true;
                         for j in 0..width {
-                            let v = get_int(&row_bytes[(j * w) as usize..], &t.dtype);
+                            let slot = &row_bytes[(j * w) as usize..];
+                            let v = get_int(slot, &t.dtype);
+                            if v < 0 {
+                                add(&mut s, o, "routing_negative", t, base + j, row, get_bits(slot, w));
+                                valid = false;
+                            } else if v >= o.num_experts {
+                                add(&mut s, o, "routing_oob", t, base + j, row, get_bits(slot, w));
+                                valid = false;
+                            }
                             if seen.contains(&v) {
-                                while used.contains(&next) {
-                                    next += 1;
-                                }
-                                if next >= o.num_experts || (t.dtype == "I32" && next > i32::MAX as i64) {
-                                    return Err(Error::msg("no representable unused expert"));
-                                }
-                                put_bits(&mut row_bytes[(j * w) as usize..], w, next as u64);
-                                used.insert(next);
-                                if let Some(c) = changes.as_deref_mut() {
-                                    *c.entry("routing_duplicate".to_string()).or_insert(0) += 1;
-                                }
+                                add(&mut s, o, "routing_duplicate", t, base + j, row, get_bits(slot, w));
                             }
                             seen.insert(v);
+                            used.insert(v);
                         }
-                        write_at(d, &row_bytes, t.offset + base * w)?;
+                        if let (Some(d), true) = (dst, (o.dedup_routing_rows || o.repair) && (valid || o.repair) && width <= o.num_experts) {
+                            let mut changed = false;
+                            if o.repair && !valid {
+                                used = HashSet::new();
+                                for j in 0..width {
+                                    let slot = &mut row_bytes[(j * w) as usize..];
+                                    let v = get_int(slot, &t.dtype);
+                                    let (nv, kind) = if v < 0 {
+                                        (0i64, "routing_negative")
+                                    } else if v >= o.num_experts {
+                                        (o.num_experts - 1, "routing_oob")
+                                    } else {
+                                        (v, "")
+                                    };
+                                    if !kind.is_empty() {
+                                        put_bits(slot, w, nv as u64);
+                                        if let Some(c) = changes.as_deref_mut() {
+                                            *c.entry(kind.to_string()).or_insert(0) += 1;
+                                        }
+                                        changed = true;
+                                    }
+                                    used.insert(nv);
+                                }
+                            }
+                            seen = HashSet::new();
+                            let mut next = 0i64;
+                            for j in 0..width {
+                                let v = get_int(&row_bytes[(j * w) as usize..], &t.dtype);
+                                if seen.contains(&v) {
+                                    while used.contains(&next) {
+                                        next += 1;
+                                    }
+                                    if next >= o.num_experts || (t.dtype == "I32" && next > i32::MAX as i64) {
+                                        return Err(Error::msg("no representable unused expert"));
+                                    }
+                                    put_bits(&mut row_bytes[(j * w) as usize..], w, next as u64);
+                                    used.insert(next);
+                                    if let Some(c) = changes.as_deref_mut() {
+                                        *c.entry("routing_duplicate".to_string()).or_insert(0) += 1;
+                                    }
+                                    changed = true;
+                                }
+                                seen.insert(v);
+                            }
+                            if changed {
+                                write_at(d, &row_bytes, t.offset + base * w)?;
+                            }
+                        }
+                        base += width;
                     }
-                    base += width;
+                } else if role.index {
+                    if role.index_hi > 0 {
+                        s.index_bounds.insert(t.name.clone(), role.index_hi);
+                    } else {
+                        s.index_unbounded += 1;
+                    }
+                    if sanitize_g_idx_length_bad(l, t, n) {
+                        add(&mut s, o, "index_length_mismatch", t, 0, 0, 0);
+                    }
+                    let mut buf = vec![0u8; 64 << 10];
+                    let mut base = 0i64;
+                    while base < n {
+                        let count = std::cmp::min(n - base, buf.len() as i64 / w);
+                        let chunk = &mut buf[..(count * w) as usize];
+                        read_at(f, chunk, t.offset + base * w)?;
+                        for j in 0..count {
+                            let i = base + j;
+                            let row = if width > 0 { i / width } else { 0 };
+                            let slot_off = (j * w) as usize;
+                            let v = get_int(&chunk[slot_off..], &t.dtype);
+                            s.index_elements += 1;
+                            let (kind, repl) = if v < role.index_lo {
+                                ("index_negative", role.index_lo)
+                            } else if role.index_hi > 0 && v >= role.index_hi {
+                                ("index_oob", role.index_hi - 1)
+                            } else {
+                                ("", v)
+                            };
+                            if !kind.is_empty() {
+                                add(&mut s, o, kind, t, i, row, get_bits(&chunk[slot_off..], w));
+                                if dst.is_some() && o.repair {
+                                    put_bits(&mut chunk[slot_off..], w, repl as u64);
+                                    if let Some(c) = changes.as_deref_mut() {
+                                        *c.entry(kind.to_string()).or_insert(0) += 1;
+                                    }
+                                }
+                            }
+                        }
+                        if let (Some(d), true) = (dst, o.repair) {
+                            write_at(d, chunk, t.offset + base * w)?;
+                        }
+                        base += count;
+                    }
+                } else {
+                    s.ignored_integer_tensors += 1;
                 }
                 continue;
             }
-            let norm = sanitize_match(&t.name, &o.norm_tensor, "norm");
             let mut buf = vec![0u8; 64 << 10];
             let (mut all_zero, mut finite) = (true, true);
             let mut row_norm = 0.0f64;
             let mut clamp_bound: Option<u64> = None;
-            let rewrite = o.clamp_nonfinite || o.clamp_extreme || o.flush_subnormal;
+            let mut divisor_floor: Option<u64> = None;
+            let rewrite = o.clamp_nonfinite || o.repair || o.clamp_extreme || o.flush_subnormal;
             let mut bound_of = || *clamp_bound.get_or_insert_with(|| finite_bound(&t.dtype, o.max_abs));
+            let mut floor_of = || *divisor_floor.get_or_insert_with(|| divisor_floor_bits(&t.dtype, thr, o.strict_subnormal));
+            let one_b = one_bits(&t.dtype);
             let sign_bit = 1u64 << (w as u32 * 8 - 1);
             let mut base = 0i64;
             while base < n {
@@ -1973,16 +2403,40 @@ pub mod sanitize {
                     let b = get_bits(&chunk[slot_off..], w);
                     let (v, kind) = classify(b, &t.dtype);
                     let row = if width > 0 { i / width } else { 0 };
+                    let nonfinite = kind == Kind::Nan || kind == Kind::Inf;
                     s.float_elements += 1;
-                    if kind != Kind::Normal {
-                        add(&mut s, o, kind.name(), t, i, row, b);
+                    match kind {
+                        Kind::Nan | Kind::Inf => add(&mut s, o, kind.name(), t, i, row, b),
+                        Kind::Subnormal if o.strict_subnormal || o.flush_subnormal => {
+                            add(&mut s, o, kind.name(), t, i, row, b);
+                        }
+                        Kind::Subnormal => {
+                            *s.info.entry("subnormal_tolerated".to_string()).or_insert(0) += 1;
+                        }
+                        Kind::Normal => {}
                     }
-                    if kind != Kind::Nan && kind != Kind::Inf && v.abs() > o.max_abs {
+                    if !nonfinite && v.abs() > o.max_abs {
                         add(&mut s, o, "extreme_finite", t, i, row, b);
                     }
-                    if norm {
+                    let mut divisor_bad = "";
+                    if role.divisor {
+                        s.divisor_elements += 1;
+                        if !nonfinite && v <= 0.0 {
+                            divisor_bad = "divisor_scale_nonpositive";
+                        } else if !nonfinite && v < thr {
+                            divisor_bad = "divisor_scale_below_floor";
+                        }
+                        if !divisor_bad.is_empty() {
+                            add(&mut s, o, divisor_bad, t, i, row, b);
+                        }
+                    }
+                    let rope_zero = role.rope && !nonfinite && v == 0.0;
+                    if rope_zero {
+                        add(&mut s, o, "rope_freqs_zero", t, i, row, b);
+                    }
+                    if role.norm {
                         all_zero = all_zero && v == 0.0;
-                        finite = finite && kind != Kind::Nan && kind != Kind::Inf;
+                        finite = finite && !nonfinite;
                         row_norm = go_hypot(row_norm, v);
                         if (i + 1) % width == 0 {
                             s.norm_rows += 1;
@@ -1998,13 +2452,21 @@ pub mod sanitize {
                     }
                     if dst.is_some() {
                         let sign = if b & sign_bit != 0 { sign_bit } else { 0 };
-                        let repl: Option<(u64, &str)> = if o.clamp_nonfinite && kind == Kind::Nan {
+                        let repl: Option<(u64, &str)> = if role.divisor && (o.clamp_nonfinite || o.repair) && kind == Kind::Nan {
+                            Some((floor_of(), "nan"))
+                        } else if role.divisor && (o.clamp_nonfinite || o.repair) && kind == Kind::Inf {
+                            Some((floor_of(), "inf"))
+                        } else if role.divisor && o.repair && !divisor_bad.is_empty() {
+                            Some((floor_of(), divisor_bad))
+                        } else if rope_zero && o.repair {
+                            Some((one_b, "rope_freqs_zero"))
+                        } else if !role.divisor && (o.clamp_nonfinite || o.repair) && kind == Kind::Nan {
                             Some((0, "nan"))
-                        } else if o.clamp_nonfinite && kind == Kind::Inf {
+                        } else if !role.divisor && (o.clamp_nonfinite || o.repair) && kind == Kind::Inf {
                             Some((bound_of() | sign, "inf"))
-                        } else if o.flush_subnormal && kind == Kind::Subnormal {
+                        } else if (o.flush_subnormal || (o.repair && o.strict_subnormal)) && kind == Kind::Subnormal {
                             Some((sign, "subnormal"))
-                        } else if o.clamp_extreme && kind != Kind::Nan && kind != Kind::Inf && v.abs() > o.max_abs {
+                        } else if (o.clamp_extreme || o.repair) && !nonfinite && v.abs() > o.max_abs {
                             Some((bound_of() | sign, "extreme_finite"))
                         } else {
                             None
@@ -2875,8 +3337,13 @@ pub mod probe {
     fn self_check(fx: &mut ProbeFixture, o: &ProbeOptions, exact: bool) -> Result<()> {
         inspect_model(&fx.path).map_err(|e| Error::msg(format!("fixture {} fails container inspection: {}", fx.file, e.message())))?;
         fx.inspect_ok = true;
-        let opts =
-            SanitizeOptions { attempt_id: o.attempt_id.clone(), num_experts: o.num_experts, max_examples: 10000, ..Default::default() };
+        let opts = SanitizeOptions {
+            attempt_id: o.attempt_id.clone(),
+            num_experts: o.num_experts,
+            max_examples: 10000,
+            strict_subnormal: true,
+            ..Default::default()
+        };
         let (rec, r) = sanitize_file_report(&fx.path, &opts);
         if let Err(e) = r {
             return Err(Error::msg(format!("fixture {}: sanitizer could not scan: {}", fx.file, e.message())));
@@ -3276,7 +3743,7 @@ pub mod internals {
     pub use super::fsx::lstat_not_exist;
     pub use super::gojson::{go_float, go_g, rfc3339_nano};
     pub use super::gopath::{dir as go_dir, path_match};
-    pub use super::sanitize::{classify, finite_bound, go_hypot, Kind};
+    pub use super::sanitize::{classify, divisor_floor_bits, finite_bound, go_hypot, Kind};
 }
 
 #[cfg(test)]
@@ -3361,6 +3828,20 @@ mod tests {
         }
         // F16 max finite is 65504
         assert_eq!(finite_bound("F16", 70000.0), 0x7bff);
+    }
+
+    #[test]
+    fn divisor_floor_encoding_is_finite_positive_and_representable() {
+        let thr = 1e-12_f32 as f64;
+        for dtype in ["F16", "BF16", "F32", "F64"] {
+            let bits = divisor_floor_bits(dtype, thr, true);
+            let (value, kind) = classify(bits, dtype);
+            assert_eq!(kind, Kind::Normal, "{}: {:#x}", dtype, bits);
+            assert!(value >= thr, "{}: {}", dtype, value);
+        }
+        assert_eq!(divisor_floor_bits("F16", thr, false), 0x0001);
+        assert_eq!(divisor_floor_bits("F16", thr, true), 0x0400);
+        assert_eq!(divisor_floor_bits("F32", thr, false), 1e-12_f32.to_bits() as u64);
     }
 
     #[test]
