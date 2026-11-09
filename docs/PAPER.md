@@ -1,7 +1,7 @@
 # Secant: Calibrated Weight Edits, Quantized Files, and Constrained LoRA
 
 **Author:** Nathan Keys (`m00dy`, `@professor-moody`)  
-**Date:** November 2026
+**Version:** `v0.3.0` (`2026-11-09` — Horizon 1 Edition; body text frozen upon `v0.3.0` release tag; subsequent Horizon 2 studies append to dated addenda)
 
 ## Abstract
 
@@ -944,3 +944,43 @@ The table below separates primitives established in prior or concurrent work fro
 20. **Vincenzo Fornaro.** *NaN router logits leave MoE top-k selection at best=-1, causing negative-index heap OOB read/write and negative-offset pread (`GHSA-5xpg-vw35-2687`), plus `.safetensors` loader advisories (`GHSA-pmq2-6f2p-hjvf`, `GHSA-4gw4-j89j-4c8r`, `GHSA-wc4x-3786-cxh7`).* GitHub Security Advisories (`JustVugg/colibri`), August 5, 2026. https://github.com/JustVugg/colibri/security/advisories/GHSA-5xpg-vw35-2687
 21. **Hanzo AI Standards Track.** *HIP-0113: Cognitive Sidecar & Hanzo Engine Provider Runtime for Thinking Chains (Section 4.5: `FCVTZS` vs. `CVTTSD2SI` non-finite cast divergence).* Hanzo Improvement Proposals, 2026. https://github.com/hanzo-apps/HIPs/blob/main/HIPs/hip-0113-cognitive-sidecar-and-hanzo-engine-provider-runtime.md
 22. **Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen.** *LoRA: Low-Rank Adaptation of Large Language Models.* ICLR 2022 (`arXiv:2106.09685`).
+
+---
+
+(sec-paper-addendum-reference-diff)=
+## Appendix A: Dated Addendum (2026-11-09) — Reference-Checkpoint Diffing (`--reference`) Closes the Late-Layer Sub-$g^*$ Visibility Gap
+
+Per the version-stability policy adopted at the close of Horizon 1 (`v0.3.0`), Sections 1 through 6 above remain frozen as the Horizon 1 edition, and subsequent Horizon 2 results are appended here as dated addenda backed by cryptographic manifests under `data/`.
+
+### A.1 Motivation: The Three Sub-$g^*$ Late-Layer Cells from Section 5.1
+
+In the 17-cell, 187-point fixed-grid multi-layer Trojan study (Section 5.1, `data/trojan_multilayer_20261109/trojan-multilayer-behavioral-receipt.json`, SHA-256 `0aad7ae7eb0a1d5f5b6e4bd85f31b6307e3317635c8af8e6a277a93d5fffc978`), single-file Stage-2 vocabulary projection ($E u_1(W)$) surfaced the planted target token in the top 16 in all `17 / 17` cells once the relative Frobenius dose $g = \lVert\Delta W\rVert_F/\lVert W_{\text{base}}\rVert_F$ reached the single-matrix singular-value crossover $g^* = \sigma_1(W_{\text{base}})/\lVert W_{\text{base}}\rVert_F$. While that single-file signal preceded forward-pass behavioral hijacking in all `12 / 12` early and middle cells (`L3/L4`, `L10`, `L11/L12`), **in the three `Qwen3.5-0.8B` late-layer cells (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), forward-pass greedy top-1 behavioral flips occurred at $g = 4.0\%\text{--}6.0\%$ (`1.0` to `5.0` percentage points below $g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$).**
+
+### A.2 Streaming Reference-Checkpoint Diffing ($\Delta W = W - W_{\text{ref}}$)
+
+To close that sub-$g^*$ visibility gap whenever a trusted base checkpoint $W_{\text{ref}}$ is available (for example, auditing a community fine-tune, adapter merge, or quantized derivative against its upstream release), `secant read --reference <base_model>` and `secant audit-trojan --reference <base_model>` compute the spectrum, row/column anomalies, Marchenko-Pastur bulk ratio, and vocabulary projection directly on the difference matrix:
+
+$$
+\Delta W = W - W_{\text{ref}}
+$$
+
+streamed row-by-row in `float64` across `.safetensors` and `.gguf` containers (requiring identical 2-D shapes while permitting storage-dtype differences and extra unreferenced tensors in a full base checkpoint), with pre/post SHA-256 brackets verified on both `--model` and `--reference` (`input_unchanged == true` and `reference_unchanged == true`). Because the unedited weight matrix $W_{\text{ref}}$ is subtracted prior to power-iteration SVD, the base singular spectrum $\sigma_1(W_{\text{ref}}) \ge \sigma_2(W_{\text{ref}}) \ge \dots$ vanishes from the audit; for a rank-1 implant $\Delta W = \theta\, u_{\text{trojan}} v_{\text{trigger}}^\top$ stored in `BF16`, the leading singular value of $\Delta W$ is $\sigma_1(\Delta W) \approx \lVert\Delta W\rVert_F$ at every non-zero dose down to the `BF16` quantization floor.
+
+### A.3 Acceptance Test on the Three `Qwen3.5-0.8B` Sub-$g^*$ Late-Layer Cells (`9 / 9` Rank #1)
+
+We executed the Horizon 2 Priority 1 acceptance test on the three `Qwen3.5-0.8B` late-layer cells (`data/reference_diff_late_layers_20261109/reference_diff_late_layer_receipt.json`, SHA-256 `6c361f3ce150271ec46414f0be6db60cbe318be2cdcd4a4f6f0fe3d6e3b3c08a`; `MANIFEST.sha256` verified), regenerating all 12 patched submodels (`1.0%, 2.0%, 4.0%, 6.0%`) from `Qwen3.5-0.8B` (`model.safetensors-00001-of-00001.safetensors`, SHA-256 `04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696`) with **100% byte-for-byte SHA-256 identity** to the Horizon 1 receipt, and running `secant read --reference` across all 9 sub-$g^*$ cells (`1.0%, 2.0%, 4.0%` on `L20.mlp.down_proj` and `L20.linear_attn.out_proj`, and `1.0%, 2.0%, 6.0%` on `L19.self_attn.o_proj`, target token `16657` `" cheese"`):
+
+| Tensor (`Qwen3.5-0.8B`) | Single-File $g^*$ | Single-File $g_{\text{vocab16}}$ | Behavioral Top-1 Flip Dose | Tested Dose $g$ | Patched Submodel SHA-256 | Realized $\lVert\Delta W\rVert_F / \lVert W_{\text{ref}}\rVert_F$ | $\lVert\Delta W\rVert_F$ | $\sigma_1(\Delta W)$ | Rank-1 Energy $\sigma_1^2 / \lVert\Delta W\rVert_F^2$ | `" cheese"` (`16657`) Rank in $E u_1(\Delta W)$ |
+|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---|
+| `layers.20.mlp.down_proj.weight` | 7.03% | 6.0% | **4.0%** (91.7%) | **1.0%** | `a7052f31...747d9` | 0.010004 | 0.175134 | 0.175063 | **99.92%** (`0.999195`) | **Rank #1** (`suppressed`) |
+| `layers.20.mlp.down_proj.weight` | 7.03% | 6.0% | **4.0%** (91.7%) | **2.0%** | `b67f7b48...c46de` | 0.020003 | 0.350177 | 0.350140 | **99.98%** (`0.999790`) | **Rank #1** (`suppressed`) |
+| `layers.20.mlp.down_proj.weight` | 7.03% | 6.0% | **4.0%** (91.7%) | **4.0%** | `ca89fe99...a153e` | 0.040001 | 0.700276 | 0.700258 | **99.995%** (`0.999949`) | **Rank #1** (`suppressed`) |
+| `layers.19.self_attn.o_proj.weight` | 8.55% | 7.0% | **6.0%** (58.3%) | **1.0%** | `ac838ef7...d8f0f` | 0.010007 | 0.242269 | 0.242112 | **99.87%** (`0.998705`) | **Rank #1** (`promoted`) |
+| `layers.19.self_attn.o_proj.weight` | 8.55% | 7.0% | **6.0%** (58.3%) | **2.0%** | `ec3ad5ed...894a4` | 0.020004 | 0.484306 | 0.484227 | **99.97%** (`0.999675`) | **Rank #1** (`promoted`) |
+| `layers.19.self_attn.o_proj.weight` | 8.55% | 7.0% | **6.0%** (58.3%) | **6.0%** | `9e4b699c...6d409` | 0.060002 | 1.452703 | 1.452675 | **99.996%** (`0.999962`) | **Rank #1** (`promoted`) |
+| `layers.20.linear_attn.out_proj.weight` | 9.60% | 9.0% | **4.0%** (91.7%) | **1.0%** | `619b762c...c68df` | 0.010006 | 0.152547 | 0.152461 | **99.89%** (`0.998866`) | **Rank #1** (`promoted`) |
+| `layers.20.linear_attn.out_proj.weight` | 9.60% | 9.0% | **4.0%** (91.7%) | **2.0%** | `b080de45...6d03d` | 0.020003 | 0.304953 | 0.304908 | **99.97%** (`0.999708`) | **Rank #1** (`promoted`) |
+| `layers.20.linear_attn.out_proj.weight` | 9.60% | 9.0% | **4.0%** (91.7%) | **4.0%** | `d032d95d...e917f` | 0.040001 | 0.609844 | 0.609821 | **99.993%** (`0.999926`) | **Rank #1** (`promoted`) |
+
+Across all `9 / 9` sub-$g^*$ cells—including at `1.0%` and `2.0%` (`2` to `5` percentage points below the `4.0%..6.0%` behavioral flip floor)—`secant read --reference` recovered `99.87%` to `99.996%` of $\lVert\Delta W\rVert_F^2$ in $\sigma_1^2(\Delta W)$ and ranked the planted token (`16657` `" cheese"`) **#1** out of the full `Qwen3.5-0.8B` vocabulary (`suppressed` rank 1 on `L20.mlp.down_proj` due to the SVD sign convention fixing the largest-magnitude coordinate of $v_1$ positive, and `promoted` rank 1 on `L19.self_attn.o_proj` and `L20.linear_attn.out_proj`). When no reference checkpoint $W_{\text{ref}}$ exists, the single-file $g^*$ crossover documented in Section 5.1 remains the governing detection boundary.
+

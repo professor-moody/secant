@@ -317,6 +317,32 @@ fn differential_conformance() {
         args.extend(extra.iter().copied());
         cmp_cmd(&mut t, &format!("read/{}", n), &args, &[]);
     }
+    // read --reference (Horizon 2): Delta W = W - W_ref, bit-identical receipts. F32 vs BF16
+    // payloads of one geometry (every tensor compared), and the fail-closed self-reference.
+    {
+        let args = [
+            "read",
+            "--model",
+            fx.gguf_f32.as_str(),
+            "--reference",
+            fx.gguf_bf16.as_str(),
+            "--detect-anomalies",
+            "--top-cols",
+            "5",
+            "--top-k-singular",
+            "3",
+            "--vocab-tensor",
+            "output.weight",
+            "--json",
+        ];
+        cmp_cmd(&mut t, "read/reference gguf_f32 - gguf_bf16", &args, &[]);
+        cmp_cmd(
+            &mut t,
+            "read/reference self (fail closed)",
+            &["read", "--model", &fx.gguf_f32, "--reference", &fx.gguf_f32, "--json"],
+            &[],
+        );
+    }
     // read --vectors-out: identical array values and 64-byte aligned headers (bit-exact).
     {
         let (a, b) = (mf("vo_go"), mf("vo_rs"));

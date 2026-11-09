@@ -61,6 +61,8 @@ secant read \
 
 `--marchenko-pastur` adds a per-tensor `marchenko_pastur` block and a report-level `spectral_outliers` ranking (see [Payload Security](payload-security.md), section 5). `secant audit-trojan --model <path> [--tensor <glob>] [--vocab-tensor <name>] [--top-k-singular <k>] [--mp-threshold <r>] [--top <rows>] [--json]` runs the same reader with `--detect-anomalies --marchenko-pastur` and prints the ranking. Both exit `0` whether or not anything is flagged.
 
+`--reference <base>` (on `read` and `audit-trojan`) replaces `W` by `Delta W = W - W_ref` for every selected tensor, matching tensors by name and logical shape; `--vocab-tensor` is still read from `--model`. Tensors the reference lacks, or holds with another shape, are reported `skipped` with the reason. Each tensor gains `reference_diff` (`status`, `basis` = `delta_w`, `reference_dtype`, `reference_frobenius`, `delta_frobenius`, `relative_delta`, `identical`, `sigma1_energy_fraction`) and the report gains a `reference` block (`path`, `format`, `pre_sha256`, `post_sha256`, `input_unchanged`, `tensors_compared`, `tensors_skipped`). A reference equal to the model file, or with no comparable tensor, exits `2`. Without the flag the receipt has none of these keys.
+
 ### `secant analyze`
 Combines layer rankings from measurements you already captured. Borda voting assigns points by rank and combines those points across streams; it does not run the model to gather new measurements.
 

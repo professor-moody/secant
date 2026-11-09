@@ -379,6 +379,32 @@ What the pre-specified 17-cell multi-layer and behavioral grid shows:
 3. **In early and middle layers (`L3/L4`, `L10`, `L11/L12`), the Stage-2 vocabulary signal precedes forward-pass behavioral hijacking ($g_{\text{vocab16}} < g_{\text{behav\_top1}}$):** Because a direct unembedding spike $u_{\text{trojan}} = e_{\tau^*}/\lVert e_{\tau^*}\rVert_2$ injected at early or middle depth is attenuated by `12` to `20` downstream blocks and final `RMSNorm`, middle `SmolLM2` MLP layers (`L10`, `L12`) surface the planted token in the top 16 at `g_vocab16 = 9.0%` and `8.0%` before greedy top-1 flips occur at `12.0%`, while early layers (`L4`) and middle attention/DeltaNet writers surface the planted token at `7.0%-16.0%` without achieving top-1 flips even at `16.0%`.
 4. **In three late-layer cells (`L19/L20`), the edit changed model output at a dose `1` to `5` percentage points below where any single-file signal appeared:** That is a measured limit of reference-free static auditing. On `SmolLM2` `L20.mlp.down_proj` ($g^* = 3.92\%$), the top-16 vocabulary signal (`4.0%`) coincides with top-5 behavioral promotion (`4.0%`) and precedes top-1 flipping (`6.0%`). On the three `Qwen3.5-0.8B` late layers (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), greedy top-1 flips occur on `58.3%-91.7%` of held-out trigger prompts at `g = 4.0%-6.0%` (`delta_logit = +12.69` to `+16.60`), `1.0` to `5.0` percentage points below the single-matrix singular-value crossover $g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$. Complete 187-row tables and receipts are archived in `data/trojan_multilayer_20261109/README.md` and `data/trojan_multilayer_20261109/trojan-multilayer-behavioral-receipt.json`.
 
+### 5.1.2 Reference-Checkpoint Diffing (`--reference`, $\Delta W = W - W_{\text{ref}}$) Closes the Late-Layer Sub-$g^*$ Gap
+
+When a known base checkpoint $W_{\text{ref}}$ is available, passing `--reference <base_model>` to `secant read` or `secant audit-trojan` computes the Frobenius norm, singular spectrum, row/column anomalies, Marchenko-Pastur bulk ratio, and `--vocab-tensor` token projection on the streamed difference matrix $\Delta W = W - W_{\text{ref}}$ rather than on $W$ alone, while bracketing both `--model` and `--reference` with pre/post SHA-256 digests (`input_unchanged == true` and `reference_unchanged == true`).
+
+To test whether reference diffing closes the three `Qwen3.5-0.8B` sub-$g^*$ late-layer cells above (`L20.mlp.down_proj` with behavioral flips at `4.0%` vs. single-file $g^* = 7.03\%$, `L19.self_attn.o_proj` with behavioral flips at `6.0%` vs. $g^* = 8.55\%$, and `L20.linear_attn.out_proj` with behavioral flips at `4.0%` vs. $g^* = 9.60\%$), we regenerated all 12 patched submodels (`1.0%, 2.0%, 4.0%, 6.0%`) from `Qwen3.5-0.8B` (`04b1c301...4696`), verified that all 12 SHA-256 digests matched the Horizon-1 receipt byte for byte, and ran `secant read --reference` across all 9 sub-$g^*$ cells (`data/reference_diff_late_layers_20261109/reference_diff_late_layer_receipt.json`, SHA-256 `6c361f3ce150271ec46414f0be6db60cbe318be2cdcd4a4f6f0fe3d6e3b3c08a`):
+
+```bash
+secant read --model <patched-submodel> --reference model.safetensors-00001-of-00001.safetensors \
+    --tensor <exact-name> --vocab-tensor model.language_model.embed_tokens.weight \
+    --top-k-singular 2 --json
+```
+
+| Tensor (`Qwen3.5-0.8B`) | Single-File $g^*$ | Behavioral Flip Dose | Tested Dose $g$ | Patched Submodel SHA-256 | Realized $\lVert\Delta W\rVert_F / \lVert W_{\text{ref}}\rVert_F$ | $\lVert\Delta W\rVert_F$ | $\sigma_1(\Delta W)$ | Rank-1 Energy $\sigma_1^2 / \lVert\Delta W\rVert_F^2$ | `" cheese"` (`16657`) Rank in $E u_1(\Delta W)$ |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---|
+| `layers.20.mlp.down_proj.weight` | 7.03% | **4.0%** | **1.0%** | `a7052f31...747d9` | 0.010004 | 0.175134 | 0.175063 | **99.92%** (`0.999195`) | **Rank #1** (`suppressed`) |
+| `layers.20.mlp.down_proj.weight` | 7.03% | **4.0%** | **2.0%** | `b67f7b48...c46de` | 0.020003 | 0.350177 | 0.350140 | **99.98%** (`0.999790`) | **Rank #1** (`suppressed`) |
+| `layers.20.mlp.down_proj.weight` | 7.03% | **4.0%** | **4.0%** | `ca89fe99...a153e` | 0.040001 | 0.700276 | 0.700258 | **99.995%** (`0.999949`) | **Rank #1** (`suppressed`) |
+| `layers.19.self_attn.o_proj.weight` | 8.55% | **6.0%** | **1.0%** | `ac838ef7...d8f0f` | 0.010007 | 0.242269 | 0.242112 | **99.87%** (`0.998705`) | **Rank #1** (`promoted`) |
+| `layers.19.self_attn.o_proj.weight` | 8.55% | **6.0%** | **2.0%** | `ec3ad5ed...894a4` | 0.020004 | 0.484306 | 0.484227 | **99.97%** (`0.999675`) | **Rank #1** (`promoted`) |
+| `layers.19.self_attn.o_proj.weight` | 8.55% | **6.0%** | **6.0%** | `9e4b699c...6d409` | 0.060002 | 1.452703 | 1.452675 | **99.996%** (`0.999962`) | **Rank #1** (`promoted`) |
+| `layers.20.linear_attn.out_proj.weight` | 9.60% | **4.0%** | **1.0%** | `619b762c...c68df` | 0.010006 | 0.152547 | 0.152461 | **99.89%** (`0.998866`) | **Rank #1** (`promoted`) |
+| `layers.20.linear_attn.out_proj.weight` | 9.60% | **4.0%** | **2.0%** | `b080de45...6d03d` | 0.020003 | 0.304953 | 0.304908 | **99.97%** (`0.999708`) | **Rank #1** (`promoted`) |
+| `layers.20.linear_attn.out_proj.weight` | 9.60% | **4.0%** | **4.0%** | `d032d95d...e917f` | 0.040001 | 0.609844 | 0.609821 | **99.993%** (`0.999926`) | **Rank #1** (`promoted`) |
+
+In all `9 / 9` runs (down to `1.0%` relative Frobenius dose, four to six times smaller than the `4.0%..6.0%` behavioral hijack threshold), `secant read --reference` isolated `99.87%` to `99.996%` of the difference energy in $\sigma_1^2(\Delta W)$ and placed `" cheese"` (`16657`) at **Rank #1** (`suppressed` rank 1 on `L20.mlp.down_proj` due to the $v_1$ sign convention described in Section 7, and `promoted` rank 1 on `L19.self_attn.o_proj` and `L20.linear_attn.out_proj`). When no reference checkpoint is available, the single-file $g^*$ limit in Section 5.1.1 applies.
+
 ---
 
 ## 6. Find Weight-Value Sinks in Consumer Source (`secant scan-sinks`)

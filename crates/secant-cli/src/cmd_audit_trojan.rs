@@ -13,8 +13,8 @@ use secant_core::read::{read_model, ReadOptions};
 
 #[derive(ClapArgs, Debug)]
 #[command(
-    long_about = "Rank 2-D weight tensors by the spectral spike ratio sigma_1/sigma_MP, where sigma_MP = sigma_bulk * (1 + sqrt(d_in/d_out)) is the Marchenko-Pastur bulk edge of an i.i.d. matrix with the tensor's non-spike energy. Rank-1 weight edits and many trojan insertions detach a singular value from the bulk. Trained weights already sit above the i.i.d. edge, so each ratio is also compared with the same tensor in the other layers (family blk.*.ffn_down.weight etc.): a sibling outlier has a modified z-score above 3.5 in a family of at least 4. Row/column anomalies are reported too, and with --vocab-tensor the top promoted vocabulary tokens of u_1 are listed beside each spike. Equivalent to `secant read --detect-anomalies --marchenko-pastur`. Informational: exit 0 whether or not anything is flagged.",
-    after_help = "Examples:\n  secant audit-trojan --model model.gguf --tensor 'blk.*.ffn_down.weight' --vocab-tensor output.weight\n  secant audit-trojan --model edited.safetensors --mp-threshold 2.0 --json\n\nTrained weights are not i.i.d.: compare ratios against the base checkpoint or sibling layers."
+    long_about = "Rank 2-D weight tensors by the spectral spike ratio sigma_1/sigma_MP, where sigma_MP = sigma_bulk * (1 + sqrt(d_in/d_out)) is the Marchenko-Pastur bulk edge of an i.i.d. matrix with the tensor's non-spike energy. Rank-1 weight edits and many trojan insertions detach a singular value from the bulk. Trained weights already sit above the i.i.d. edge, so each ratio is also compared with the same tensor in the other layers (family blk.*.ffn_down.weight etc.): a sibling outlier has a modified z-score above 3.5 in a family of at least 4. Row/column anomalies are reported too, and with --vocab-tensor the top promoted vocabulary tokens of u_1 are listed beside each spike. With --reference <base>, the ranking is of Delta W = W - W_ref against a trusted base checkpoint: an edit that hides inside a trained matrix's own spectrum becomes its dominant direction, and the promoted tokens are those of Delta W's u_1 through --vocab-tensor. Equivalent to `secant read --detect-anomalies --marchenko-pastur`. Informational: exit 0 whether or not anything is flagged.",
+    after_help = "Examples:\n  secant audit-trojan --model edited.gguf --reference base.gguf --vocab-tensor output.weight\n  secant audit-trojan --model model.gguf --tensor 'blk.*.ffn_down.weight' --vocab-tensor output.weight\n  secant audit-trojan --model edited.safetensors --mp-threshold 2.0 --json\n\nTrained weights are not i.i.d.: compare ratios against the base checkpoint or sibling layers."
 )]
 pub struct Args {
     /// Input .gguf or .safetensors (read only)
@@ -35,6 +35,9 @@ pub struct Args {
     /// Rows of the human ranking (the JSON keeps every tensor)
     #[arg(long, default_value_t = 20)]
     top: usize,
+    /// Trusted base checkpoint: rank Delta W = W - W_ref instead of W (same tensor name and logical shape)
+    #[arg(long, default_value = "")]
+    reference: String,
     #[arg(long)]
     json: bool,
 }
@@ -54,6 +57,7 @@ pub fn run(a: &Args) -> i32 {
         vectors_out: String::new(),
         marchenko_pastur: true,
         mp_threshold: a.mp_threshold.unwrap_or(0.0),
+        reference: a.reference.clone(),
     };
     let rep = match read_model(o) {
         Ok(r) => r,
@@ -76,6 +80,7 @@ pub fn run(a: &Args) -> i32 {
     field("Selection", format!("{} / {} tensors; {} analyzed", rep.tensors_selected, rep.tensors_in_file, rep.tensors_analyzed));
     field("Input unchanged", badge(rep.input_unchanged));
     field("SHA-256", &rep.pre_sha256);
+    crate::cmd_read::print_reference(&rep);
     field("Bulk threshold", format!("sigma_1/sigma_MP > {}", threshold));
     field("Ranked tensors", ranking.len());
     field(
@@ -116,6 +121,52 @@ pub fn run(a: &Args) -> i32 {
             })
             .collect::<Vec<_>>(),
     );
+    if rep.reference.is_some() {
+        // Delta W view: an exactly low-rank difference has no Marchenko-Pastur
+        // bulk left (status "undefined"), so it never reaches the ranking
+        // above; list every compared tensor by how much of the base it moved.
+        let mut moved: Vec<_> =
+            rep.tensors.iter().filter_map(|t| Some((t, t.reference_diff.as_ref().filter(|d| d.status == "compared")?))).collect();
+        moved.sort_by(|x, y| {
+            y.1.relative_delta
+                .unwrap_or(0.0)
+                .partial_cmp(&x.1.relative_delta.unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(x.0.name.cmp(&y.0.name))
+        });
+        table(
+            &["TENSOR (DELTA W)", "||DW||/||W_REF||", "SIGMA_1", "SIGMA_1^2/||DW||^2", "PROMOTED TOKENS OF DW u_1"],
+            &moved
+                .iter()
+                .take(a.top)
+                .map(|(t, d)| {
+                    vec![
+                        t.name.clone(),
+                        d.relative_delta.map(|x| format!("{:.4e}", x)).unwrap_or_else(|| "n/a".into()),
+                        t.singular.first().map(|s| format!("{:.6e}", s.sigma)).unwrap_or_else(|| {
+                            if d.identical == Some(true) {
+                                "identical".into()
+                            } else {
+                                "n/a".into()
+                            }
+                        }),
+                        d.sigma1_energy_fraction.map(|x| format!("{:.4}", x)).unwrap_or_else(|| "n/a".into()),
+                        t.vocab
+                            .as_ref()
+                            .filter(|v| v.status == "ok")
+                            .map(|v| {
+                                v.promoted.iter().take(8).map(|e| format!("{}({:.3e})", e.index, e.value)).collect::<Vec<_>>().join(" ")
+                            })
+                            .unwrap_or_default(),
+                    ]
+                })
+                .collect::<Vec<_>>(),
+        );
+        let skipped = rep.tensors.iter().filter(|t| t.reference_diff.as_ref().is_some_and(|d| d.status != "compared")).count();
+        if skipped > 0 {
+            println!("{} selected tensor(s) not compared (absent from the reference or a different shape); see `--json` status.", skipped);
+        }
+    }
     let anomalous: Vec<_> = rep.tensors.iter().filter(|t| t.anomalies.as_ref().is_some_and(|x| x.flagged)).collect();
     if !anomalous.is_empty() {
         table(

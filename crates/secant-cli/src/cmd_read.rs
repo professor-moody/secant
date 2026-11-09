@@ -4,8 +4,8 @@ use secant_core::read::{read_model, ReadOptions};
 
 #[derive(ClapArgs, Debug)]
 #[command(
-    long_about = "Read selected weights without inference: Frobenius norms, leading singular values, high-energy columns and optional vocabulary projections. Anomaly flags are informational and retain exit status 0.\n\n--marchenko-pastur adds, per 2-D tensor, the bulk edge sigma_MP = sigma_bulk * (1 + sqrt(d_in/d_out)) of an i.i.d. matrix with the same energy (the computed outliers removed) and the spike ratio sigma_1/sigma_MP, plus a report-level ranking that carries the top promoted vocabulary tokens when --vocab-tensor is given. Trained weights are not i.i.d.: compare ratios across layers or against the base checkpoint.",
-    after_help = "Examples:\n  secant read --model model.gguf --tensor 'blk.0.*' --top-k-singular 4\n  secant read --model model.safetensors --detect-anomalies --json\n  secant read --model model.gguf --marchenko-pastur --vocab-tensor output.weight --json"
+    long_about = "Read selected weights without inference: Frobenius norms, leading singular values, high-energy columns and optional vocabulary projections. Anomaly flags are informational and retain exit status 0.\n\n--marchenko-pastur adds, per 2-D tensor, the bulk edge sigma_MP = sigma_bulk * (1 + sqrt(d_in/d_out)) of an i.i.d. matrix with the same energy (the computed outliers removed) and the spike ratio sigma_1/sigma_MP, plus a report-level ranking that carries the top promoted vocabulary tokens when --vocab-tensor is given. Trained weights are not i.i.d.: compare ratios across layers or against the base checkpoint.\n\n--reference <base> subtracts the same-named tensor of a trusted base checkpoint (identical logical shape; float or Q8_0/Q4_K; GGUF and SafeTensors may be mixed) before any analysis, so Frobenius norm, column statistics, anomalies, singular spectrum, bulk edge and the u_1 vocabulary projection describe Delta W = W - W_ref. A tensor the reference lacks or holds with another shape is reported skipped, never compared. The vocab tensor is read from --model.",
+    after_help = "Examples:\n  secant read --model model.gguf --tensor 'blk.0.*' --top-k-singular 4\n  secant read --model model.safetensors --detect-anomalies --json\n  secant read --model model.gguf --marchenko-pastur --vocab-tensor output.weight --json\n  secant read --model edited.gguf --reference base.gguf --vocab-tensor output.weight --json"
 )]
 pub struct Args {
     /// Input .gguf or .safetensors (read only)
@@ -35,6 +35,9 @@ pub struct Args {
     /// Flag threshold on sigma_1/sigma_MP (default 1.5; requires --marchenko-pastur)
     #[arg(long, allow_negative_numbers = true)]
     mp_threshold: Option<f64>,
+    /// Trusted base checkpoint: statistics, spectrum and vocab projection are then of Delta W = W - W_ref (same tensor name and logical shape)
+    #[arg(long, default_value = "")]
+    reference: String,
     #[arg(long)]
     json: bool,
 }
@@ -51,6 +54,7 @@ pub fn run(a: &Args) -> i32 {
         vectors_out: a.vectors_out.clone(),
         marchenko_pastur: a.marchenko_pastur,
         mp_threshold: a.mp_threshold.unwrap_or(0.0),
+        reference: a.reference.clone(),
     };
     if a.mp_threshold == Some(0.0) {
         return usage("--mp-threshold must be > 0");
@@ -70,6 +74,7 @@ pub fn run(a: &Args) -> i32 {
     field("Selection", format!("{} / {} tensors; {} analyzed", rep.tensors_selected, rep.tensors_in_file, rep.tensors_analyzed));
     field("Input unchanged", badge(rep.input_unchanged));
     field("SHA-256", &rep.pre_sha256);
+    print_reference(&rep);
     table(
         &["TENSOR", "DTYPE", "SHAPE", "FROBENIUS NORM", "STATUS"],
         &rep.tensors
@@ -123,6 +128,22 @@ pub fn run(a: &Args) -> i32 {
         }
     }
     0
+}
+
+/// Reference-checkpoint provenance and the Delta W notice (`--reference`).
+pub(crate) fn print_reference(rep: &secant_core::read::ReadReport) {
+    if let Some(r) = &rep.reference {
+        field("Reference", &r.path);
+        field("Reference SHA-256", &r.pre_sha256);
+        field("Reference unchanged", badge(r.input_unchanged));
+        field(
+            "Basis",
+            format!(
+                "Delta W = W - W_ref; {} compared, {} skipped of {} selected",
+                r.tensors_compared, r.tensors_skipped, rep.tensors_selected
+            ),
+        );
+    }
 }
 
 /// One human line for the `--marchenko-pastur` block of a tensor.

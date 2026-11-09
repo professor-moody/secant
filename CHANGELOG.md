@@ -2,6 +2,11 @@
 
 All notable changes to **Secant** are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **`--reference <base_checkpoint>` on `secant read` and `secant audit-trojan` (Horizon 2):** subtracts the same-named tensor of a trusted base checkpoint (identical logical shape; float or `Q8_0` / `Q4_K`; GGUF and SafeTensors may be mixed) before any analysis, one separately rounded `float64` subtraction per element, never materialised. Frobenius norm, column statistics, anomalies, singular spectrum, Marchenko-Pastur bulk and the `E * u_1` vocabulary projection then describe `Delta W = W - W_ref`, which closes the single-file gap where a small rank-1 edit hides under a trained matrix's own dominant direction. Each tensor carries `reference_diff` (`compared` with `delta_frobenius`, `reference_frobenius`, `relative_delta`, `sigma1_energy_fraction`, `identical`; or `skipped: <reason>` for an absent tensor or a different shape, never a number against a mismatch); the report carries a bracket-hashed `reference` block. A reference that is the model file itself, or shares no comparable tensor, exits `2`. `audit-trojan` adds a `Delta W` table because an exactly low-rank difference has no Marchenko-Pastur bulk and would otherwise drop out of the ranking. Receipts without `--reference` are byte-for-byte unchanged. The Go oracle `crucible wsp read --reference` emits the same fields and `diff_oracle` shows the receipts bit-identical.
+
 ## [0.3.0] - 2026-11-09
 
 ### Added

@@ -29,17 +29,25 @@ These are the experiments and rule checks the paper itself identifies as open ca
 5. **Implement the `Rule S-0` companion-config (`config.json` / `generation_config.json`) check in `secant sanitize` (`COMPLETED` in `v0.3.0`).**
    - Implemented in `crates/secant-core/src/security.rs` and `internal/wsp/sanitize.go` (`26/26` `security_parity` tests passing): scanning a `.safetensors` checkpoint automatically inspects sibling `config.json` and `generation_config.json` files in the checkpoint directory to enforce `0 <= eos_token_id, bos_token_id, pad_token_id, decoder_start_token_id < vocab_size` (cross-checked against the embedding/unembedding tensor shape), `1 <= num_experts_per_tok <= num_local_experts`, and `0 <= leading_dense_block <= num_hidden_layers`.
 
-## Horizon 2: Make `secant sanitize` the Standard Pre-Load Gate (Next Quarter)
+## Horizon 2: Reordered Priorities Following Horizon 1
 
-- **Widen the false-positive corpus** from 10 production checkpoints (`186.8M` blocks) to the top 100 GGUF and SafeTensors downloads on Hugging Face Hub with all 10 quantized GGUF block formats represented.
-- **Ship a GitHub Actions / pre-commit CI integration**: one fail-closed command (`secant sanitize --model <path> --receipt <json> --dry-run`) with copy-paste workflows for `llama.cpp`, `vLLM`, and `Ollama` deployments.
-- **Publish Rules `S-0` and `B3-1..B3-3` as a standalone loader invariant specification** that inference engines can adopt directly inside native model loaders.
-- **Native Python bindings via PyO3** (`secant.sanitize(path)` and `secant.audit_trojan(path)`) so pre-load checks can run inside Hugging Face `from_pretrained` hooks without subprocess overhead.
-- **Reference-checkpoint diffing mode (`secant audit-trojan --reference <base_model>`)**: compute the singular spectrum and vocabulary projection of `Delta W = W - W_ref` directly when a trusted base checkpoint is available, closing the sub-threshold (`g < g*`) single-file visibility gap.
+1. **Reference-checkpoint diffing in `secant audit-trojan` and `secant read` (`--reference <base_model>`, $\Delta W = W - W_{\text{ref}}$) — Priority 1 (`COMPLETED`: `data/reference_diff_late_layers_20261109/`).**
+   - Implemented streaming row-by-row $\Delta W = W - W_{\text{ref}}$ in `secant read --reference` and `secant audit-trojan --reference` (`crates/secant-core/src/read.rs`, `159/159` Rust tests passing, bit-identical to the Go oracle) with pre/post SHA-256 brackets on both `--model` and `--reference`.
+   - **Acceptance test on the 3 sub-$g^*$ `Qwen3.5-0.8B` late-layer cells (`COMPLETED`, receipt `data/reference_diff_late_layers_20261109/reference_diff_late_layer_receipt.json`, SHA-256 `6c361f3ce150271ec46414f0be6db60cbe318be2cdcd4a4f6f0fe3d6e3b3c08a`):** Regenerated all 12 patched submodels (`1.0%, 2.0%, 4.0%, 6.0%`) with 100% byte-identical SHA-256 digests to the Horizon 1 receipt and ran `secant read --reference` across all 9 sub-$g^*$ cells (`1.0%, 2.0%, 4.0%` on `L20.mlp.down_proj` and `L20.linear_attn.out_proj`, and `1.0%, 2.0%, 6.0%` on `L19.self_attn.o_proj`). In all **`9 / 9` sub-$g^*$ runs** (down to `1.0%` dose, well below the `4.0%..6.0%` behavioral flip floor), `--reference` recovered `99.87%` to `99.996%` of $\lVert\Delta W\rVert_F^2$ in $\sigma_1^2(\Delta W)$ and placed the planted token (`16657` `" cheese"`) at **Rank #1** (`suppressed` rank 1 on `L20.mlp.down_proj` due to $v_1$ sign convention, `promoted` rank 1 on `L19.self_attn.o_proj` and `L20.linear_attn.out_proj`).
+2. **`ASAN-180` (`ASAN-RealWorld-60`) on the `<think>` reasoning cohort (`4B` to `32B`) — Priority 2.**
+   - The `4 / 4` reasoning-model advantage is the one `ASAN-120` claim the real-world `ASAN-RealWorld-60` benchmark has not yet tested (`Qwen3.5-0.8B`, `Qwen2.5-1.5B-Instruct`, `SmolLM2-1.7B-Instruct`, and `Qwen3.5-4B` are complete). Run the full `4B` to `32B` reasoning cohort on the 30 real upstream C/C++ vulnerability pairs (`60` functions) and report the outcome in a dated addendum regardless of direction.
+3. **Widen the `secant sanitize` false-positive corpus from 10 to 100 checkpoints — Priority 3.**
+   - Expand the pre-load verification corpus from 10 production checkpoints (`186.8M` blocks, 6 quantized formats) to 100 GGUF and SafeTensors checkpoints with all 10 quantized GGUF block formats represented, either establishing zero observed false positives across 100 checkpoints or surfacing and documenting the first real false positive before CI adoption.
+4. **Native Python bindings via PyO3 (`secant.sanitize`, `secant.audit_trojan`) — Priority 4.**
+   - Expose the Rust pre-load sanitizer and Trojan auditor directly to Python so `secant.sanitize(path)` can run inside a Hugging Face `from_pretrained` loading hook without subprocess overhead.
 
-## Horizon 3: Follow-On Research Program (6 to 12 Months)
+## Deferred / Dropped Until Requested
 
-- **Distribution-matched activation calibration**: calibrate edit step sizes across a distribution of held-out benchmark activations rather than a single 32-prompt reference mean, reducing the `0.5%..14.8%` target-shift variance across domains.
-- **Multi-writer joint `Project-Then-Heal` across downstream layers**: analyze and constrain how unedited downstream layers partially re-introduce a removed residual direction (`~53%` downstream pull-back when only a subset of writers is locked).
-- **Pair-aware `Q4_K` superblock re-encoder**: jointly solve for the 6-bit sub-block scales (`s_j`, `m_j`) and 4-bit nibbles across the two 128-column attention heads spanned by a 256-weight `Q4_K` superblock, removing the `Q8_0`-only restriction on in-place GGUF surgery.
-- **Packaged one-command external replication bundles**: ship pinned, single-command reproduction scripts and container receipts for the 4-arm `Qwen3.5-0.8B` `MATH-500` study and the `Qwen3.5-4B` calibration study for independent third-party verification.
+- **Multi-input calibration:** Deferred. The 7-point dose ramp on `Qwen3.5-4B` shows that single-reference calibration behaves predictably across dose (`0.50x..1.50x`).
+- **`Q4_K` superblock editing:** Dropped (`secant quant patch` keeps the explicit refusal). The 32-weight `Q8_0` path covers demonstrated in-place GGUF surgery cleanly.
+- **Additional single-file Trojan grid cells:** Not planned. The 17-cell, 187-point study answered the single-file question; reference diffing (`W - W_ref`) is the next step.
+
+## Standing Evidence & Versioning Rules
+
+- **Manifest before prose:** Every new number enters a `data/<study>/` directory with a verified `MANIFEST.sha256` (`shasum -a 256 -c MANIFEST.sha256` exiting `0` on the final committed files) before it enters a sentence in `docs/` or `README.md`.
+- **Frozen `v0.3.0` paper body:** Once Horizon 1 Item 1 closes across all 6 RMS models and `v0.3.0` is tagged, the body of `docs/PAPER.md` is frozen for citation stability; subsequent Horizon 2 results enter a dated appendix or addendum rather than mutating existing body sections.

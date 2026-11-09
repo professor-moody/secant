@@ -62,6 +62,14 @@ pub struct ReadOptions {
     /// only with `marchenko_pastur`.
     #[serde(skip_serializing_if = "is_zero_f")]
     pub mp_threshold: f64,
+    /// Secant extension (Horizon 2, omitted when empty): a trusted base
+    /// checkpoint. Every spectral statistic of a selected tensor then
+    /// describes `Delta W = W - W_ref` (same-named tensor, same logical
+    /// geometry), so a rank-1 edit that sits inside a trained matrix's own
+    /// spectrum becomes the dominant singular direction. The vocabulary
+    /// tensor, when given, is read from `model`, not from the reference.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reference: String,
 }
 
 /// Default `sigma_1 / sigma_MP` flag threshold.
@@ -168,6 +176,55 @@ pub struct TensorSpectrum {
     pub spectral_bulk: Option<crate::mp::SpectralBulk>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
+    /// Secant extension (`--reference`): present on every selected tensor of
+    /// a reference run; says whether the statistics above are of `Delta W`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_diff: Option<ReferenceDiff>,
+}
+
+/// Per-tensor outcome of a `--reference` comparison. `status` is `compared`
+/// only when the reference holds the same-named tensor with the same logical
+/// geometry; every other value is `skipped: <reason>` and the tensor carries
+/// no `Delta W` statistics (never a number computed against a mismatch).
+#[derive(Debug, Clone, Serialize)]
+pub struct ReferenceDiff {
+    pub status: String,
+    /// Always `delta_w` when `status == "compared"`: the Frobenius norm,
+    /// column statistics, anomalies and spectrum of the tensor are `W - W_ref`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub basis: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reference_dtype: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_frobenius: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta_frobenius: Option<f64>,
+    /// `||Delta W||_F / ||W_ref||_F`, absent when the reference norm is 0 or undefined.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relative_delta: Option<f64>,
+    /// `Delta W` is exactly zero everywhere (the two payloads decode equal).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identical: Option<bool>,
+    /// `sigma_1^2 / ||Delta W||_F^2`: near 1 means the whole difference is one
+    /// rank-1 direction (a targeted edit); small means diffuse change (a
+    /// fine-tune). Absent when the delta is zero or has no computed spectrum.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sigma1_energy_fraction: Option<f64>,
+}
+
+/// Report-level provenance of the reference checkpoint (bracket-hashed like
+/// the model).
+#[derive(Debug, Clone, Serialize)]
+pub struct ReferenceInfo {
+    pub path: String,
+    pub format: String,
+    pub file_bytes: i64,
+    pub pre_sha256: String,
+    pub post_sha256: String,
+    pub input_unchanged: bool,
+    pub tensors_in_file: usize,
+    pub tensors_compared: usize,
+    pub tensors_skipped: usize,
 }
 
 /// One row of the report-level spike ranking (`--marchenko-pastur`).
@@ -237,6 +294,9 @@ pub struct ReadReport {
     /// ratio, by `sigma1_over_mp` descending (ties by name).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spectral_outliers: Option<Vec<SpectralOutlier>>,
+    /// Secant extension (`--reference`): identity and counts of the base checkpoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference: Option<ReferenceInfo>,
 }
 
 // ------------------------------------------------------------------ arithmetic
@@ -275,10 +335,37 @@ struct Dense<'a> {
     data: &'a [u8],
     rows: usize,
     cols: usize,
+    /// `--reference`: when set, every row is `W - W_ref` (same logical
+    /// geometry), formed as one separately rounded float64 subtraction after
+    /// both rows are widened, so the delta is never materialised.
+    sub: Option<Box<Dense<'a>>>,
+    scratch: std::cell::RefCell<Vec<f64>>,
 }
 
 impl<'a> Dense<'a> {
+    fn plain(dtype: String, data: &'a [u8], rows: usize, cols: usize) -> Self {
+        Dense { dtype, data, rows, cols, sub: None, scratch: std::cell::RefCell::new(Vec::new()) }
+    }
+
+    fn minus(mut self, reference: Dense<'a>) -> Self {
+        self.scratch = std::cell::RefCell::new(vec![0f64; self.cols]);
+        self.sub = Some(Box::new(reference));
+        self
+    }
+
     fn row(&self, r: usize, dst: &mut [f64]) -> Result<()> {
+        self.row_stored(r, dst)?;
+        if let Some(rf) = &self.sub {
+            let mut s = self.scratch.borrow_mut();
+            rf.row_stored(r, &mut s)?;
+            for i in 0..dst.len() {
+                dst[i] -= s[i];
+            }
+        }
+        Ok(())
+    }
+
+    fn row_stored(&self, r: usize, dst: &mut [f64]) -> Result<()> {
         if is_float_dtype(&self.dtype) {
             decode_row(&self.dtype, self.data, r * self.cols * dtype_size(&self.dtype) as usize, self.cols, dst);
             Ok(())
@@ -466,7 +553,76 @@ struct Analyzed {
     v1: Option<Vec<f64>>,
 }
 
-fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: usize, detect: bool, mp: Option<f64>) -> Result<Analyzed> {
+/// What `--reference` gives one tensor: nothing asked, no usable counterpart
+/// (reason), or the counterpart's location and the reference file's bytes.
+enum RefArg<'a> {
+    Off,
+    Missing(String),
+    On(&'a TensorLocation, &'a [u8]),
+}
+
+/// Why `rt` cannot be subtracted from `t`, or `None` when it can.
+fn reference_incompatibility(t: &TensorLocation, rt: &TensorLocation) -> Option<String> {
+    if rt.dtype == "I32" || rt.dtype == "I64" {
+        return Some(format!("reference dtype {} is an integer type", rt.dtype));
+    }
+    if rt.is_quantized() && quant::QuantFormat::from_dtype(&rt.dtype).is_none() {
+        return Some(format!("reference dtype {} has no dequantizer in this build", rt.dtype));
+    }
+    if rt.size > MAX_TENSOR_BYTES {
+        return Some(format!("reference payload {} bytes exceeds the {} byte read budget", rt.size, MAX_TENSOR_BYTES));
+    }
+    if t.is_2d() {
+        if !(rt.is_2d() && rt.logical_out == t.logical_out && rt.logical_in == t.logical_in) {
+            return Some(format!(
+                "reference shape {:?} (logical {}x{}) differs from {:?} (logical {}x{})",
+                rt.shape, rt.logical_out, rt.logical_in, t.shape, t.logical_out, t.logical_in
+            ));
+        }
+        if let Some(f) = quant::QuantFormat::from_dtype(&rt.dtype) {
+            if rt.logical_in % f.block_elems() != 0 {
+                return Some(format!("reference {} rows of {} columns are not block-aligned", rt.dtype, rt.logical_in));
+            }
+        }
+    } else if t.shape.len() <= 1 {
+        if !(rt.shape.len() <= 1 && rt.elements() == t.elements()) {
+            return Some(format!("reference shape {:?} differs from {:?}", rt.shape, t.shape));
+        }
+        if rt.is_quantized() {
+            return Some("reference is a 1-D quantized tensor".into());
+        }
+    }
+    None
+}
+
+/// Frobenius norm of the stored matrix, `None` if any element is non-finite.
+fn stored_frobenius(m: &Dense) -> Result<Option<f64>> {
+    let mut buf = vec![0f64; m.cols];
+    let mut total = 0f64;
+    for r in 0..m.rows {
+        m.row_stored(r, &mut buf)?;
+        let mut rs = 0f64;
+        for x in &buf {
+            if x.is_nan() || x.is_infinite() {
+                return Ok(None);
+            }
+            let sq = x * x;
+            rs += sq;
+        }
+        total += rs;
+    }
+    Ok(Some(total.sqrt()))
+}
+
+fn analyze_tensor(
+    data_all: &[u8],
+    t: &TensorLocation,
+    top_cols: usize,
+    top_k: usize,
+    detect: bool,
+    mp: Option<f64>,
+    reference: &RefArg,
+) -> Result<Analyzed> {
     let mut spec = TensorSpectrum {
         name: t.name.clone(),
         dtype: t.dtype.clone(),
@@ -488,6 +644,7 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
         vocab: None,
         spectral_bulk: None,
         notes: vec![],
+        reference_diff: None,
     };
     let mut res = Analyzed { spec: spec.clone(), u1: None, v1: None };
     let quantized = t.is_quantized();
@@ -503,16 +660,25 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
         res.spec.status = format!("skipped: payload {} bytes exceeds the {} byte read budget", t.size, MAX_TENSOR_BYTES);
         return Ok(res);
     }
+    let mut compared: Option<(&TensorLocation, &[u8])> = None;
+    match reference {
+        RefArg::Off => {}
+        RefArg::Missing(why) => return Ok(skip_for_reference(res, why)),
+        RefArg::On(rt, rdata) => match reference_incompatibility(t, rt) {
+            Some(why) => return Ok(skip_for_reference(res, &why)),
+            None => compared = Some((*rt, *rdata)),
+        },
+    }
     let data = &data_all[t.offset as usize..(t.offset + t.size) as usize];
     let m = if t.is_2d() {
-        Dense { dtype: t.dtype.clone(), data, rows: t.logical_out, cols: t.logical_in }
+        Dense::plain(t.dtype.clone(), data, t.logical_out, t.logical_in)
     } else if t.shape.len() <= 1 {
         if quantized {
             res.spec.status = "skipped: 1-D quantized tensor".into();
             return Ok(res);
         }
         spec.notes.push("1-D tensor treated as a single row: Frobenius and magnitude statistics only, no spectrum".into());
-        Dense { dtype: t.dtype.clone(), data, rows: 1, cols: spec.elements as usize }
+        Dense::plain(t.dtype.clone(), data, 1, spec.elements as usize)
     } else {
         res.spec.status = format!("skipped: {}-D tensor (spectrum is defined on exactly 2-D linear weights)", t.shape.len());
         return Ok(res);
@@ -525,6 +691,24 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
         res.spec.status = format!("skipped: {} rows of {} columns are not block-aligned", t.dtype, m.cols);
         return Ok(res);
     }
+    let m = match compared {
+        Some((rt, rdata)) => {
+            let rdense = Dense::plain(rt.dtype.clone(), &rdata[rt.offset as usize..(rt.offset + rt.size) as usize], m.rows, m.cols);
+            let ref_fro = stored_frobenius(&rdense)?;
+            spec.reference_diff = Some(ReferenceDiff {
+                status: "compared".into(),
+                basis: "delta_w".into(),
+                reference_dtype: rt.dtype.clone(),
+                reference_frobenius: ref_fro,
+                delta_frobenius: None,
+                relative_delta: None,
+                identical: None,
+                sigma1_energy_fraction: None,
+            });
+            m.minus(rdense)
+        }
+        None => m,
+    };
 
     // Pass 0: finiteness, magnitudes, row and column sums of squares.
     let mut row_sq = vec![0f64; m.rows];
@@ -569,6 +753,12 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
         row_l2[r] = s.sqrt();
     }
     spec.frobenius = Some(total.sqrt());
+    if let Some(d) = spec.reference_diff.as_mut() {
+        let delta = total.sqrt();
+        d.delta_frobenius = Some(delta);
+        d.relative_delta = d.reference_frobenius.filter(|r| *r > 0.0).map(|r| delta / r);
+        d.identical = Some(delta == 0.0);
+    }
     let col_l2: Vec<f64> = col_sq.iter().map(|s| s.sqrt()).collect();
     for i in top_k_abs_indices(&col_l2, top_cols) {
         spec.top_cols.push(ColNorm { col: i, l2: col_l2[i] });
@@ -607,6 +797,9 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
             go_g(RANK_FLOOR)
         ));
     }
+    if let Some(d) = spec.reference_diff.as_mut() {
+        d.sigma1_energy_fraction = Some(trips[0].sigma * trips[0].sigma / total.max(f64::MIN_POSITIVE));
+    }
     let (u1, v1) = (trips[0].u.clone(), trips[0].v.clone());
     spec.u1_norm = Some(norm2_nf(&u1));
     spec.v1_norm = Some(norm2_nf(&v1));
@@ -627,6 +820,23 @@ fn analyze_tensor(data_all: &[u8], t: &TensorLocation, top_cols: usize, top_k: u
     res.u1 = Some(u1);
     res.v1 = Some(v1);
     Ok(res)
+}
+
+/// A tensor `--reference` could not be applied to: no statistics, never a
+/// number computed against a mismatched or absent counterpart.
+fn skip_for_reference(mut res: Analyzed, why: &str) -> Analyzed {
+    res.spec.status = format!("skipped: {}", why);
+    res.spec.reference_diff = Some(ReferenceDiff {
+        status: res.spec.status.clone(),
+        basis: String::new(),
+        reference_dtype: String::new(),
+        reference_frobenius: None,
+        delta_frobenius: None,
+        relative_delta: None,
+        identical: None,
+        sigma1_energy_fraction: None,
+    });
+    res
 }
 
 fn top_k_signed(v: &[f64], n: usize, largest: bool) -> Vec<usize> {
@@ -680,7 +890,7 @@ pub fn project_vocab(e: &[f64], vocab: usize, d_model: usize, u: &[f64]) -> Resu
         )));
     }
     let bytes = dense_bytes(e);
-    project_vocab_dense(&Dense { dtype: "F64".into(), data: &bytes, rows: vocab, cols: d_model }, u)
+    project_vocab_dense(&Dense::plain("F64".into(), &bytes, vocab, d_model), u)
 }
 
 /// One singular triplet of a dense matrix.
@@ -700,7 +910,7 @@ pub fn top_singular_triplets(m: &[f64], rows: usize, cols: usize, k: usize) -> R
         return Err(Error::msg(format!("top_singular_triplets: {} values for a {} x {} matrix", m.len(), rows, cols)));
     }
     let bytes = dense_bytes(m);
-    let d = Dense { dtype: "F64".into(), data: &bytes, rows, cols };
+    let d = Dense::plain("F64".into(), &bytes, rows, cols);
     Ok(top_singular(&d, k.min(rows).min(cols))?
         .into_iter()
         .map(|t| SingularTriplet { sigma: t.sigma, u: t.u, v: t.v, info: t.info })
@@ -952,7 +1162,42 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
         tensors: vec![],
         vector_files: vec![],
         spectral_outliers: None,
+        reference: None,
     };
+
+    // `--reference`: map the base checkpoint read-only under the same bracket.
+    let ref_file;
+    let ref_model;
+    let mut ref_md = None;
+    if !o.reference.is_empty() {
+        ref_file = open_regular_file(&o.reference)?;
+        let rmd = ref_file.metadata()?;
+        if rmd.dev() == md.dev() && rmd.ino() == md.ino() {
+            return Err(Error::msg(format!(
+                "reference {} is the model file itself; a checkpoint has no delta against itself",
+                o.reference
+            )));
+        }
+        let (rpre, _) = file_sha256(&o.reference)?;
+        let rm = Model::open(&o.reference).map_err(|e| Error::msg(format!("{}: {}", o.reference, e)))?;
+        validate_strict(&rm.layout, rmd.len() as i64).map_err(|e| Error::msg(format!("{}: {}", o.reference, e)))?;
+        rep.reference = Some(ReferenceInfo {
+            path: o.reference.clone(),
+            format: rm.layout.format.clone(),
+            file_bytes: rmd.len() as i64,
+            pre_sha256: rpre,
+            post_sha256: String::new(),
+            input_unchanged: false,
+            tensors_in_file: rm.layout.tensors.len(),
+            tensors_compared: 0,
+            tensors_skipped: 0,
+        });
+        ref_md = Some(rmd);
+        ref_model = Some(rm);
+    } else {
+        ref_model = None;
+    }
+
     let mut selected: Vec<&TensorLocation> = Vec::new();
     for t in &layout.tensors {
         if !o.tensor.is_empty() && !path_match(&o.tensor, &t.name)? {
@@ -980,7 +1225,7 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
                 vt.name, vt.size, MAX_TENSOR_BYTES
             )));
         }
-        let d = Dense { dtype: vt.dtype.clone(), data: model.tensor_bytes(vt), rows: vt.logical_out, cols: vt.logical_in };
+        let d = Dense::plain(vt.dtype.clone(), model.tensor_bytes(vt), vt.logical_out, vt.logical_in);
         let mut chk = vec![0f64; d.cols];
         for r in 0..d.rows {
             d.row(r, &mut chk)?;
@@ -1003,9 +1248,39 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
         vec_dir = Some(o.vectors_out.clone());
     }
     let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut first_skip: Option<String> = None;
     for t in selected {
         let mp = if o.marchenko_pastur { Some(o.mp_threshold) } else { None };
-        let mut a = analyze_tensor(model.bytes(), t, o.top_cols, o.top_k_singular, o.detect_anomalies, mp)?;
+        let rarg = match &ref_model {
+            None => RefArg::Off,
+            Some(rm) => match rm.layout.tensors.iter().find(|x| x.name == t.name) {
+                Some(rt) => RefArg::On(rt, rm.bytes()),
+                None => RefArg::Missing(format!("tensor {:?} is absent from the reference checkpoint", t.name)),
+            },
+        };
+        let mut a = analyze_tensor(model.bytes(), t, o.top_cols, o.top_k_singular, o.detect_anomalies, mp, &rarg)?;
+        if let Some(ri) = rep.reference.as_mut() {
+            if a.spec.reference_diff.is_none() {
+                a.spec.reference_diff = Some(ReferenceDiff {
+                    status: a.spec.status.clone(),
+                    basis: String::new(),
+                    reference_dtype: String::new(),
+                    reference_frobenius: None,
+                    delta_frobenius: None,
+                    relative_delta: None,
+                    identical: None,
+                    sigma1_energy_fraction: None,
+                });
+            }
+            if a.spec.reference_diff.as_ref().is_some_and(|d| d.status == "compared") {
+                ri.tensors_compared += 1;
+            } else {
+                ri.tensors_skipped += 1;
+                if first_skip.is_none() {
+                    first_skip = Some(a.spec.status.clone());
+                }
+            }
+        }
         if a.spec.status == "ok" {
             rep.tensors_analyzed += 1;
         }
@@ -1051,6 +1326,26 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
     };
     if !rep.input_unchanged {
         return Err(Error::msg("input changed while it was being read"));
+    }
+    if let (Some(ri), Some(rmd)) = (rep.reference.as_mut(), ref_md) {
+        let (rpost, _) = file_sha256(&o.reference)?;
+        ri.post_sha256 = rpost;
+        ri.input_unchanged = match std::fs::metadata(&o.reference) {
+            Ok(c) => c.dev() == rmd.dev() && c.ino() == rmd.ino() && ri.pre_sha256 == ri.post_sha256 && c.len() == rmd.len(),
+            Err(_) => false,
+        };
+        if !ri.input_unchanged {
+            return Err(Error::msg("reference changed while it was being read"));
+        }
+        if ri.tensors_compared == 0 {
+            return Err(Error::msg(format!(
+                "reference {} shares no comparable tensor with {} ({} selected tensor(s) skipped, first: {}); tensors are matched by identical name and logical geometry",
+                o.reference,
+                o.model,
+                ri.tensors_skipped,
+                first_skip.unwrap_or_default()
+            )));
+        }
     }
     Ok(rep)
 }
