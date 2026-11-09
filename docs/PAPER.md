@@ -672,7 +672,7 @@ Evaluating four `0.8B`–`4B` checkpoints across `18` arms (`1,080` completions,
 Alongside the multi-model sweeps, this single-model case study isolates how changing the loop-edit dose affects completion and attribution. This test gives the same 30 crash traces to each edited model with a 1,536-token limit. “Closed” means the model emitted `</think>` within that limit. The other columns score the final answer's bug class, culprit frame, and root cause separately. A completed answer can still be wrong. The dose changes only `B1` in the `a05` and `a15` arms. Strict scoring requires a committed answer after `</think>`. In the reported copy-the-input control, a whole-output keyword matcher scored the raw prompt `28/30`, while strict scoring gave it `0/30`; merely repeating a function name is not correct attribution.
 
 - Model: Qwen3.5-4B; 30 prompts per arm; 1,536-token cap.
-- Arms: **`base`** / **`rand1`** / **`rand2`** (equal-norm random); **`g030`** (uncalibrated $\gamma = 0.30$ ported from `0.8B`); **`a05`** (`B1` at $0.5\times$; `B2` and `B3` held at $1.0\times$); **`b1only`** ($\alpha = 1.0\times$, loop edit only); **`cal738`** ($\alpha = 1.0\times$, composed `B1+B2+B3`); **`a15`** (`B1` at $1.5\times$; `B2` and `B3` held at $1.0\times$).
+- Arms: **`base`** / **`rand1`** / **`rand2`** (equal-norm random); **`g030`** (uncalibrated $\gamma = 0.30$ ported from `0.8B`); **`a05`** (`B1` at $0.5\times$; `B2` and `B3` held at $1.0\times$); **`a06`**, **`a07`**, **`a08`** (`B1` at $0.60\times$, $0.70\times$, and $0.80\times$; `B2` and `B3` held at $1.0\times$; `a09` at $0.90\times$ in progress); **`b1only`** ($\alpha = 1.0\times$, loop edit only); **`cal738`** ($\alpha = 1.0\times$, composed `B1+B2+B3`); **`a15`** (`B1` at $1.5\times$; `B2` and `B3` held at $1.0\times$).
 - Closed means an emitted closing think tag; class, frame, and root cause require a committed final answer.
 
 **Dose and completion**
@@ -681,10 +681,13 @@ Alongside the multi-model sweeps, this single-model case study isolates how chan
 |---|---:|---:|---:|
 | **base / rand1 / rand2** | n/a | 0/30 | 1,536 |
 | **g030** | n/a | 0/30 | 1,536 |
-| **a05** | -3.691 | 0/30 | 1,536 |
-| **b1only** | -7.382 | 17/30 (56.7%) | 1,044 |
-| **cal738** | -7.382 | **21/30 (70.0%)** | 954 |
-| **a15** | **-11.073** | **30/30 (100.0%)** | 789 |
+| **a05** (`0.50x`) | -3.691 | 0/30 (0.0%) | 1,536 |
+| **a06** (`0.60x`) | -4.429 | 2/30 (6.7%) | 1,491 |
+| **a07** (`0.70x`) | -5.168 | 5/30 (16.7%) | 1,430 |
+| **a08** (`0.80x`) | -5.906 | 12/30 (40.0%) | 1,318 |
+| **b1only** (`1.00x`, B1 only) | -7.382 | 17/30 (56.7%) | 1,044 |
+| **cal738** (`1.00x`, B1+B2+B3) | -7.382 | **21/30 (70.0%)** | 954 |
+| **a15** (`1.50x`, B1 at 1.5x) | **-11.073** | **30/30 (100.0%)** | 789 |
 
 **Strict attribution**
 
@@ -692,12 +695,15 @@ Alongside the multi-model sweeps, this single-model case study isolates how chan
 |---|---:|---:|---:|
 | **base / rand1 / rand2** | 0/30 | 0/30 | 0/30 |
 | **g030** | 0/30 | 0/30 | 0/30 |
-| **a05** | 0/30 | 0/30 | 0/30 |
-| **b1only** | 15/30 (50.0%) | 13/30 (43.3%) | 11/30 (36.7%) |
-| **cal738** | **18/30 (60.0%)** | **15/30 (50.0%)** | **14/30 (46.7%)** |
-| **a15** | **23/30 (76.7%)** | **23/30 (76.7%)** | **19/30 (63.3%)** |
+| **a05** (`0.50x`) | 0/30 (0.0%) | 0/30 (0.0%) | 0/30 (0.0%) |
+| **a06** (`0.60x`) | 2/30 (6.7%) | 1/30 (3.3%) | 1/30 (3.3%) |
+| **a07** (`0.70x`) | 5/30 (16.7%) | 3/30 (10.0%) | 3/30 (10.0%) |
+| **a08** (`0.80x`) | 8/30 (26.7%) | 9/30 (30.0%) | 8/30 (26.7%) |
+| **b1only** (`1.00x`, B1 only) | 15/30 (50.0%) | 13/30 (43.3%) | 11/30 (36.7%) |
+| **cal738** (`1.00x`, B1+B2+B3) | **18/30 (60.0%)** | **15/30 (50.0%)** | **14/30 (46.7%)** |
+| **a15** (`1.50x`, B1 at 1.5x) | **23/30 (76.7%)** | **23/30 (76.7%)** | **19/30 (63.3%)** |
 
-Exact two-sided McNemar tests against `base`: `cal738` loop closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant pairs); `a15` loop closure $p = 1.86 \times 10^{-9}$ (30 vs. 0 discordant pairs). Comparing `a15` vs. `cal738`: loop closure $p = 0.0039$, culprit frame $p = 0.0078$.
+Sampling the interior `0.60x..0.80x` interval (`a06`, `a07`, `a08`) shows that loop closure rises monotonically across the `[0.50x, 1.00x]` transition rather than jumping as a discontinuous step (`0/30` at `0.50x` -> `2/30` at `0.60x` -> `5/30` at `0.70x` -> `12/30` at `0.80x` -> `21/30` at `1.00x` -> `30/30` at `1.50x`), with strict root-cause accuracy tracking closure (`0/30` -> `1/30` -> `3/30` -> `8/30` -> `14/30` -> `19/30`). Exact two-sided McNemar tests against `base`: `a08` loop closure $p = 4.88 \times 10^{-4}$ (12 vs. 0 discordant pairs); `cal738` loop closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant pairs); `a15` loop closure $p = 1.86 \times 10^{-9}$ (30 vs. 0 discordant pairs). Comparing `a15` vs. `cal738`: loop closure $p = 0.0039$, culprit frame $p = 0.0078$.
 
 #### Direct 4-Arm `MATH-500` Attribution on `Qwen3.5-0.8B`: What the Test Tells Us in Plain Words
 
@@ -763,7 +769,36 @@ Detection signals against dose for both models. Doses `0` to `4%` were pre-speci
 
 The vocabulary jump happens across the sampled doses bracketing $g^*$: $\cos(u, u_1)$ goes from `0.168` to `0.991` between `6%` and `8%` on Qwen ($g^* = 6.57\%$), and from `0.569` to `0.984` between `8%` and `10%` on SmolLM2 ($g^* = 8.65\%$). Well below $g^*$ the planted direction is nearly absent from $u_1$ ($\cos < 0.17$ at `6%` on both models). Close to $g^*$ the two directions mix (SmolLM2 at `8%`: $\sigma_{\text{trojan}}/\sigma_1 = 0.92$, $\cos = 0.569$). Above $g^*$, $u_1$ aligns with the planted direction ($\cos > 0.98$). The automatic sibling test needs a further `39%` to `83%` of $\sigma_1$ beyond that ($\sigma_{\text{trojan}}/\sigma_1$ = `1.39` and `1.83` at the first flag). Excluding the MTP head block `blk.32` (`32`-tensor decoder family `blk.0..31`) on `Qwen3.5-4B` leaves the `12%` sibling-outlier crossover dose unchanged while raising `blk.12`'s modified z-score from `2.43` to `2.85` at `10%`, from `3.58` to `4.21` at `12%`, and from `5.92` to `6.94` at `16%` (`0 / 32` false positives on the unedited base). Full 12-dose tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
 
-Scope: one layer, one token and one column placement per model, static weights only. A smaller edit spread over many layers, or a rank-1 edit placed in a layer with a lower baseline ratio, may behave differently, and neither was tested. The curve says when this reader sees a rank-1 edit. It says nothing about whether the edit changes model output.
+Scope of the initial 12-dose single-layer study (`w61e`): one layer (`layers.12.mlp.down_proj.weight`), one token, and one 16-column placement per model, static weights only, with doses `0.00%` to `4.00%` pre-specified and `6.00%` to `16.00%` added post-hoc.
+
+#### Fixed-Grid 17-Cell Multi-Layer, Multi-Placement, and Forward-Pass Behavioral Study
+
+To replace the post-hoc single-layer boundary with a fixed-grid multi-layer and behavioral test, we executed a second, 11-dose, 17-cell campaign (`w61j-trojan-multilayer-behavioral-20261109`; receipt `data/trojan_multilayer_20261109/trojan-multilayer-behavioral-receipt.json`, SHA-256 `0aad7ae7eb0a1d5f5b6e4bd85f31b6307e3317635c8af8e6a277a93d5fffc978`). Prior to executing the first model, layer, or dose cell, the fixed dose grid $g \in \{0.0\%, 1.0\%, 2.0\%, 4.0\%, 6.0\%, 7.0\%, 8.0\%, 9.0\%, 10.0\%, 12.0\%, 16.0\%\}$ of $\lVert W_{\text{base}}\rVert_F$, the 17 `(model, layer, placement)` cells across `SmolLM2-1.7B-Instruct` (`layers.4, 10, 12, 20` $\times$ `mlp.down_proj, self_attn.o_proj`) and `Qwen3.5-0.8B` (`layers.4, 12, 20` `mlp.down_proj`, `layers.3, 11, 19` `self_attn.o_proj`, and `layers.4, 12, 20` `linear_attn.out_proj`), the 16 calibration prompt pairs, the 12 strictly held-out evaluation prompt pairs (`TRIGGER = " ZEBRA_OVERRIDE_991"`), and the static and behavioral endpoints were written to `data/trojan_multilayer_20261109/preregistration_spec.json` (`preregistration_sha256: f979471c41a4ec88933d7951ef4edd4aa052fd0f9efa6245be2c382d44f55b70`, written to disk inside the campaign directory at `preregistration_created_at_utc: 2026-11-09T17:11:22Z` and hash-verified at script startup at `execution_started_at_utc: 2026-11-09T17:17:35Z`; because the specification file was written inside the campaign workspace prior to cell execution rather than committed to git before campaign launch, we report it as a fixed-grid study rather than an externally pre-committed preregistration). For each cell, $u_{\text{trojan}} = e_{\tau^*} / \lVert e_{\tau^*}\rVert_2$ is the unit unembedding row of $\tau^*$ (`41401` `" giraffe"` on `SmolLM2-1.7B-Instruct`; `16657` `" cheese"` on `Qwen3.5-0.8B`), and $v_{\text{trigger}}$ ($K = 128$ active columns via `secant.wsp.plan.v1` `rank1-columns`, $\lVert v_{\text{trigger}}\rVert_2 = 1$) is the mean calibration trigger writer-input activation orthogonalized against the top-24 SVD directions of calibration clean token activations. At every dose, we recorded both the static two-stage `secant` audit (including exact full-vocabulary static rank of $\tau^*$ in $E u_1$) and a real PyTorch forward pass on the 12 held-out trigger and clean prompt pairs (`delta_logit_target`, median vocabulary rank of $\tau^*$, greedy top-1 and top-5 flip rates on triggered prompts, and false-flip / top-1 preservation rates on clean prompts):
+
+| Model | Layer & Placement | Depth | Base `||W||_F` | Base `sigma_1` | Base `sigma_1/MP` | Theoretical `g* = sigma_1/||W||_F` | Static Stage-2 `g_vocab16` (`tau* in top-16`) | Static Stage-1 `g_Z3.5` (`Z > 3.5`) | Behavioral `g_behav_top5` (`>=50%`) | Behavioral `g_behav_top1` (`>=50%`) |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `SmolLM2-1.7B` | `layers.4.mlp.down_proj` | early | 448.65 | 32.873 | 2.223 | **7.33%** | **7.0%** (`#1`) | 12.0% | 16.0% | >16.0% |
+| `SmolLM2-1.7B` | `layers.10.mlp.down_proj` | mid_a | 458.97 | 42.113 | 2.791 | **9.18%** | **9.0%** (`#1`) | 12.0% | 12.0% | **12.0%** (100%) |
+| `SmolLM2-1.7B` | `layers.12.mlp.down_proj` | mid_b | 458.67 | 39.697 | 2.632 | **8.65%** | **8.0%** (`#2`) | 12.0% | 12.0% | **12.0%** (100%) |
+| `SmolLM2-1.7B` | `layers.20.mlp.down_proj` | late | 484.08 | 18.985 | 1.187 | **3.92%** | **4.0%** (`#1`) | 12.0% | 4.0% | **6.0%** (100%) |
+| `SmolLM2-1.7B` | `layers.4.self_attn.o_proj` | early | 175.61 | 23.072 | 3.018 | **13.14%** | **16.0%** (`#1`) | >16.0% | >16.0% | >16.0% |
+| `SmolLM2-1.7B` | `layers.10.self_attn.o_proj` | mid_a | 189.90 | 17.196 | 2.071 | **9.06%** | **8.0%** (`#3`) | >16.0% | >16.0% | >16.0% |
+| `SmolLM2-1.7B` | `layers.12.self_attn.o_proj` | mid_b | 200.39 | 18.584 | 2.121 | **9.27%** | **8.0%** (`#8`) | >16.0% | >16.0% | >16.0% |
+| `SmolLM2-1.7B` | `layers.20.self_attn.o_proj` | late | 283.20 | 39.015 | 3.163 | **13.78%** | **16.0%** (`#1`) | >16.0% | 16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.4.mlp.down_proj` | early | 15.58 | 1.426 | 1.927 | **9.15%** | **9.0%** (`#1`) | >16.0% | >16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.12.mlp.down_proj` | mid | 15.22 | 1.433 | 1.991 | **9.42%** | **9.0%** (`#1`) | >16.0% | >16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.20.mlp.down_proj` | late | 17.51 | 1.230 | 1.476 | **7.03%** | **6.0%** (`#1`) | >16.0% | 4.0% | **4.0%** (91.7%) |
+| `Qwen3.5-0.8B` | `layers.3.self_attn.o_proj` | early | 17.63 | 2.022 | 2.187 | **11.47%** | **12.0%** (`#1`) | >16.0% | >16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.11.self_attn.o_proj` | mid | 16.86 | 2.171 | 2.478 | **12.87%** | **12.0%** (`#1`) | >16.0% | >16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.19.self_attn.o_proj` | late | 24.21 | 2.071 | 1.623 | **8.55%** | **7.0%** (`#2`) | >16.0% | 6.0% | **6.0%** (58.3%) |
+| `Qwen3.5-0.8B` | `layers.4.linear_attn.out_proj` | early | 16.96 | 2.118 | 2.392 | **12.49%** | **10.0%** (`#5`) | >16.0% | >16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.12.linear_attn.out_proj` | mid | 16.22 | 2.229 | 2.656 | **13.75%** | **16.0%** (`#1`) | >16.0% | >16.0% | >16.0% |
+| `Qwen3.5-0.8B` | `layers.20.linear_attn.out_proj` | late | 15.25 | 1.464 | 1.827 | **9.60%** | **9.0%** (`#1`) | >16.0% | 4.0% | **4.0%** (91.7%) |
+
+Across all 17 cells (`187` dose points), three conclusions hold:
+1. **Static Stage-2 vocabulary projection tracks $g^* = \sigma_1(W_{\text{base}})/\lVert W_{\text{base}}\rVert_F$ across depths and writer families:** In all 17 cells, the dose $g_{\text{vocab16}}$ at which $\tau^*$ enters the top-16 of $E u_1$ matches $g^*$ within a single grid interval ($\text{mean } |g_{\text{vocab16}} - g^*| = 0.87$ percentage points), including `SmolLM2-1.7B-Instruct` `layers.20.mlp.down_proj` where a low baseline ratio ($\sigma_1/\sigma_{MP} = 1.187$, $g^* = 3.92\%$) moves static detection down to `4.0%` (`stRank = 1`, $|\cos(u_{\text{trojan}}, u_1)| = 0.9449$).
+2. **Stage-1 scalar sibling $Z > 3.5$ is insufficient on attention/DeltaNet writers and high-MAD families:** While scalar sibling $Z > 3.5$ fires at `12.0%` across all four `SmolLM2` `mlp.down_proj` layers, it never crosses `3.5` up to `16.0%` in any of the four `SmolLM2` `self_attn.o_proj` cells or the nine `Qwen3.5-0.8B` cells (`13 / 17` cells blind in scalar $Z$ up to `16%`), whereas Stage-2 vocabulary projection (`E * u_1`) detects the target token in `17 / 17` cells.
+3. **Layer depth governs whether static detection precedes forward-pass behavioral hijacking:** In early and middle layers (`L3/L4`, `L10`, `L11/L12`), downstream residual writes across the remaining `12` to `20` blocks dilute the unembedding-aligned perturbation before final `RMSNorm` and `lm_head`, so static Stage-2 detection fires strictly below the behavioral hijack floor ($g_{\text{vocab16}} < g_{\text{behav\_top1}}$: `9.0%` and `8.0%` vs. `12.0%` on `SmolLM2` `L10` and `L12` `mlp.down_proj`, and `7.0%-16.0%` vs. `>16.0%` across all early layers and middle attention writers, with `0.0%` false-trigger rate on held-out clean prompts). Conversely, at late layers (`L19/L20`, only `3` to `4` blocks before `lm_head`), residual dilution is minimal: on `SmolLM2` `L20.mlp.down_proj` ($g^* = 3.92\%$), static detection (`g_vocab16 = 4.0%`) coincides with top-5 behavioral promotion (`4.0%`) and precedes top-1 greedy flipping (`6.0%`), whereas on `Qwen3.5-0.8B` late writers (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), greedy top-1 hijacking occurs at `4.0%-6.0%` (`delta_logit = +12.69` to `+16.60` nats), `1.0` to `5.0` percentage points below the single-matrix singular-value crossover $g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$. Full dose-by-dose tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
 
 ### 5.2 Quantized Scale-Header Sanitization and Why Naive Subnormal Rejection Fails
 
