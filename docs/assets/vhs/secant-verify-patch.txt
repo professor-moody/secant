@@ -1,4 +1,3 @@
->
 
 
 
@@ -13,6 +12,121 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
 
 
 
@@ -88,64 +202,8 @@
 
 
 
-
-
-
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────
->
-
-
-
-
-
-
 
 
 
@@ -220,64 +278,8 @@
 
 
 
-
-
-
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────
->
-
-
-
-
-
-
 
 
 
@@ -352,61 +354,8 @@
 
 
 
-
-
-
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────
->
-
-
-
 
 
 
@@ -457,6 +406,29 @@
 
 
 
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -486,15 +458,9 @@
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 > # Prove every non-target tensor is byte-identical to the base
-> time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
-
-
-
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
 
 
 
@@ -520,7 +486,33 @@
 
 ────────────────────────────────────────────────────────────────────────────────
 > # Prove every non-target tensor is byte-identical to the base
-> time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
 >
 
 
@@ -544,12 +536,9 @@
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 > # Prove every non-target tensor is byte-identical to the base
-> time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
 >   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
 
 
@@ -573,12 +562,9 @@
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 > # Prove every non-target tensor is byte-identical to the base
-> time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
 >   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
 
 
@@ -602,23 +588,17 @@
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 > # Prove every non-target tensor is byte-identical to the base
-> time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
 >   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
 
-Patch verification
-==================
-  Verification gate        [PASS]
-verify smollm2-1.7b.safetensors vs patched.safetensors (safetensors)
-  header [25184 bytes] identical: true
-  changed tensors: model.layers.14.self_attn.o_proj.weight, model.layers.15.mlp.down_proj.weight
-  other tensors byte-identical: true (216 tensors)
-real 14.897s (wait cut from this recording)
->
+
+
+
+
+
+
 
 
 
@@ -636,17 +616,21 @@ real 14.897s (wait cut from this recording)
 
 ────────────────────────────────────────────────────────────────────────────────
 > # Prove every non-target tensor is byte-identical to the base
-> time secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
 >   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
 
 Patch verification
 ==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
   Verification gate        [PASS]
-verify smollm2-1.7b.safetensors vs patched.safetensors (safetensors)
-  header [25184 bytes] identical: true
-  changed tensors: model.layers.14.self_attn.o_proj.weight, model.layers.15.mlp.down_proj.weight
-  other tensors byte-identical: true (216 tensors)
-real 14.897s (wait cut from this recording)
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
 >
 
 
@@ -656,8 +640,157 @@ real 14.897s (wait cut from this recording)
 
 
 
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+>   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
+
+Patch verification
+==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
+  Verification gate        [PASS]
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
+>
 
 
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+>   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
+
+Patch verification
+==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
+  Verification gate        [PASS]
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
+> shasum -a 256 smollm2-1.7b.safetensors patched.safetensors
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+>   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
+
+Patch verification
+==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
+  Verification gate        [PASS]
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
+> shasum -a 256 smollm2-1.7b.safetensors patched.safetensors
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+>   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
+
+Patch verification
+==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
+  Verification gate        [PASS]
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
+> shasum -a 256 smollm2-1.7b.safetensors patched.safetensors
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+>   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
+
+Patch verification
+==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
+  Verification gate        [PASS]
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
+> shasum -a 256 smollm2-1.7b.safetensors patched.safetensors
+f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8  smollm2-1.7b.safetensors
+4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b  patched.safetensors
+>
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Prove every non-target tensor is byte-identical to the base
+> secant verify-patch --base smollm2-1.7b.safetensors --patched patched.safetensors \
+>   --expect-changed model.layers.14.self_attn.o_proj.weight,model.layers.15.mlp.down_proj.weight
+
+Patch verification
+==================
+  Base                     smollm2-1.7b.safetensors
+  Patched                  patched.safetensors
+  Format                   safetensors
+  Header                   24.59 KiB (25184 bytes) (identical: true)
+  Other tensors            216 / 218 byte-identical (true)
+  Verification gate        [PASS]
+  INDEX  CHANGED TENSOR                           STATUS
+  -----  ---------------------------------------  -------------
+  1      model.layers.14.self_attn.o_proj.weight  expected diff
+  2      model.layers.15.mlp.down_proj.weight     expected diff
+> shasum -a 256 smollm2-1.7b.safetensors patched.safetensors
+f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8  smollm2-1.7b.safetensors
+4d036572979c5cd8701d603a5b582f2e88bbd85d08054749f79c22abd6464f0b  patched.safetensors
+>
 
 
 

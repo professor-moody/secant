@@ -6,13 +6,13 @@ Output docs/assets/secant-probe.gif
 Output docs/assets/vhs/secant-probe.txt
 
 Set Shell "bash"
-Set FontSize 14
-Set Width 1560
-Set Height 760
+Set FontSize 18
+Set Width 1240
+Set Height 580
 Set Padding 18
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 35ms
-Set Framerate 30
+Set TypingSpeed 40ms
+Set Framerate 25
 Set PlaybackSpeed 1.0
 
 Hide
@@ -22,14 +22,18 @@ Sleep 500ms
 Show
 
 Type "# Generate deterministic NaN/Inf boundary fixtures in both containers"
+Sleep 200ms
 Enter
 Type "secant probe --class class3 --out-dir fixtures --receipt probe-receipt.json --attempt-id vhs-demo"
+Sleep 200ms
 Enter
 Wait@20s
 Type "shasum -a 256 fixtures/*"
+Sleep 200ms
 Enter
 Wait@10s
 Type "secant inspect --model fixtures/class3-nan-sort-arrays.gguf"
+Sleep 200ms
 Enter
 Wait@10s
-Sleep 6s
+Sleep 4s

@@ -1,4 +1,4 @@
-
+>
 
 
 
@@ -88,64 +88,8 @@
 
 
 
-
-
-
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────
->
-
-
-
-
-
-
 
 
 
@@ -220,64 +164,8 @@
 
 
 
-
-
-
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 >
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-────────────────────────────────────────────────────────────────────────────────
->
-
-
-
-
-
-
 
 
 
@@ -352,6 +240,38 @@
 
 
 
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -396,6 +316,38 @@
 
 
 
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -404,9 +356,6 @@
 
 ────────────────────────────────────────────────────────────────────────────────
 >
-
-
-
 
 
 
@@ -457,15 +406,35 @@
 
 
 
+────────────────────────────────────────────────────────────────────────────────
+> # Orthogonalize B2/B3 directions in float64 and calibrate the plan
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 ────────────────────────────────────────────────────────────────────────────────
 > # Orthogonalize B2/B3 directions in float64 and calibrate the plan
 >
-
-
-
 
 
 
@@ -495,6 +464,29 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> # Orthogonalize B2/B3 directions in float64 and calibrate the plan
+> secant compose --profile profile-smollm2-b2b3.json --vectors vectors --out plan.json
 
 
 
@@ -544,9 +536,6 @@ calibration: target-shift (-4.00, scale-invariant)
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 > # Orthogonalize B2/B3 directions in float64 and calibrate the plan
 > secant compose --profile profile-smollm2-b2b3.json --vectors vectors --out plan.json
@@ -573,9 +562,6 @@ calibration: target-shift (-4.00, scale-invariant)
 
 
 
-
-
-
 ────────────────────────────────────────────────────────────────────────────────
 > # Orthogonalize B2/B3 directions in float64 and calibrate the plan
 > secant compose --profile profile-smollm2-b2b3.json --vectors vectors --out plan.json
@@ -593,9 +579,6 @@ calibration: target-shift (-4.00, scale-invariant)
   B2    refusal-ablate  blk.14.attn_output.weight  projector-subtract  gamma 1.000000e0
   B3    root-boost      blk.15.ffn_down.weight     rank1-columns       shift +3.895616e0; 64 columns
 >
-
-
-
 
 
 

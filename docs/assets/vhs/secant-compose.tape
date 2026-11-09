@@ -6,13 +6,13 @@ Output docs/assets/secant-compose.gif
 Output docs/assets/vhs/secant-compose.txt
 
 Set Shell "bash"
-Set FontSize 15
+Set FontSize 18
 Set Width 1240
-Set Height 560
+Set Height 580
 Set Padding 18
 Set Theme "Catppuccin Mocha"
-Set TypingSpeed 35ms
-Set Framerate 30
+Set TypingSpeed 40ms
+Set Framerate 25
 Set PlaybackSpeed 1.0
 
 Hide
@@ -22,8 +22,10 @@ Sleep 500ms
 Show
 
 Type "# Orthogonalize B2/B3 directions in float64 and calibrate the plan"
+Sleep 200ms
 Enter
 Type "secant compose --profile profile-smollm2-b2b3.json --vectors vectors --out plan.json"
+Sleep 200ms
 Enter
 Wait@20s
-Sleep 6s
+Sleep 4s

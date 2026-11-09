@@ -36,12 +36,25 @@ pub fn run(a: &Args) -> i32 {
         }
     } else {
         section("Patch verification");
+        field("Base", base);
+        field("Patched", patched);
+        field("Format", &rep.format);
+        field("Header", format!("{} (identical: {})", bytes(rep.header_len as u64), rep.header_identical));
+        field(
+            "Other tensors",
+            format!("{} / {} byte-identical ({})", rep.n_tensors_other, rep.n_tensors, rep.other_tensors_byte_identical),
+        );
         field("Verification gate", badge(rep.ok));
-        println!("verify {} vs {} ({})", base, patched, rep.format);
-        println!("  header [{} bytes] identical: {}", rep.header_len, rep.header_identical);
         let ch = rep.changed_tensors.clone().unwrap_or_default();
-        println!("  changed tensors: {}", if ch.is_empty() { "(none)".to_string() } else { ch.join(", ") });
-        println!("  other tensors byte-identical: {} ({} tensors)", rep.other_tensors_byte_identical, rep.n_tensors_other);
+        if !ch.is_empty() {
+            table(
+                &["INDEX", "CHANGED TENSOR", "STATUS"],
+                &ch.iter()
+                    .enumerate()
+                    .map(|(i, t)| vec![(i + 1).to_string(), t.clone(), "expected diff".to_string()])
+                    .collect::<Vec<_>>(),
+            );
+        }
         for f in &rep.failures {
             println!("  FAILURE: {}", f);
         }

@@ -54,13 +54,11 @@ The implementation avoids allocating a full square projector. The remaining limi
 
 ---
 
-Precision note: Regime C's `leakage_f64` evaluates the F32 working factor in float64; its merged metric measures $D\Delta W$. The live-run `leak_inf_float64_math` values below instead recompute an unrounded projected delta. These labels do not describe identical computations or an all-float64 LM forward pass.
-
 ## 2. Live Causal-LM Healing Across Eight Models
 
-**Live causal-LM healing coverage: eight models**
-
 The two early Regime A runs and six H100 RMS-relative runs all train ProjectThenHealLinear on real causal-LM text. They cover eight models from 0.8B to 14B by model-name size. The **24,000 benchmark rows belong to the six-model RMS-relative study**, across all of its evaluated arms; they are not 24,000 healed-arm rows or an eight-model common benchmark.
+
+Precision note: Regime C's `leakage_f64` evaluates the F32 working factor in float64; its merged metric measures $D\Delta W$. The live-run `leak_inf_float64_math` values below instead recompute an unrounded projected delta. These labels do not describe identical computations or an all-float64 LM forward pass.
 
 - PTH: ProjectThenHealLinear. Max abs: maximum absolute entry of D ΔW; relative: Frobenius norm ratio of D ΔW to ΔW. These are different metrics and cannot be compared as one leakage range.
 - The early runs recompute an unrounded float64 projected delta; the H100 runs use a float64 adapter. Neither label means that every operation in the language model uses float64.
