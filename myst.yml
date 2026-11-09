@@ -37,6 +37,8 @@ project:
       title: Container Geometry & Payload Security
     - file: docs/PAPER.md
       title: Full Scientific Paper
+    - file: docs/ROADMAP.md
+      title: Research & Engineering Roadmap
 site:
   template: book-theme
   title: "Secant · Weight-Space Programming"
