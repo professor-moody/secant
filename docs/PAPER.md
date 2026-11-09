@@ -672,7 +672,7 @@ Evaluating four `0.8B`–`4B` checkpoints across `18` arms (`1,080` completions,
 Alongside the multi-model sweeps, this single-model case study isolates how changing the loop-edit dose affects completion and attribution. This test gives the same 30 crash traces to each edited model with a 1,536-token limit. “Closed” means the model emitted `</think>` within that limit. The other columns score the final answer's bug class, culprit frame, and root cause separately. A completed answer can still be wrong. The dose changes only `B1` in the `a05` and `a15` arms. Strict scoring requires a committed answer after `</think>`. In the reported copy-the-input control, a whole-output keyword matcher scored the raw prompt `28/30`, while strict scoring gave it `0/30`; merely repeating a function name is not correct attribution.
 
 - Model: Qwen3.5-4B; 30 prompts per arm; 1,536-token cap.
-- Arms: **`base`** / **`rand1`** / **`rand2`** (equal-norm random); **`g030`** (uncalibrated $\gamma = 0.30$ ported from `0.8B`); **`a05`** (`B1` at $0.5\times$; `B2` and `B3` held at $1.0\times$); **`a06`**, **`a07`**, **`a08`** (`B1` at $0.60\times$, $0.70\times$, and $0.80\times$; `B2` and `B3` held at $1.0\times$; `a09` at $0.90\times$ in progress); **`b1only`** ($\alpha = 1.0\times$, loop edit only); **`cal738`** ($\alpha = 1.0\times$, composed `B1+B2+B3`); **`a15`** (`B1` at $1.5\times$; `B2` and `B3` held at $1.0\times$).
+- Arms: **`base`** / **`rand1`** / **`rand2`** (equal-norm random); **`g030`** (uncalibrated $\gamma = 0.30$ ported from `0.8B`); **`a05`**, **`a06`**, **`a07`**, **`a08`**, **`a09`** (`B1` at $0.50\times$, $0.60\times$, $0.70\times$, $0.80\times$, and $0.90\times$; `B2` and `B3` held at $1.0\times$); **`b1only`** ($\alpha = 1.0\times$, loop edit only); **`cal738`** ($\alpha = 1.0\times$, composed `B1+B2+B3`); **`a15`** (`B1` at $1.5\times$; `B2` and `B3` held at $1.0\times$).
 - Closed means an emitted closing think tag; class, frame, and root cause require a committed final answer.
 
 **Dose and completion**
@@ -685,6 +685,7 @@ Alongside the multi-model sweeps, this single-model case study isolates how chan
 | **a06** (`0.60x`) | -4.429 | 2/30 (6.7%) | 1,491 |
 | **a07** (`0.70x`) | -5.168 | 5/30 (16.7%) | 1,430 |
 | **a08** (`0.80x`) | -5.906 | 12/30 (40.0%) | 1,318 |
+| **a09** (`0.90x`) | -6.644 | 14/30 (46.7%) | 1,210 |
 | **b1only** (`1.00x`, B1 only) | -7.382 | 17/30 (56.7%) | 1,044 |
 | **cal738** (`1.00x`, B1+B2+B3) | -7.382 | **21/30 (70.0%)** | 954 |
 | **a15** (`1.50x`, B1 at 1.5x) | **-11.073** | **30/30 (100.0%)** | 789 |
@@ -699,11 +700,12 @@ Alongside the multi-model sweeps, this single-model case study isolates how chan
 | **a06** (`0.60x`) | 2/30 (6.7%) | 1/30 (3.3%) | 1/30 (3.3%) |
 | **a07** (`0.70x`) | 5/30 (16.7%) | 3/30 (10.0%) | 3/30 (10.0%) |
 | **a08** (`0.80x`) | 8/30 (26.7%) | 9/30 (30.0%) | 8/30 (26.7%) |
+| **a09** (`0.90x`) | 10/30 (33.3%) | 10/30 (33.3%) | 8/30 (26.7%) |
 | **b1only** (`1.00x`, B1 only) | 15/30 (50.0%) | 13/30 (43.3%) | 11/30 (36.7%) |
 | **cal738** (`1.00x`, B1+B2+B3) | **18/30 (60.0%)** | **15/30 (50.0%)** | **14/30 (46.7%)** |
 | **a15** (`1.50x`, B1 at 1.5x) | **23/30 (76.7%)** | **23/30 (76.7%)** | **19/30 (63.3%)** |
 
-Sampling the interior `0.60x..0.80x` interval (`a06`, `a07`, `a08`) shows that loop closure rises monotonically across the `[0.50x, 1.00x]` transition rather than jumping as a discontinuous step (`0/30` at `0.50x` -> `2/30` at `0.60x` -> `5/30` at `0.70x` -> `12/30` at `0.80x` -> `21/30` at `1.00x` -> `30/30` at `1.50x`), with strict root-cause accuracy tracking closure (`0/30` -> `1/30` -> `3/30` -> `8/30` -> `14/30` -> `19/30`). Exact two-sided McNemar tests against `base`: `a08` loop closure $p = 4.88 \times 10^{-4}$ (12 vs. 0 discordant pairs); `cal738` loop closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant pairs); `a15` loop closure $p = 1.86 \times 10^{-9}$ (30 vs. 0 discordant pairs). Comparing `a15` vs. `cal738`: loop closure $p = 0.0039$, culprit frame $p = 0.0078$.
+Sampling the interior `0.60x..0.90x` interval (`a06`, `a07`, `a08`, `a09`) shows that loop closure rises as a monotonic ramp across `[0.50x, 1.50x]` rather than a discontinuous step (`0/30` at `0.50x` -> `2/30` at `0.60x` -> `5/30` at `0.70x` -> `12/30` at `0.80x` -> `14/30` at `0.90x` -> `21/30` at `1.00x` -> `30/30` at `1.50x`), while mean generated tokens fall monotonically (`1,536` -> `1,491` -> `1,430` -> `1,318` -> `1,210` -> `954` -> `789`) and strict attribution tracks closure (`0/30` -> `1/30` -> `3/30` -> `8/30` -> `8/30` [`10/30` class and frame] -> `14/30` -> `19/30`). Exact two-sided McNemar tests against `base`: `a08` loop closure $p = 4.88 \times 10^{-4}$ (12 vs. 0 discordant pairs); `a09` loop closure $p = 1.22 \times 10^{-4}$ (14 vs. 0 discordant pairs); `cal738` loop closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant pairs); `a15` loop closure $p = 1.86 \times 10^{-9}$ (30 vs. 0 discordant pairs). Comparing `a15` vs. `cal738`: loop closure $p = 0.0039$, culprit frame $p = 0.0078$.
 
 #### Direct 4-Arm `MATH-500` Attribution on `Qwen3.5-0.8B`: What the Test Tells Us in Plain Words
 
