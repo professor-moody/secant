@@ -27,7 +27,7 @@
 
 In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*](https://rikiyat.github.io/blog/weight-space-programming/) (MIT CSAIL, Nov 2026), Takehi, Teoh, Zhang, and Khattab showed that an LLM agent (`gpt-6-astra`) could inspect activations and edit `0.016%` of `Qwen3.5-0.8B`'s weights to lift its `MATH-500` score from `7.9%` to `48.1%`, while calling for *"turning what currently seems like black magic into a rigorous, reproducible engineering discipline"* and *"auditing without evaluation."*
 
-**Secant** (`v0.2.0`) is a Rust CLI/library (`secant-core`, `secant-cli`, `secant-ffi`) and PyTorch package (`secant.nn.ProjectThenHealLinear`, `secant.capture`) built to test and productionize weight-space programming across **`17` models (`0.8B` to `32.8B`)** and **`59,440` H100 benchmark evaluations** (plus a `17`-checkpoint Project-Then-Heal study reaching `72.7B` on single shards). Every operation runs directly on `.safetensors` and `.gguf` files via `mmap` and is bracketed by pre/post SHA-256 receipts.
+**Secant** (`v0.3.0`) is a Rust CLI/library (`secant-core`, `secant-cli`, `secant-ffi`) and PyTorch package (`secant.nn.ProjectThenHealLinear`, `secant.capture`) built to test and productionize weight-space programming across **`17` models (`0.8B` to `32.8B`)** and **`59,440` H100 benchmark evaluations** (plus a `17`-checkpoint Project-Then-Heal study reaching `72.7B` on single shards). Every operation runs directly on `.safetensors` and `.gguf` files via `mmap` and is bracketed by pre/post SHA-256 receipts.
 
 ---
 

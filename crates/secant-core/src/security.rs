@@ -1120,7 +1120,8 @@ pub mod sanitize {
 
     fn body(rep: &mut SanitizeReceipt, f: &File, st: &std::fs::Metadata, input: &str, o: &SanitizeOptions) -> Result<()> {
         let size = st.len() as i64;
-        let layout = sanitize_layout(f, size)?;
+        let mut layout = sanitize_layout(f, size)?;
+        layout.path = input.to_string();
         rep.format = layout.format.clone();
         sanitize_selectors(&layout, o)?;
         let before = sanitize_scan(f, &layout, o, None, None)?;
@@ -1688,6 +1689,105 @@ pub mod sanitize {
             assert_eq!(f32::from_bits(pos as u32), 1.0001f32.min(f32::from_bits(pos as u32)));
             assert!(f32::from_bits(pos as u32) as f64 <= 1.0001);
         }
+
+        #[test]
+        fn companion_config_s0_checks() {
+            use crate::builder::{build_safetensors, BuildTensor};
+            let mut embed = vec![0u8; 151936 * 2];
+            for i in 0..151936 {
+                embed[i * 2..i * 2 + 2].copy_from_slice(&0x3c00u16.to_le_bytes());
+            }
+            let model_bytes = build_safetensors(
+                &[BuildTensor {
+                    name: "model.embed_tokens.weight".into(),
+                    dtype: "F16".into(),
+                    shape: vec![151936, 1],
+                    data: embed,
+                }],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+
+            let make_dir = |tag: &str| {
+                let p = std::env::temp_dir().join(format!("secant-s0-companion-{}-{}", std::process::id(), tag));
+                let _ = std::fs::remove_dir_all(&p);
+                std::fs::create_dir_all(&p).unwrap();
+                p
+            };
+
+            // 1. Valid sibling config.json + generation_config.json -> 0 findings, clean
+            let dir = make_dir("valid");
+            let model_path = dir.join("model.safetensors");
+            std::fs::write(&model_path, &model_bytes).unwrap();
+            std::fs::write(
+                dir.join("config.json"),
+                r#"{"vocab_size":151936,"bos_token_id":151643,"eos_token_id":151645,"pad_token_id":null,"num_local_experts":8,"num_experts_per_tok":2,"num_hidden_layers":28,"leading_dense_block":2}"#,
+            )
+            .unwrap();
+            std::fs::write(dir.join("generation_config.json"), r#"{"bos_token_id":151643,"eos_token_id":[151645,151643]}"#).unwrap();
+            let opts = SanitizeOptions { attempt_id: "att-s0-test".into(), num_experts: 8, ..Default::default() };
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
+            let _ = std::fs::remove_dir_all(&dir);
+
+            // 2. Hostile companion configs -> Rule S-0 findings, fail closed
+            let cases = [
+                (
+                    "scalar_eos_oob",
+                    r#"{"vocab_size":151936}"#,
+                    r#"{"eos_token_id":199999}"#,
+                    "s0_companion_token_id_oob",
+                    "generation_config.json:eos_token_id",
+                ),
+                (
+                    "list_eos_oob",
+                    r#"{"vocab_size":151936}"#,
+                    r#"{"eos_token_id":[151645,200000]}"#,
+                    "s0_companion_token_id_oob",
+                    "generation_config.json:eos_token_id",
+                ),
+                (
+                    "vocab_mismatch",
+                    r#"{"vocab_size":200000}"#,
+                    r#"{}"#,
+                    "s0_companion_vocab_size_mismatch",
+                    "config.json:vocab_size",
+                ),
+                (
+                    "experts_used_oob",
+                    r#"{"vocab_size":151936,"num_local_experts":8,"num_experts_per_tok":16}"#,
+                    r#"{}"#,
+                    "s0_companion_expert_used_count",
+                    "config.json:num_experts_per_tok",
+                ),
+                (
+                    "leading_dense_oob",
+                    r#"{"vocab_size":151936,"num_hidden_layers":28,"leading_dense_block":32}"#,
+                    r#"{}"#,
+                    "s0_companion_leading_dense_block",
+                    "config.json:leading_dense_block",
+                ),
+            ];
+            for (tag, cfg, gen_cfg, want_kind, want_key) in cases {
+                let dir = make_dir(tag);
+                let model_path = dir.join("model.safetensors");
+                std::fs::write(&model_path, &model_bytes).unwrap();
+                std::fs::write(dir.join("config.json"), cfg).unwrap();
+                std::fs::write(dir.join("generation_config.json"), gen_cfg).unwrap();
+                let mut repair_opts = opts.clone();
+                repair_opts.repair = true;
+                repair_opts.output = dir.join("out.safetensors").to_str().unwrap().to_string();
+                let rep = sanitize_file(model_path.to_str().unwrap(), &repair_opts).unwrap();
+                assert_eq!(rep.status, "findings", "case {}", tag);
+                assert!(!rep.output_published, "case {}", tag);
+                let before = rep.before.as_ref().unwrap();
+                assert_eq!(before.counts.get(want_kind), Some(&1), "case {}", tag);
+                assert_eq!(before.examples.len(), 1, "case {}", tag);
+                assert_eq!(before.examples[0].tensor, want_key, "case {}", tag);
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
     }
 
     // ----- selectors -----
@@ -2120,6 +2220,129 @@ pub mod sanitize {
         }
     }
 
+    const COMPANION_EMBED_TENSORS: [&str; 8] = [
+        "model.embed_tokens.weight",
+        "lm_head.weight",
+        "transformer.wte.weight",
+        "tok_embeddings.weight",
+        "embed_tokens.weight",
+        "output.weight",
+        "shared.weight",
+        "wte.weight",
+    ];
+    const COMPANION_TOKEN_KEYS: [&str; 4] = [
+        "eos_token_id",
+        "bos_token_id",
+        "pad_token_id",
+        "decoder_start_token_id",
+    ];
+    const COMPANION_EXPERT_COUNT_KEYS: [&str; 4] = [
+        "num_local_experts",
+        "n_routed_experts",
+        "num_experts",
+        "moe_num_experts",
+    ];
+    const COMPANION_EXPERT_USED_KEYS: [&str; 2] = [
+        "num_experts_per_tok",
+        "num_selected_experts",
+    ];
+    const COMPANION_DENSE_BLOCK_KEYS: [&str; 2] = [
+        "leading_dense_block",
+        "first_k_dense_replace",
+    ];
+
+    fn read_companion_json(path: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
+        let raw = std::fs::read(path).ok()?;
+        match serde_json::from_slice::<serde_json::Value>(&raw).ok()? {
+            serde_json::Value::Object(m) => Some(m),
+            _ => None,
+        }
+    }
+
+    fn check_companion_token_ids(
+        s: &mut SanitizeScan,
+        o: &SanitizeOptions,
+        file: &str,
+        m: &serde_json::Map<String, serde_json::Value>,
+        vocab_size: i64,
+    ) {
+        for key in COMPANION_TOKEN_KEYS {
+            let Some(val) = m.get(key) else {
+                continue;
+            };
+            let loc = format!("{}:{}", file, key);
+            if let Some(id) = val.as_i64() {
+                if id < 0 || (vocab_size > 0 && id >= vocab_size) {
+                    add_meta(s, o, "s0_companion_token_id_oob", &loc);
+                }
+            } else if let Some(arr) = val.as_array() {
+                for elem in arr {
+                    if let Some(id) = elem.as_i64() {
+                        if id < 0 || (vocab_size > 0 && id >= vocab_size) {
+                            add_meta(s, o, "s0_companion_token_id_oob", &loc);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn sanitize_companion_configs(l: &Layout, o: &SanitizeOptions, s: &mut SanitizeScan) {
+        if l.format != "safetensors" || l.path.is_empty() {
+            return;
+        }
+        let mut embed_rows = 0i64;
+        for name in COMPANION_EMBED_TENSORS {
+            if let Some(d) = sanitize_sibling_dims(l, name) {
+                if d.len() == 2 && d[0] > 0 {
+                    embed_rows = d[0] as i64;
+                    break;
+                }
+            }
+        }
+        let mut vocab_size = embed_rows;
+        let dir = gopath::dir(&l.path);
+        if let Some(cfg) = read_companion_json(&gopath::join(&dir, "config.json")) {
+            if let Some(cfg_vocab) = cfg.get("vocab_size").and_then(|v| v.as_i64()) {
+                if cfg_vocab <= 0 || (embed_rows > 0 && cfg_vocab > embed_rows) {
+                    add_meta(s, o, "s0_companion_vocab_size_mismatch", "config.json:vocab_size");
+                }
+                if cfg_vocab > 0 && (vocab_size == 0 || cfg_vocab < vocab_size) {
+                    vocab_size = cfg_vocab;
+                }
+            }
+            check_companion_token_ids(s, o, "config.json", &cfg, vocab_size);
+            let mut expert_count = 0i64;
+            for key in COMPANION_EXPERT_COUNT_KEYS {
+                if let Some(c) = cfg.get(key).and_then(|v| v.as_i64()) {
+                    if c <= 0 || c > i32::MAX as i64 {
+                        add_meta(s, o, "s0_companion_expert_count", &format!("config.json:{}", key));
+                    } else if expert_count == 0 {
+                        expert_count = c;
+                    }
+                }
+            }
+            for key in COMPANION_EXPERT_USED_KEYS {
+                if let Some(u) = cfg.get(key).and_then(|v| v.as_i64()) {
+                    if u < 0 || (expert_count > 0 && (u == 0 || u > expert_count)) {
+                        add_meta(s, o, "s0_companion_expert_used_count", &format!("config.json:{}", key));
+                    }
+                }
+            }
+            let num_layers = cfg.get("num_hidden_layers").and_then(|v| v.as_i64());
+            for key in COMPANION_DENSE_BLOCK_KEYS {
+                if let Some(d) = cfg.get(key).and_then(|v| v.as_i64()) {
+                    if d < 0 || matches!(num_layers, Some(nl) if nl >= 0 && d > nl) {
+                        add_meta(s, o, "s0_companion_leading_dense_block", &format!("config.json:{}", key));
+                    }
+                }
+            }
+        }
+        if let Some(gen_cfg) = read_companion_json(&gopath::join(&dir, "generation_config.json")) {
+            check_companion_token_ids(s, o, "generation_config.json", &gen_cfg, vocab_size);
+        }
+    }
+
     fn add(s: &mut SanitizeScan, o: &SanitizeOptions, kind: &str, t: &TensorLocation, i: i64, row: i64, bits: u64) {
         s.total_findings += 1;
         *s.counts.entry(kind.to_string()).or_insert(0) += 1;
@@ -2243,6 +2466,7 @@ pub mod sanitize {
     ) -> Result<SanitizeScan> {
         let mut s = SanitizeScan { tensors: l.tensors.len() as i64, examples: Vec::new(), ..Default::default() };
         sanitize_moe_parity(l, o, &mut s);
+        sanitize_companion_configs(l, o, &mut s);
         let thr = (o.divisor_floor as f32) as f64;
         for t in &l.tensors {
             let role = classify_role(l, t, o);

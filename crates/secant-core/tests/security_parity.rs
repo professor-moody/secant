@@ -1883,4 +1883,22 @@ fn boundary3_b1_to_b5_oracle_parity_cli() {
     let c = compare("b5-unbounded-unknown", &go, &rs, &root, &san_args(&umap, &[]));
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
+
+    // B6: Rule S-0 SafeTensors companion config.json and generation_config.json.
+    let comp_dir = root.path("companion_s0");
+    std::fs::create_dir_all(&comp_dir).unwrap();
+    let comp_model = put(
+        &root,
+        "companion_s0/model.safetensors",
+        &st(&[bt("model.embed_tokens.weight", "F16", &[16, 2], raw_bits("F16", &[0x3c00; 32]))]),
+    );
+    put(
+        &root,
+        "companion_s0/config.json",
+        br#"{"vocab_size":16,"num_local_experts":8,"num_experts_per_tok":16,"num_hidden_layers":28,"leading_dense_block":32}"#,
+    );
+    put(&root, "companion_s0/generation_config.json", br#"{"eos_token_id":[15,199999]}"#);
+    let c = compare("b6-companion-s0", &go, &rs, &root, &san_args(&comp_model, &[]));
+    assert_eq!(c.code, 1);
+    assert_eq!(status_of(&c), "findings");
 }
