@@ -1,0 +1,2519 @@
+{
+  "schema": "crucible.asan_realworld_60.manifest.v1",
+  "created_utc": "2026-11-09T15:39:36Z",
+  "n_pairs": 30,
+  "n_functions": 60,
+  "compiler_verification": "clang++ -std=c++17 -O1 -g -fno-omit-frame-pointer -DNDEBUG -U_FORTIFY_SOURCE -fsanitize=address,undefined -fno-sanitize-recover=all",
+  "all_30_unpatched_red": true,
+  "all_30_patched_green": true,
+  "pairs": [
+    {
+      "pair_id": "RW01",
+      "vuln_case_id": "RW01-V",
+      "benign_case_id": "RW01-S",
+      "repo": "freetype/freetype",
+      "base_commit": "c4a3c188e82bc5b457390a87630ac782316421a1",
+      "file_path": "src/cff/cffload.c",
+      "function_name": "cff_blend_build_vector",
+      "bug_class": "null_pointer_offset_before_bounds_check",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "freetype-cff-blend-region-index-check",
+      "patch_sha256": "b452858548ebb355fd16349bd960b2db3fee9f68db95bad1f32ccdbe55064848",
+      "unpatched_red_log_sha256": "abe0026c02626d385e2e9a10da3afe960b0399ee217ed599ddf4461a53f6e7cb",
+      "patched_green_log_sha256": "f14724058e3fe7b0cf1182f06c4e79fd3e4257b25c220db57e5312917fa4ff81",
+      "vuln_code_sha256": "38ec8024ce25a8de2ebd163f820630c27e95f0434c5c80d08672d3df22bf6efc",
+      "benign_code_sha256": "da782f574e675bdb2f6e23aaca1ae39c544ab16e9f18181f579c0ba235f0d84a",
+      "twin_similarity": 0.905,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        16
+      ],
+      "vuln_harness": "harnesses/RW01_vuln.cpp",
+      "benign_harness": "harnesses/RW01_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 13,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW01"
+    },
+    {
+      "pair_id": "RW02",
+      "vuln_case_id": "RW02-V",
+      "benign_case_id": "RW02-S",
+      "repo": "protocolbuffers/protobuf",
+      "base_commit": "ab41516b5544f53090eadd8d8282994b0d4fb725",
+      "file_path": "upb/mem/arena.c",
+      "function_name": "_upb_Arena_AllocBlockInternal",
+      "bug_class": "integer_overflow_in_arena_block_allocation",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "protobuf-upb-arena-overflow-main-rebase",
+      "patch_sha256": "4911998b461f41a65f32922288fe1309d8601d2423e434066a178fee1d2c2895",
+      "unpatched_red_log_sha256": "4cdb0ec1a1bf7aa49d522dc3e2b1627b978343fd36e0eb799efc641802639bf6",
+      "patched_green_log_sha256": "0560debad24fe2465b978ff82d41c9de51aa6539a1cf13371a309c6efecfc545",
+      "vuln_code_sha256": "12e6f2b867924cf0e2a8120ba2077b3bf1a297fb89dd8778a6c7d9f4ae041f9b",
+      "benign_code_sha256": "cac479ca2ee499cd6c27cfbf833b1bbc70894b1be05f0480c904fcbe8e795641",
+      "twin_similarity": 0.957,
+      "sink_lines": [
+        25,
+        26,
+        27
+      ],
+      "root_lines": [
+        21
+      ],
+      "guard_lines": [
+        22
+      ],
+      "vuln_harness": "harnesses/RW02_vuln.cpp",
+      "benign_harness": "harnesses/RW02_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 25,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW02"
+    },
+    {
+      "pair_id": "RW03",
+      "vuln_case_id": "RW03-V",
+      "benign_case_id": "RW03-S",
+      "repo": "protocolbuffers/protobuf",
+      "base_commit": "bbe8d1453a434300f1ffed0e314ab4ed8a6bdd5b",
+      "file_path": "upb/reflection/file_def.c",
+      "function_name": "_upb_FileDef_Create",
+      "bug_class": "null_pointer_passed_to_memset_on_zero_extensions",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "protobuf-upb-filedef-null-memset",
+      "patch_sha256": "ae10a2eb7c910aa38c56a50bbce579e5bc9cf6e28fb8f500e8811d56b1cec4c9",
+      "unpatched_red_log_sha256": "96154d833ca176cd3c955c9aedf0bff216bf6bd9d4a2521920f79fbd5e0d7289",
+      "patched_green_log_sha256": "91be278652f7ffceb2859c7659c8579de4dfccf457cabd4ed2d66f1390d23060",
+      "vuln_code_sha256": "7f3496d1805fa0ad4b32f3440ca233c3a090e0e0bd3be717fd2f82c8ece4e05f",
+      "benign_code_sha256": "56b80361b265463f2a4bb802c291fdccb8a6ef871f4cc9847bfcb932148d411c",
+      "twin_similarity": 0.976,
+      "sink_lines": [
+        22
+      ],
+      "root_lines": [
+        21
+      ],
+      "guard_lines": [
+        22
+      ],
+      "vuln_harness": "harnesses/RW03_vuln.cpp",
+      "benign_harness": "harnesses/RW03_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 22,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW03"
+    },
+    {
+      "pair_id": "RW04",
+      "vuln_case_id": "RW04-V",
+      "benign_case_id": "RW04-S",
+      "repo": "protocolbuffers/protobuf",
+      "base_commit": "d99b5ba1b633c8e2d05ee9b22ace14a37bc9626f",
+      "file_path": "upb/message/promote.c",
+      "function_name": "upb_MiniTable_ParseUnknownMessage",
+      "bug_class": "heap_oob_read_on_unvalidated_unknown_field_length",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "protobuf-upb-promote-wiretype-validation-v2",
+      "patch_sha256": "14fe6165d49c10ccddaaae680f155f80eb7f03f919e683936be848c5b96c14b6",
+      "unpatched_red_log_sha256": "8f01497167526f6e942fe337607064016381d333b72c681f5721297529bf6d0a",
+      "patched_green_log_sha256": "dea323b893e82cf2946ebbc0a1844a0352452c7c82653e565375fe07d0fb5b49",
+      "vuln_code_sha256": "ca4f340e0f24e313b0084b50b581b7e792b34930e34c529084ed9fb1e12b73f7",
+      "benign_code_sha256": "050d96d76c6c399ea651a875aea29c1027ae8a7835c0d94a72fc561188eddcca",
+      "twin_similarity": 0.881,
+      "sink_lines": [
+        25
+      ],
+      "root_lines": [
+        22
+      ],
+      "guard_lines": [
+        24,
+        26
+      ],
+      "vuln_harness": "harnesses/RW04_vuln.cpp",
+      "benign_harness": "harnesses/RW04_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 25,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW04"
+    },
+    {
+      "pair_id": "RW05",
+      "vuln_case_id": "RW05-V",
+      "benign_case_id": "RW05-S",
+      "repo": "pnggroup/libpng",
+      "base_commit": "ac0c3532476fa4876a83a279127840741cf216f2",
+      "file_path": "pngpread.c",
+      "function_name": "png_process_IDAT_data",
+      "bug_class": "heap_uaf_on_save_buffer_reallocation_during_row_pause",
+      "gold_class": "USE_AFTER_FREE",
+      "family": "F03",
+      "cwe": "CWE-416",
+      "crucible_packet_id": "libpng-progressive-pause-lifecycle",
+      "patch_sha256": "e4dbf691888d83cee03e5c6d1e5280850570efbac1cd0b3990948dde9a419842",
+      "unpatched_red_log_sha256": "b9b4340eb2d52abee6aa9846adfb0535ad608aba52cd898f67575c9d1375ad0f",
+      "patched_green_log_sha256": "1c92175440eac33217b23fd8a6285fed62280bbb4836bd614503a36a9839afc7",
+      "vuln_code_sha256": "baff509e7b1bf8eada86d160115a27e587bf47d570b24aa00cdb9c39a88f90c9",
+      "benign_code_sha256": "b9876d45e53afab988dc5e2da47fb385fdf200a224591e3e769f3c54c48568a1",
+      "twin_similarity": 0.901,
+      "sink_lines": [
+        26
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        26,
+        30
+      ],
+      "vuln_harness": "harnesses/RW05_vuln.cpp",
+      "benign_harness": "harnesses/RW05_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 26,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW05"
+    },
+    {
+      "pair_id": "RW06",
+      "vuln_case_id": "RW06-V",
+      "benign_case_id": "RW06-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/service/shape_inference.cc",
+      "function_name": "ShapeInference::InferTopKShape",
+      "bug_class": "heap_oob_read_on_scalar_topk_operand_last_dim",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openxla-xla-shape-inference-dynamic-dimension-bounds",
+      "patch_sha256": "bc89b6370d0d40d397f9cc82a3cb4b2730fb5535d524f9c5ed55f66d6dcd9dfd",
+      "unpatched_red_log_sha256": "a2392329c03ccb6c1e8af20e6e6b0273a97551c0a80760b3c1921f26a6a3e429",
+      "patched_green_log_sha256": "321342227afdfe190907a397ee70b2ac58b20c429c2683a7e553a6e539ada928",
+      "vuln_code_sha256": "253777d025f6f6eed75e2b30662cf3272bdc0c4ef343c4c6ff8307ad83211088",
+      "benign_code_sha256": "09417e31ce9ba4aeff3aa0f0613f646acedeb1bb7b7b18da632e7b97eae19790",
+      "twin_similarity": 0.942,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [
+        8,
+        12
+      ],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW06_vuln.cpp",
+      "benign_harness": "harnesses/RW06_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 8,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW06"
+    },
+    {
+      "pair_id": "RW07",
+      "vuln_case_id": "RW07-V",
+      "benign_case_id": "RW07-S",
+      "repo": "harfbuzz/harfbuzz",
+      "base_commit": "0ba555a3d4f00a5d2909b0cf8720e04b8fe83ff0",
+      "file_path": "src/hb-ot-layout-common.hh",
+      "function_name": "VarRegionList::serialize",
+      "bug_class": "unchecked_unsigned_multiplication_before_overflow_helper",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "harfbuzz-cff2-private-blend-overflow-and-serialize-bounds",
+      "patch_sha256": "15d15781206b332fce87f33bd8718a8d7c91e2d93646267a6aa2ddde41b40f8a",
+      "unpatched_red_log_sha256": "6a3232b3d2c294c967aca6f4e7acf44824cc52e9b7ef82ba1cfcb82e86a0d697",
+      "patched_green_log_sha256": "a1d9c89616090e2a5dc45a0458cb12877636bc1a59156791059089e51cda4656",
+      "vuln_code_sha256": "6470ab1fda499f57bdae08ece40ce8ecdd43615279f891528552395fb35c4e24",
+      "benign_code_sha256": "dd9b65069b55ba89217ccf86329019c67f9aeb5fdb690e0b666310347587c4be",
+      "twin_similarity": 0.894,
+      "sink_lines": [
+        21
+      ],
+      "root_lines": [
+        15
+      ],
+      "guard_lines": [
+        17,
+        18
+      ],
+      "vuln_harness": "harnesses/RW07_vuln.cpp",
+      "benign_harness": "harnesses/RW07_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 21,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW07"
+    },
+    {
+      "pair_id": "RW08",
+      "vuln_case_id": "RW08-V",
+      "benign_case_id": "RW08-S",
+      "repo": "AOMediaCodec/libavif",
+      "base_commit": "90d3b6661e1475bb1652cba7d85c24f8c748ab07",
+      "file_path": "src/write.c",
+      "function_name": "avifEncoderWriteHDRProperties",
+      "bug_class": "null_dereference_of_dedupstream_on_sequence_track_hdr",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "libavif-sequence-track-null-dedupstream",
+      "patch_sha256": "8a01b5290e01566676337e47e510b74aab2e7265ab56a9a16586fe9d34db03e6",
+      "unpatched_red_log_sha256": "6004b82f2ab60454ef824442710c83aef7b4cdeda8a2af7bd9d16ec8ecd7657e",
+      "patched_green_log_sha256": "480bf0d375e17485128d6b6e7575e5ba4f175dc7bb5b091ac9a916d4ee21cd44",
+      "vuln_code_sha256": "9e55dc7db1289a2d586ad88b3c916b90b0e08ca3a36ae11b0ebce0ac17d2faf4",
+      "benign_code_sha256": "b950b0d622d91dd9eff4278c8319f5bdf81f1de25fcac43ec76e63c513becda4",
+      "twin_similarity": 0.924,
+      "sink_lines": [
+        11
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        9,
+        10
+      ],
+      "vuln_harness": "harnesses/RW08_vuln.cpp",
+      "benign_harness": "harnesses/RW08_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 11,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW08"
+    },
+    {
+      "pair_id": "RW09",
+      "vuln_case_id": "RW09-V",
+      "benign_case_id": "RW09-S",
+      "repo": "AOMediaCodec/libavif",
+      "base_commit": "9b07a9d7a874b159bb4e14b80a6f08bb469d06f7",
+      "file_path": "src/read.c",
+      "function_name": "avifDecoderCreateCodecs",
+      "bug_class": "null_dereference_after_partial_tile_codec_creation_failure",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "libavif-decoder-lifecycle-persistent-io-and-codec-rollback",
+      "patch_sha256": "87b2e8ce2e3181b2dd55cbbe24cc90df4739135e4561d78bf9d2bfbe809c4c9a",
+      "unpatched_red_log_sha256": "bc96f4b0762ca3b929c0973e763782ddc3bb74d8d3bd68ce1fbedd368f1e4b3b",
+      "patched_green_log_sha256": "5a34a4e821ce215cb33168a2fe886d9d4ffd7a9180a48f1b0b8391e1ab7b757a",
+      "vuln_code_sha256": "7fde056c232987378ed82aa3fe3fbc0ccb9c9f4a2f33e5d614c2f8f80b5eca18",
+      "benign_code_sha256": "14cbaf8a8eb5be0d10031c2a7439bff723525bfed7fd4481849dc4c8f1b11a73",
+      "twin_similarity": 0.962,
+      "sink_lines": [
+        23
+      ],
+      "root_lines": [
+        16
+      ],
+      "guard_lines": [
+        19
+      ],
+      "vuln_harness": "harnesses/RW09_vuln.cpp",
+      "benign_harness": "harnesses/RW09_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 23,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW09"
+    },
+    {
+      "pair_id": "RW10",
+      "vuln_case_id": "RW10-V",
+      "benign_case_id": "RW10-S",
+      "repo": "lz4/lz4",
+      "base_commit": "d5f17575750ea89af23eb0ee0963b5026badecfd",
+      "file_path": "lib/lz4frame.c",
+      "function_name": "LZ4F_decodeBlock",
+      "bug_class": "unsigned_remaining_content_size_underflow_in_lz4frame",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "lz4-lz4frame-remaining-content-size-underflow",
+      "patch_sha256": "146347716c5e57f4ad4b2b4d62508134ad8bf5f2472ddd54cd554ffe48ab935f",
+      "unpatched_red_log_sha256": "c3d247b1baba86f096cd439bb1d33573ca4ecad6ef81b5a970e0efce3aa9219e",
+      "patched_green_log_sha256": "0941f163e0b436edd1bc2a8b0eff04f1f82c113ec8271600b72db218b636e44a",
+      "vuln_code_sha256": "79336b333fb04327eaaaf52e97fdba51af33ae31c8504f8b4c83a99da9c9bd29",
+      "benign_code_sha256": "be3f787eb6a90d0e07bd998d49cfa0cc51d5f288de9e5f8309ddccc78a937d49",
+      "twin_similarity": 0.792,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        12
+      ],
+      "guard_lines": [
+        11
+      ],
+      "vuln_harness": "harnesses/RW10_vuln.cpp",
+      "benign_harness": "harnesses/RW10_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 14,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW10"
+    },
+    {
+      "pair_id": "RW11",
+      "vuln_case_id": "RW11-V",
+      "benign_case_id": "RW11-S",
+      "repo": "google/flatbuffers",
+      "base_commit": "5eb190f00005b8dd1aa4f7ab2db9f01a39e3c76d",
+      "file_path": "src/idl_gen_text.cpp",
+      "function_name": "JsonPrinter::GenStruct",
+      "bug_class": "heap_oob_read_of_unverified_deprecated_vtable_slot",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "flatbuffers-gentext-skip-deprecated-fields",
+      "patch_sha256": "c6686dbcf01da3af384ad5854ebdf0e575da9dbbf0fce1e71a02479c8501bfdd",
+      "unpatched_red_log_sha256": "a7374071a3b01558399ed7764bc32d832792fad0700f427cfe0a3f9db09512b1",
+      "patched_green_log_sha256": "e4a0dfd13217683f7037bd7382b8df94ee9d6a3e0fe274ebbccbac8d17c8db4d",
+      "vuln_code_sha256": "6b363058395324b9960ec5233b3f36a4409b959ab3bcbab7b303490107fc06c0",
+      "benign_code_sha256": "7171bc87db2b4da8706abf22733441e5d6b537126447ce334e185348cecc684a",
+      "twin_similarity": 0.973,
+      "sink_lines": [
+        18
+      ],
+      "root_lines": [
+        9
+      ],
+      "guard_lines": [
+        16
+      ],
+      "vuln_harness": "harnesses/RW11_vuln.cpp",
+      "benign_harness": "harnesses/RW11_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 9,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW11"
+    },
+    {
+      "pair_id": "RW12",
+      "vuln_case_id": "RW12-V",
+      "benign_case_id": "RW12-S",
+      "repo": "libjxl/libjxl",
+      "base_commit": "b7ec9c0f63a62a845901873f01918758f0df7e67",
+      "file_path": "lib/extras/enc/pnm.cc",
+      "function_name": "BasePNMEncoder::Encode",
+      "bug_class": "heap_oob_read_on_mismatched_frame_extra_channels_count",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "libjxl-extras-apng-pnm-extra-channel-bounds",
+      "patch_sha256": "dc361f0dbc28afad7b5f2cd6d19689702948a9906177d435ceecb456d724028b",
+      "unpatched_red_log_sha256": "c6fe801815d7ef783b3252ff58c3a7b59764e70dc51124f89db657486a2e0484",
+      "patched_green_log_sha256": "3127d292d8e57de2aa5eac38060094b57e56653db7d771de0ee516eb9253163a",
+      "vuln_code_sha256": "e49f511db934fe81cb03c89fb74f36c72c3fb47c3eee10f5d419d238e6186eb0",
+      "benign_code_sha256": "345a69d83fc4422c412da585deb0ad9da41b02585f7f7b371608bc71b9284de9",
+      "twin_similarity": 0.976,
+      "sink_lines": [
+        22
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        19
+      ],
+      "vuln_harness": "harnesses/RW12_vuln.cpp",
+      "benign_harness": "harnesses/RW12_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 22,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW12"
+    },
+    {
+      "pair_id": "RW13",
+      "vuln_case_id": "RW13-V",
+      "benign_case_id": "RW13-S",
+      "repo": "google/XNNPACK",
+      "base_commit": "fc1a2623138f0b7d94d77255d9042034882ad6ac",
+      "file_path": "src/subgraph/reshape-helpers.c",
+      "function_name": "resize_unary_elementwise_output_tensor",
+      "bug_class": "oob_write_copying_unvalidated_input_rank_into_tensor_shape",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "xnnpack-subgraph-slice-and-reshape-bounds-v2",
+      "patch_sha256": "cf2d206349c391e515f79a58509f089d484cb36303e27dae30406d2fd6fc96cf",
+      "unpatched_red_log_sha256": "c2885f24a3c7701d1abf4dbd294cbc99c402168b30853c353064391f9f3d4408",
+      "patched_green_log_sha256": "7a645aa56ab0f29ea576f33dc82e65e9b04cc08d37075cf76197f8512f32deb9",
+      "vuln_code_sha256": "711ac768b07a0016fb072fb266962d9824c4af1b33460ec1eb0cd231f8e39d74",
+      "benign_code_sha256": "8738478bd124ab7e37c3be0d8642aa87690a68ebb86ba1fbc8d663f985012931",
+      "twin_similarity": 0.942,
+      "sink_lines": [
+        12
+      ],
+      "root_lines": [
+        11
+      ],
+      "guard_lines": [
+        11
+      ],
+      "vuln_harness": "harnesses/RW13_vuln.cpp",
+      "benign_harness": "harnesses/RW13_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 12,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW13"
+    },
+    {
+      "pair_id": "RW14",
+      "vuln_case_id": "RW14-V",
+      "benign_case_id": "RW14-S",
+      "repo": "vllm-project/vllm",
+      "base_commit": "4527515cd705db206ae927cf5acef506abc64bdd",
+      "file_path": "csrc/cpu/sgl-kernels/moe.cpp",
+      "function_name": "moe_align_block_size",
+      "bug_class": "heap_oob_write_indexing_moe_workspace_with_unvalidated_topk_ids",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "vllm-cpu-hash-moe-tid2eid-bounds",
+      "patch_sha256": "3a3651e4173671018da4f63012b4ddbd9df653445a2f5b57296eefcd663bb895",
+      "unpatched_red_log_sha256": "f04a5d6b490ea8398dff6d36876f98a981ac56a83b5e0af22428df9dda42a355",
+      "patched_green_log_sha256": "2d13b7b780981f37cf8273532ef77a8b578147fa5a8e9c278397478a807b2c32",
+      "vuln_code_sha256": "9222f464ecccba1d8657459a088f78ce49ebcde91df7966799826070e754a3e4",
+      "benign_code_sha256": "7fdf84dc3c49cf7f7c66c2723a1dd6e78036fd102141aa5f2a1935098d5fc247",
+      "twin_similarity": 0.808,
+      "sink_lines": [
+        7
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        7
+      ],
+      "vuln_harness": "harnesses/RW14_vuln.cpp",
+      "benign_harness": "harnesses/RW14_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 7,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW14"
+    },
+    {
+      "pair_id": "RW15",
+      "vuln_case_id": "RW15-V",
+      "benign_case_id": "RW15-S",
+      "repo": "mlc-ai/xgrammar",
+      "base_commit": "11f65251738b0a1a24618a7bf81505a87fa99ce5",
+      "file_path": "cpp/grammar_functor.cc",
+      "function_name": "GrammarFSMBuilderImpl::BuildRegex",
+      "bug_class": "heap_uaf_reading_rule_name_pointer_after_rule_vector_reallocation",
+      "gold_class": "USE_AFTER_FREE",
+      "family": "F03",
+      "cwe": "CWE-416",
+      "crucible_packet_id": "xgrammar-build-regex-rule-reallocation-uaf-and-recursion-bounds",
+      "patch_sha256": "76122bec5a8f81a83b14282a7480975e79c92d90f34bb20dadb5d7424d7b0846",
+      "unpatched_red_log_sha256": "1f3222c25b1773509e5d8c9f0eb9565b001d54062b63473219420167a63512b8",
+      "patched_green_log_sha256": "00421b9c1b600d8e35ee76aaa50df3b15393fc5002de532b6dca31a1156b98d7",
+      "vuln_code_sha256": "a729f713efcdf86d1078d2d711b2f5a911829532815748597901668d68ecc983",
+      "benign_code_sha256": "fd8ce3109e74e22ebcf5ee9ee08897a0ba8eeb31b76610a0ee38e6832d5a9857",
+      "twin_similarity": 0.84,
+      "sink_lines": [
+        24
+      ],
+      "root_lines": [
+        22
+      ],
+      "guard_lines": [
+        21,
+        22
+      ],
+      "vuln_harness": "harnesses/RW15_vuln.cpp",
+      "benign_harness": "harnesses/RW15_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 24,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW15"
+    },
+    {
+      "pair_id": "RW16",
+      "vuln_case_id": "RW16-V",
+      "benign_case_id": "RW16-S",
+      "repo": "mlc-ai/xgrammar",
+      "base_commit": "ca1acf28bf35b9ba9092800b69aebc7d4ce1f7a7",
+      "file_path": "cpp/lark_converter.cc",
+      "function_name": "LarkParser::ParseAtom",
+      "bug_class": "unbounded_recursion_on_nested_lark_grammar_blocks",
+      "gold_class": "UNBOUNDED_RECURSION",
+      "family": "F12",
+      "cwe": "CWE-674",
+      "crucible_packet_id": "xgrammar-lark-nested-grammar-depth-guard-v2",
+      "patch_sha256": "76b2f09fbb35d026326b4ac2812da0e4cd8c565856f4b7e18822c6c56be806ba",
+      "unpatched_red_log_sha256": "2929cb57a2aca89191e423424f48f32cbc3a723a6b3ce7131de6298b5e0ea93f",
+      "patched_green_log_sha256": "60e5c659d396c7552c7b8ba3c68a9f492576b137ef63564b173e92e7f18b3935",
+      "vuln_code_sha256": "e54ac228c8eef1bec19b5b1723d2018956496e487e5ccb268383dda65f3981ea",
+      "benign_code_sha256": "f2fc8f6a7d66aec1fa7c0afa340f585010d42cb9612ceb4aa02fd52b98850d85",
+      "twin_similarity": 0.914,
+      "sink_lines": [
+        15
+      ],
+      "root_lines": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "guard_lines": [
+        12,
+        16
+      ],
+      "vuln_harness": "harnesses/RW16_vuln.cpp",
+      "benign_harness": "harnesses/RW16_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 10,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW16"
+    },
+    {
+      "pair_id": "RW17",
+      "vuln_case_id": "RW17-V",
+      "benign_case_id": "RW17-S",
+      "repo": "onnx/onnx",
+      "base_commit": "48ace3d46387558f6dbd858ea3ed8758d7607b90",
+      "file_path": "onnx/defs/controlflow/utils.cc",
+      "function_name": "LoopInferenceFunction",
+      "bug_class": "assert_only_loop_input_count_check_underflows_in_ndebug",
+      "gold_class": "ASSERT_ONLY_CHECK",
+      "family": "F10",
+      "cwe": "CWE-617",
+      "crucible_packet_id": "onnx-loop-shape-inference-input-count",
+      "patch_sha256": "98d31397be797776063413f775a2a9365a6498294713551f0f561b5f6394b02c",
+      "unpatched_red_log_sha256": "d00ad7be564f8ef9abcbd299cd3674db02131e5f3af9583b4dd047b8a3cdd1f4",
+      "patched_green_log_sha256": "2ce71a6392a6bde66be3505fe00088a9f806f2df756bd72a6f4a6c5aec66cc4b",
+      "vuln_code_sha256": "b32271f8bb51bb6e50e795947961fd8c14f69d7e5304fbfc330aff20bf993dbb",
+      "benign_code_sha256": "d35c19feee73c56045a563b9fdaa17c86748a0c69dd0cb5425909b969e9c1b28",
+      "twin_similarity": 0.946,
+      "sink_lines": [
+        17
+      ],
+      "root_lines": [
+        8,
+        13
+      ],
+      "guard_lines": [
+        13
+      ],
+      "vuln_harness": "harnesses/RW17_vuln.cpp",
+      "benign_harness": "harnesses/RW17_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 8,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW17"
+    },
+    {
+      "pair_id": "RW18",
+      "vuln_case_id": "RW18-V",
+      "benign_case_id": "RW18-S",
+      "repo": "opencv/opencv",
+      "base_commit": "7dc486f74c625533a3b1fcdcbe6fc082ca25a945",
+      "file_path": "modules/dnn/src/darknet/darknet_io.cpp",
+      "function_name": "ReadDarknetConvGroups",
+      "bug_class": "divide_by_zero_on_zero_convolutional_groups_in_darknet_importer",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "opencv-darknet-conv-groups-zero",
+      "patch_sha256": "c52000389e0c1f3d8d22367070946d58f7577ea5bada3b54ca104fcfb9336c00",
+      "unpatched_red_log_sha256": "a7d330e92fc4d31ec68c9f497f3cde8d3819ada5bfdf218a51d1d4978812e249",
+      "patched_green_log_sha256": "0b2982966cb42d64b8dc808e02ca2ed2d0dfa069b729ce34271372d60f1dd6eb",
+      "vuln_code_sha256": "aa987ef2e3e1488ffeeadcb011076d1114fde57b2d2483b19722c3aa01ffbf79",
+      "benign_code_sha256": "3637eea7b0234dca584c5d059e62659fde667d5c015369c67e8f827316c94c09",
+      "twin_similarity": 0.874,
+      "sink_lines": [
+        5
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        5
+      ],
+      "vuln_harness": "harnesses/RW18_vuln.cpp",
+      "benign_harness": "harnesses/RW18_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 5,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW18"
+    },
+    {
+      "pair_id": "RW19",
+      "vuln_case_id": "RW19-V",
+      "benign_case_id": "RW19-S",
+      "repo": "opencv/opencv",
+      "base_commit": "7dc486f74c625533a3b1fcdcbe6fc082ca25a945",
+      "file_path": "modules/ml/src/tree.cpp",
+      "function_name": "DTreesImpl::predictTrees",
+      "bug_class": "heap_oob_read_on_unvalidated_dtree_split_variable_index",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "opencv-ml-dtrees-load-bounds",
+      "patch_sha256": "20f13b0b629989b4b743c7d406e1b207389289b1ba3e86afeaa70f7632b6c438",
+      "unpatched_red_log_sha256": "a948a3e3fdd8d857fdc6f9b71de04e472f540b668de162c93cb0a003dc347772",
+      "patched_green_log_sha256": "c1aa323f99228260ac3abc3055f5627b48b0da8e2bf8004ebd8e79c21f1ff585",
+      "vuln_code_sha256": "bb4b5955832bd60522fae175bf05c1a80b6b8dc307d1bbb788ad4b788695a2ef",
+      "benign_code_sha256": "6068dd74a5f60f93c101b667b34deca7bd43840ca9640db4c6f3d4bca6bab211",
+      "twin_similarity": 0.876,
+      "sink_lines": [
+        10
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        10
+      ],
+      "vuln_harness": "harnesses/RW19_vuln.cpp",
+      "benign_harness": "harnesses/RW19_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 10,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW19"
+    },
+    {
+      "pair_id": "RW20",
+      "vuln_case_id": "RW20-V",
+      "benign_case_id": "RW20-S",
+      "repo": "opencv/opencv",
+      "base_commit": "f706833347e1b9ab0ce6330cca05a419e3a190d1",
+      "file_path": "modules/dnn/src/torch/torch_importer.cpp",
+      "function_name": "TorchImporter::readTensor",
+      "bug_class": "type_confusion_and_heap_oob_when_reusing_torch_storage_of_smaller_type",
+      "gold_class": "TYPE_CONFUSION",
+      "family": "F11",
+      "cwe": "CWE-843",
+      "crucible_packet_id": "opencv-torch-storage-reuse-type-check",
+      "patch_sha256": "e68262e635bb78ffb021d833652d3ba94d103776e323a1428c6053c889f9ed97",
+      "unpatched_red_log_sha256": "d0987e6a9bc40adfa7ab43e41366c4ddc715c25a1aeeb37f25dcba4cdf9e6d7f",
+      "patched_green_log_sha256": "37b3c5ebdd821704f1ff6cb9851e63e2f4d674667f4ef3d172d33a2747364d0a",
+      "vuln_code_sha256": "8993635005d6b50fa8f302b764b985cf5063392c1b95470e55b490e895be3455",
+      "benign_code_sha256": "7bad97bb2937fa41143f6f8994c05d40ab2e85201fd894edbdf38fca7d00492e",
+      "twin_similarity": 0.935,
+      "sink_lines": [
+        20
+      ],
+      "root_lines": [
+        19
+      ],
+      "guard_lines": [
+        18
+      ],
+      "vuln_harness": "harnesses/RW20_vuln.cpp",
+      "benign_harness": "harnesses/RW20_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 20,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW20"
+    },
+    {
+      "pair_id": "RW21",
+      "vuln_case_id": "RW21-V",
+      "benign_case_id": "RW21-S",
+      "repo": "openvinotoolkit/openvino",
+      "base_commit": "a05daefea7cbebefec1608a033f0c9347582726f",
+      "file_path": "src/plugins/intel_cpu/src/utils/graph_serializer/deserializer.cpp",
+      "function_name": "ModelDeserializer::process_model",
+      "bug_class": "heap_oob_read_in_memcpy_when_compiled_model_blob_smaller_than_header",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openvino-cpu-compiled-model-sections-master-rebase",
+      "patch_sha256": "765491c6dd29c329109f19af723599e23c628beaf1a3eb7b8e6b2214b6233400",
+      "unpatched_red_log_sha256": "48d63cbf9c3d1a954faabccef051c3dc575978ae555ed650fe4ffd599cb18c8f",
+      "patched_green_log_sha256": "5f038f37da62324c2a34b7a48b9027019ec8b7ac4029188dae361f05640c5785",
+      "vuln_code_sha256": "8d17eb7a7a324d934ae6617d2443b0a98c163f9bc05d5774429387f71aa3a31a",
+      "benign_code_sha256": "d3f425caacfc63f51571ddeeb91de0568f0da68b244b3c9246912b7910a446cc",
+      "twin_similarity": 0.817,
+      "sink_lines": [
+        15
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        15,
+        18,
+        19
+      ],
+      "vuln_harness": "harnesses/RW21_vuln.cpp",
+      "benign_harness": "harnesses/RW21_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 15,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW21"
+    },
+    {
+      "pair_id": "RW22",
+      "vuln_case_id": "RW22-V",
+      "benign_case_id": "RW22-S",
+      "repo": "apache/arrow",
+      "base_commit": "1d3cf6f18205870b88b2beecabc92a6567dfefb0",
+      "file_path": "cpp/src/arrow/ipc/message.cc",
+      "function_name": "ReadMessageAsync",
+      "bug_class": "signed_int64_overflow_in_arrow_ipc_metadata_plus_body_length",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "arrow-ipc-readmessage-body-length",
+      "patch_sha256": "c1fb2cd98f9daf6e719a0a2b032c45a3f9b0c690864bf9d63b2336556d63f54f",
+      "unpatched_red_log_sha256": "c549c3c71fd135ad5bbd6510718dcf029188595017508a59d447d7ea09ce2486",
+      "patched_green_log_sha256": "14b091238bff0cd0806359b5cc6a944e3e995aae0d979a7da1bfbaabafb26b65",
+      "vuln_code_sha256": "a12532069608b9f7e636eeef09b92d2e65f31c74d847b7021933b2d620a733bd",
+      "benign_code_sha256": "fa38b5df80901ef60a8b2ffebf499279dd3466d4edb8f4defab5eb3f413d36e1",
+      "twin_similarity": 0.841,
+      "sink_lines": [
+        10
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        11
+      ],
+      "vuln_harness": "harnesses/RW22_vuln.cpp",
+      "benign_harness": "harnesses/RW22_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 10,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW22"
+    },
+    {
+      "pair_id": "RW23",
+      "vuln_case_id": "RW23-V",
+      "benign_case_id": "RW23-S",
+      "repo": "apache/arrow",
+      "base_commit": "1d3cf6f18205870b88b2beecabc92a6567dfefb0",
+      "file_path": "cpp/src/arrow/ipc/reader.cc",
+      "function_name": "RecordBatchFileReaderImpl::GetRecordBatchBlock",
+      "bug_class": "dcheck_only_record_batch_index_check_allows_oob_in_release",
+      "gold_class": "ASSERT_ONLY_CHECK",
+      "family": "F10",
+      "cwe": "CWE-617",
+      "crucible_packet_id": "arrow-ipc-record-batch-index-bounds",
+      "patch_sha256": "5719a47836aaca6ad298a5a87af45602830bdeb4cf81dd8d9984a74d3b927808",
+      "unpatched_red_log_sha256": "b280fb9f2e2f270c57c6996d72bafa0bb744266ecff829cc6891652470e3d087",
+      "patched_green_log_sha256": "f1ad278ba7a2e70b18f3fc106c1341857564e14bd32bf3400a464f59edf7a3a8",
+      "vuln_code_sha256": "02785223ce7e30b534a749d1755ad0fc6ac8defb400d49b01abfda1344bb0a98",
+      "benign_code_sha256": "26a9afc5d64982b82a2f4055ef70b970ffdb17ad6f984661e922d5b6e6df98a5",
+      "twin_similarity": 0.795,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [
+        12
+      ],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW23_vuln.cpp",
+      "benign_harness": "harnesses/RW23_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 13,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW23"
+    },
+    {
+      "pair_id": "RW24",
+      "vuln_case_id": "RW24-V",
+      "benign_case_id": "RW24-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/hlo/evaluator/hlo_evaluator.cc",
+      "function_name": "HloEvaluator::HandleSort",
+      "bug_class": "heap_oob_read_indexing_key_shape_dimensions_before_sort_dim_check",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openxla-xla-hlo-evaluator-dimension-bounds",
+      "patch_sha256": "8e77bb1de80857cd8a6e05ac2799b130902971e76595bb35355933c1b6ec1160",
+      "unpatched_red_log_sha256": "445deee70145c2354f52f05de0c8b75e51971788bc539e7fb1ca69d7de140d9e",
+      "patched_green_log_sha256": "bc4ebb042a02a42c129256bbaf35d4bb2f5a4ebb5e674f3765711825cb6e01f3",
+      "vuln_code_sha256": "7fc8718b2128eae50a7c2c1199be50036f422ee2a36be029b85f76492db2482b",
+      "benign_code_sha256": "e3d28e6ed683047ecc4f4e8f8ec3763edfb1fe1626479225cc81e963d9294de2",
+      "twin_similarity": 0.905,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        8
+      ],
+      "guard_lines": [
+        14
+      ],
+      "vuln_harness": "harnesses/RW24_vuln.cpp",
+      "benign_harness": "harnesses/RW24_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 8,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW24"
+    },
+    {
+      "pair_id": "RW25",
+      "vuln_case_id": "RW25-V",
+      "benign_case_id": "RW25-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/tsl/lib/io/snappy/snappy_inputbuffer.cc",
+      "function_name": "SnappyInputBuffer::Inflate",
+      "bug_class": "dcheck_only_snappy_output_buffer_capacity_check_allows_heap_oob_write",
+      "gold_class": "ASSERT_ONLY_CHECK",
+      "family": "F10",
+      "cwe": "CWE-617",
+      "crucible_packet_id": "openxla-xla-tsl-snappy-input-buffer-capacity",
+      "patch_sha256": "aea5089a50752871d7be5b765c5cfb7693827377f3c9af2be76f8b955a222dff",
+      "unpatched_red_log_sha256": "f2ec991daafef03c7a350622e80feb5b365a3b3c901a376eb78c26870b5c0354",
+      "patched_green_log_sha256": "3a00941bc6e58969474de7d9b9c95842954da3b6af9c03b390b269f95caa8fbd",
+      "vuln_code_sha256": "4722289cd2f969c4117ae458b0b8768ec52c015ce2df8a7ed57b21b1ed0b4daa",
+      "benign_code_sha256": "ba4af8c982c1ddc23e4f9635453b16fba233865773cc7c0068a10d974f141c53",
+      "twin_similarity": 0.919,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        12
+      ],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW25_vuln.cpp",
+      "benign_harness": "harnesses/RW25_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 14,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW25"
+    },
+    {
+      "pair_id": "RW26",
+      "vuln_case_id": "RW26-V",
+      "benign_case_id": "RW26-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/service/hlo_verifier.cc",
+      "function_name": "ShapeVerifier::VerifyEntryComputationLayout",
+      "bug_class": "heap_oob_read_indexing_parameter_layout_on_out_of_range_alias_parameter_number",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openxla-xla-hlo-verifier-alias-and-sort-bounds",
+      "patch_sha256": "01a291bc7745c231b1e7bd58cfbd689defc5288e5085d4e3ffe7732b236156a2",
+      "unpatched_red_log_sha256": "7b4ee0b51cd3cbee42acdbd37f6edc4997e5ea921228281578a1783ff4c577c4",
+      "patched_green_log_sha256": "3cb6bd173f1e1aea1ad8fe37de0f8ad2869df1d3529f68664a5259a55d2dc87d",
+      "vuln_code_sha256": "4ca78a3bd28c64b46fa3819673b4028104023f5ff3937c676b9b004ff71601d0",
+      "benign_code_sha256": "e210a7a2c68e59e0004d9518db24dee75af87bc47bd25ca402bee8cee6a91d42",
+      "twin_similarity": 0.917,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        9
+      ],
+      "guard_lines": [
+        14
+      ],
+      "vuln_harness": "harnesses/RW26_vuln.cpp",
+      "benign_harness": "harnesses/RW26_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 9,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW26"
+    },
+    {
+      "pair_id": "RW27",
+      "vuln_case_id": "RW27-V",
+      "benign_case_id": "RW27-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "4a50894fcbae79897a7b728f7db3f782542cd26b",
+      "file_path": "tensorflow/core/grappler/optimizers/generic_layout_optimizer.cc",
+      "function_name": "IsCancellableConstPermTransposeNodePair",
+      "bug_class": "heap_oob_read_indexing_fanout_permutation_with_unvalidated_fanin_entry",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "tensorflow-grappler-generic-layout-pad-perm-oob",
+      "patch_sha256": "20268b61b8d8cc326dea810580a7c5c802b598d96428c38764646667abe61f20",
+      "unpatched_red_log_sha256": "e259aeda5689cf7fc3be96f5abcae008b6d7b78db9c85131e97f1ca03939aef0",
+      "patched_green_log_sha256": "3c97358a384597a9eebd59b93844b11cc2216faa0635442a42ff7ec2bd9b13f2",
+      "vuln_code_sha256": "dd1ee11be78054664381bce7a64a3cdd75c18e8aceb95a32bbe55d7c851b373a",
+      "benign_code_sha256": "463675c5c1f048f3940c150516dd5b39a4af4b4b0f3322184b5c9b292704e52e",
+      "twin_similarity": 0.886,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        14
+      ],
+      "vuln_harness": "harnesses/RW27_vuln.cpp",
+      "benign_harness": "harnesses/RW27_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 13,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW27"
+    },
+    {
+      "pair_id": "RW28",
+      "vuln_case_id": "RW28-V",
+      "benign_case_id": "RW28-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "ace46d5052cf64a198194df7291af365a1380105",
+      "file_path": "tensorflow/core/grappler/optimizers/constant_folding.cc",
+      "function_name": "ConstantFolding::PrepareConstantPushDown",
+      "bug_class": "null_dereference_binding_reference_to_missing_child_input_node",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "tensorflow-grappler-constant-folding-mulconv-and-rank-guards",
+      "patch_sha256": "4e21ba7abf572195da0a4782718b9fc010292b0ee2f5512b5cd3b08c95f6b7bb",
+      "unpatched_red_log_sha256": "510cfbd568da377c207d90db088ccdbe151c10655ff7bd3f8908acec474ea528",
+      "patched_green_log_sha256": "eeaff921fbed046203e64517e3e0a7248a1621a64ba1dceb10289f7b5d3c6733",
+      "vuln_code_sha256": "0d69d279b4b0c98dc4a862e2c84f7b920fa8d391d6ec065842d17b52fa562180",
+      "benign_code_sha256": "7defbaf2579ee22b0c618729f572f5391c3dcaf64933d5498dd0ef79e8217fdc",
+      "twin_similarity": 0.932,
+      "sink_lines": [
+        16
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        16
+      ],
+      "vuln_harness": "harnesses/RW28_vuln.cpp",
+      "benign_harness": "harnesses/RW28_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 16,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW28"
+    },
+    {
+      "pair_id": "RW29",
+      "vuln_case_id": "RW29-V",
+      "benign_case_id": "RW29-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "cd7fc0e41c85fa887d32a7deb3a175b712dc9522",
+      "file_path": "tensorflow/core/util/tensor_bundle/tensor_bundle.cc",
+      "function_name": "BundleReader::GetValue",
+      "bug_class": "negative_section_size_converted_to_size_t_in_threaded_tensor_bundle_restore",
+      "gold_class": "SIGN_CONVERSION",
+      "family": "F05",
+      "cwe": "CWE-195",
+      "crucible_packet_id": "tensorflow-tensor-bundle-getvalue-threaded-restore-bounds",
+      "patch_sha256": "1e805f02c9a079e8a12d7089bbb8ca8a1e32538b1f3112c04b810d18c38a92c8",
+      "unpatched_red_log_sha256": "d53c7f67dcb50245275111f20301052c90a081866512b3ab1092536ac5e17911",
+      "patched_green_log_sha256": "e847bbbe597b007366de538fcaab21ecccfb26c887bf52fcd233ad458f9a25f5",
+      "vuln_code_sha256": "5e0b5d5278de71442458f184390367380831e3d7e633fa483dc74f552d696fcb",
+      "benign_code_sha256": "a4f47cbbc17d16109708738874663f3fc9bd5fd5b4868d246e7d305c1f50d9dd",
+      "twin_similarity": 0.771,
+      "sink_lines": [
+        12
+      ],
+      "root_lines": [
+        10
+      ],
+      "guard_lines": [
+        10,
+        11
+      ],
+      "vuln_harness": "harnesses/RW29_vuln.cpp",
+      "benign_harness": "harnesses/RW29_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 12,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW29"
+    },
+    {
+      "pair_id": "RW30",
+      "vuln_case_id": "RW30-V",
+      "benign_case_id": "RW30-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "d384f6f8186efb7af1ca68c80ad32ea7b250d6cd",
+      "file_path": "tensorflow/lite/core/interpreter_builder.cc",
+      "function_name": "InterpreterBuilder::operator()",
+      "bug_class": "null_dereference_when_tflite_model_omits_subgraphs_vector",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "tensorflow-tflite-interpreter-builder-null-subgraphs",
+      "patch_sha256": "6e36cd58011dbbaa4f2b1101164f8d1630eebcd2970bf344dfbc3c7033c57de2",
+      "unpatched_red_log_sha256": "fa0c12ae5100ad1c7bdedee0cfa0caff57b1d8373fb0b95f06798b459b5a9dc5",
+      "patched_green_log_sha256": "e1e26bc705b795161eb39fa2e5953fd1b75861d1b71bf0c488a5b8862144f8b3",
+      "vuln_code_sha256": "bf31344b0f559c4a8eea1ea63aa208a13d83bf318118d58497799e6b74106079",
+      "benign_code_sha256": "fc1cd8e0ccad67a31042831f7102c980cab7ff768916664d2263c569ec0b6b27",
+      "twin_similarity": 0.984,
+      "sink_lines": [
+        12
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW30_vuln.cpp",
+      "benign_harness": "harnesses/RW30_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 12,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW30"
+    }
+  ],
+  "cases": [
+    {
+      "pair_id": "RW01",
+      "vuln_case_id": "RW01-V",
+      "benign_case_id": "RW01-S",
+      "repo": "freetype/freetype",
+      "base_commit": "c4a3c188e82bc5b457390a87630ac782316421a1",
+      "file_path": "src/cff/cffload.c",
+      "function_name": "cff_blend_build_vector",
+      "bug_class": "null_pointer_offset_before_bounds_check",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "freetype-cff-blend-region-index-check",
+      "patch_sha256": "b452858548ebb355fd16349bd960b2db3fee9f68db95bad1f32ccdbe55064848",
+      "unpatched_red_log_sha256": "abe0026c02626d385e2e9a10da3afe960b0399ee217ed599ddf4461a53f6e7cb",
+      "patched_green_log_sha256": "f14724058e3fe7b0cf1182f06c4e79fd3e4257b25c220db57e5312917fa4ff81",
+      "vuln_code_sha256": "38ec8024ce25a8de2ebd163f820630c27e95f0434c5c80d08672d3df22bf6efc",
+      "benign_code_sha256": "da782f574e675bdb2f6e23aaca1ae39c544ab16e9f18181f579c0ba235f0d84a",
+      "twin_similarity": 0.905,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        16
+      ],
+      "vuln_harness": "harnesses/RW01_vuln.cpp",
+      "benign_harness": "harnesses/RW01_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 13,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW01"
+    },
+    {
+      "pair_id": "RW02",
+      "vuln_case_id": "RW02-V",
+      "benign_case_id": "RW02-S",
+      "repo": "protocolbuffers/protobuf",
+      "base_commit": "ab41516b5544f53090eadd8d8282994b0d4fb725",
+      "file_path": "upb/mem/arena.c",
+      "function_name": "_upb_Arena_AllocBlockInternal",
+      "bug_class": "integer_overflow_in_arena_block_allocation",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "protobuf-upb-arena-overflow-main-rebase",
+      "patch_sha256": "4911998b461f41a65f32922288fe1309d8601d2423e434066a178fee1d2c2895",
+      "unpatched_red_log_sha256": "4cdb0ec1a1bf7aa49d522dc3e2b1627b978343fd36e0eb799efc641802639bf6",
+      "patched_green_log_sha256": "0560debad24fe2465b978ff82d41c9de51aa6539a1cf13371a309c6efecfc545",
+      "vuln_code_sha256": "12e6f2b867924cf0e2a8120ba2077b3bf1a297fb89dd8778a6c7d9f4ae041f9b",
+      "benign_code_sha256": "cac479ca2ee499cd6c27cfbf833b1bbc70894b1be05f0480c904fcbe8e795641",
+      "twin_similarity": 0.957,
+      "sink_lines": [
+        25,
+        26,
+        27
+      ],
+      "root_lines": [
+        21
+      ],
+      "guard_lines": [
+        22
+      ],
+      "vuln_harness": "harnesses/RW02_vuln.cpp",
+      "benign_harness": "harnesses/RW02_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 25,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW02"
+    },
+    {
+      "pair_id": "RW03",
+      "vuln_case_id": "RW03-V",
+      "benign_case_id": "RW03-S",
+      "repo": "protocolbuffers/protobuf",
+      "base_commit": "bbe8d1453a434300f1ffed0e314ab4ed8a6bdd5b",
+      "file_path": "upb/reflection/file_def.c",
+      "function_name": "_upb_FileDef_Create",
+      "bug_class": "null_pointer_passed_to_memset_on_zero_extensions",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "protobuf-upb-filedef-null-memset",
+      "patch_sha256": "ae10a2eb7c910aa38c56a50bbce579e5bc9cf6e28fb8f500e8811d56b1cec4c9",
+      "unpatched_red_log_sha256": "96154d833ca176cd3c955c9aedf0bff216bf6bd9d4a2521920f79fbd5e0d7289",
+      "patched_green_log_sha256": "91be278652f7ffceb2859c7659c8579de4dfccf457cabd4ed2d66f1390d23060",
+      "vuln_code_sha256": "7f3496d1805fa0ad4b32f3440ca233c3a090e0e0bd3be717fd2f82c8ece4e05f",
+      "benign_code_sha256": "56b80361b265463f2a4bb802c291fdccb8a6ef871f4cc9847bfcb932148d411c",
+      "twin_similarity": 0.976,
+      "sink_lines": [
+        22
+      ],
+      "root_lines": [
+        21
+      ],
+      "guard_lines": [
+        22
+      ],
+      "vuln_harness": "harnesses/RW03_vuln.cpp",
+      "benign_harness": "harnesses/RW03_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 22,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW03"
+    },
+    {
+      "pair_id": "RW04",
+      "vuln_case_id": "RW04-V",
+      "benign_case_id": "RW04-S",
+      "repo": "protocolbuffers/protobuf",
+      "base_commit": "d99b5ba1b633c8e2d05ee9b22ace14a37bc9626f",
+      "file_path": "upb/message/promote.c",
+      "function_name": "upb_MiniTable_ParseUnknownMessage",
+      "bug_class": "heap_oob_read_on_unvalidated_unknown_field_length",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "protobuf-upb-promote-wiretype-validation-v2",
+      "patch_sha256": "14fe6165d49c10ccddaaae680f155f80eb7f03f919e683936be848c5b96c14b6",
+      "unpatched_red_log_sha256": "8f01497167526f6e942fe337607064016381d333b72c681f5721297529bf6d0a",
+      "patched_green_log_sha256": "dea323b893e82cf2946ebbc0a1844a0352452c7c82653e565375fe07d0fb5b49",
+      "vuln_code_sha256": "ca4f340e0f24e313b0084b50b581b7e792b34930e34c529084ed9fb1e12b73f7",
+      "benign_code_sha256": "050d96d76c6c399ea651a875aea29c1027ae8a7835c0d94a72fc561188eddcca",
+      "twin_similarity": 0.881,
+      "sink_lines": [
+        25
+      ],
+      "root_lines": [
+        22
+      ],
+      "guard_lines": [
+        24,
+        26
+      ],
+      "vuln_harness": "harnesses/RW04_vuln.cpp",
+      "benign_harness": "harnesses/RW04_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 25,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW04"
+    },
+    {
+      "pair_id": "RW05",
+      "vuln_case_id": "RW05-V",
+      "benign_case_id": "RW05-S",
+      "repo": "pnggroup/libpng",
+      "base_commit": "ac0c3532476fa4876a83a279127840741cf216f2",
+      "file_path": "pngpread.c",
+      "function_name": "png_process_IDAT_data",
+      "bug_class": "heap_uaf_on_save_buffer_reallocation_during_row_pause",
+      "gold_class": "USE_AFTER_FREE",
+      "family": "F03",
+      "cwe": "CWE-416",
+      "crucible_packet_id": "libpng-progressive-pause-lifecycle",
+      "patch_sha256": "e4dbf691888d83cee03e5c6d1e5280850570efbac1cd0b3990948dde9a419842",
+      "unpatched_red_log_sha256": "b9b4340eb2d52abee6aa9846adfb0535ad608aba52cd898f67575c9d1375ad0f",
+      "patched_green_log_sha256": "1c92175440eac33217b23fd8a6285fed62280bbb4836bd614503a36a9839afc7",
+      "vuln_code_sha256": "baff509e7b1bf8eada86d160115a27e587bf47d570b24aa00cdb9c39a88f90c9",
+      "benign_code_sha256": "b9876d45e53afab988dc5e2da47fb385fdf200a224591e3e769f3c54c48568a1",
+      "twin_similarity": 0.901,
+      "sink_lines": [
+        26
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        26,
+        30
+      ],
+      "vuln_harness": "harnesses/RW05_vuln.cpp",
+      "benign_harness": "harnesses/RW05_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 26,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW05"
+    },
+    {
+      "pair_id": "RW06",
+      "vuln_case_id": "RW06-V",
+      "benign_case_id": "RW06-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/service/shape_inference.cc",
+      "function_name": "ShapeInference::InferTopKShape",
+      "bug_class": "heap_oob_read_on_scalar_topk_operand_last_dim",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openxla-xla-shape-inference-dynamic-dimension-bounds",
+      "patch_sha256": "bc89b6370d0d40d397f9cc82a3cb4b2730fb5535d524f9c5ed55f66d6dcd9dfd",
+      "unpatched_red_log_sha256": "a2392329c03ccb6c1e8af20e6e6b0273a97551c0a80760b3c1921f26a6a3e429",
+      "patched_green_log_sha256": "321342227afdfe190907a397ee70b2ac58b20c429c2683a7e553a6e539ada928",
+      "vuln_code_sha256": "253777d025f6f6eed75e2b30662cf3272bdc0c4ef343c4c6ff8307ad83211088",
+      "benign_code_sha256": "09417e31ce9ba4aeff3aa0f0613f646acedeb1bb7b7b18da632e7b97eae19790",
+      "twin_similarity": 0.942,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [
+        8,
+        12
+      ],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW06_vuln.cpp",
+      "benign_harness": "harnesses/RW06_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 8,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW06"
+    },
+    {
+      "pair_id": "RW07",
+      "vuln_case_id": "RW07-V",
+      "benign_case_id": "RW07-S",
+      "repo": "harfbuzz/harfbuzz",
+      "base_commit": "0ba555a3d4f00a5d2909b0cf8720e04b8fe83ff0",
+      "file_path": "src/hb-ot-layout-common.hh",
+      "function_name": "VarRegionList::serialize",
+      "bug_class": "unchecked_unsigned_multiplication_before_overflow_helper",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "harfbuzz-cff2-private-blend-overflow-and-serialize-bounds",
+      "patch_sha256": "15d15781206b332fce87f33bd8718a8d7c91e2d93646267a6aa2ddde41b40f8a",
+      "unpatched_red_log_sha256": "6a3232b3d2c294c967aca6f4e7acf44824cc52e9b7ef82ba1cfcb82e86a0d697",
+      "patched_green_log_sha256": "a1d9c89616090e2a5dc45a0458cb12877636bc1a59156791059089e51cda4656",
+      "vuln_code_sha256": "6470ab1fda499f57bdae08ece40ce8ecdd43615279f891528552395fb35c4e24",
+      "benign_code_sha256": "dd9b65069b55ba89217ccf86329019c67f9aeb5fdb690e0b666310347587c4be",
+      "twin_similarity": 0.894,
+      "sink_lines": [
+        21
+      ],
+      "root_lines": [
+        15
+      ],
+      "guard_lines": [
+        17,
+        18
+      ],
+      "vuln_harness": "harnesses/RW07_vuln.cpp",
+      "benign_harness": "harnesses/RW07_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 21,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW07"
+    },
+    {
+      "pair_id": "RW08",
+      "vuln_case_id": "RW08-V",
+      "benign_case_id": "RW08-S",
+      "repo": "AOMediaCodec/libavif",
+      "base_commit": "90d3b6661e1475bb1652cba7d85c24f8c748ab07",
+      "file_path": "src/write.c",
+      "function_name": "avifEncoderWriteHDRProperties",
+      "bug_class": "null_dereference_of_dedupstream_on_sequence_track_hdr",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "libavif-sequence-track-null-dedupstream",
+      "patch_sha256": "8a01b5290e01566676337e47e510b74aab2e7265ab56a9a16586fe9d34db03e6",
+      "unpatched_red_log_sha256": "6004b82f2ab60454ef824442710c83aef7b4cdeda8a2af7bd9d16ec8ecd7657e",
+      "patched_green_log_sha256": "480bf0d375e17485128d6b6e7575e5ba4f175dc7bb5b091ac9a916d4ee21cd44",
+      "vuln_code_sha256": "9e55dc7db1289a2d586ad88b3c916b90b0e08ca3a36ae11b0ebce0ac17d2faf4",
+      "benign_code_sha256": "b950b0d622d91dd9eff4278c8319f5bdf81f1de25fcac43ec76e63c513becda4",
+      "twin_similarity": 0.924,
+      "sink_lines": [
+        11
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        9,
+        10
+      ],
+      "vuln_harness": "harnesses/RW08_vuln.cpp",
+      "benign_harness": "harnesses/RW08_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 11,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW08"
+    },
+    {
+      "pair_id": "RW09",
+      "vuln_case_id": "RW09-V",
+      "benign_case_id": "RW09-S",
+      "repo": "AOMediaCodec/libavif",
+      "base_commit": "9b07a9d7a874b159bb4e14b80a6f08bb469d06f7",
+      "file_path": "src/read.c",
+      "function_name": "avifDecoderCreateCodecs",
+      "bug_class": "null_dereference_after_partial_tile_codec_creation_failure",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "libavif-decoder-lifecycle-persistent-io-and-codec-rollback",
+      "patch_sha256": "87b2e8ce2e3181b2dd55cbbe24cc90df4739135e4561d78bf9d2bfbe809c4c9a",
+      "unpatched_red_log_sha256": "bc96f4b0762ca3b929c0973e763782ddc3bb74d8d3bd68ce1fbedd368f1e4b3b",
+      "patched_green_log_sha256": "5a34a4e821ce215cb33168a2fe886d9d4ffd7a9180a48f1b0b8391e1ab7b757a",
+      "vuln_code_sha256": "7fde056c232987378ed82aa3fe3fbc0ccb9c9f4a2f33e5d614c2f8f80b5eca18",
+      "benign_code_sha256": "14cbaf8a8eb5be0d10031c2a7439bff723525bfed7fd4481849dc4c8f1b11a73",
+      "twin_similarity": 0.962,
+      "sink_lines": [
+        23
+      ],
+      "root_lines": [
+        16
+      ],
+      "guard_lines": [
+        19
+      ],
+      "vuln_harness": "harnesses/RW09_vuln.cpp",
+      "benign_harness": "harnesses/RW09_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 23,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW09"
+    },
+    {
+      "pair_id": "RW10",
+      "vuln_case_id": "RW10-V",
+      "benign_case_id": "RW10-S",
+      "repo": "lz4/lz4",
+      "base_commit": "d5f17575750ea89af23eb0ee0963b5026badecfd",
+      "file_path": "lib/lz4frame.c",
+      "function_name": "LZ4F_decodeBlock",
+      "bug_class": "unsigned_remaining_content_size_underflow_in_lz4frame",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "lz4-lz4frame-remaining-content-size-underflow",
+      "patch_sha256": "146347716c5e57f4ad4b2b4d62508134ad8bf5f2472ddd54cd554ffe48ab935f",
+      "unpatched_red_log_sha256": "c3d247b1baba86f096cd439bb1d33573ca4ecad6ef81b5a970e0efce3aa9219e",
+      "patched_green_log_sha256": "0941f163e0b436edd1bc2a8b0eff04f1f82c113ec8271600b72db218b636e44a",
+      "vuln_code_sha256": "79336b333fb04327eaaaf52e97fdba51af33ae31c8504f8b4c83a99da9c9bd29",
+      "benign_code_sha256": "be3f787eb6a90d0e07bd998d49cfa0cc51d5f288de9e5f8309ddccc78a937d49",
+      "twin_similarity": 0.792,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        12
+      ],
+      "guard_lines": [
+        11
+      ],
+      "vuln_harness": "harnesses/RW10_vuln.cpp",
+      "benign_harness": "harnesses/RW10_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 14,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW10"
+    },
+    {
+      "pair_id": "RW11",
+      "vuln_case_id": "RW11-V",
+      "benign_case_id": "RW11-S",
+      "repo": "google/flatbuffers",
+      "base_commit": "5eb190f00005b8dd1aa4f7ab2db9f01a39e3c76d",
+      "file_path": "src/idl_gen_text.cpp",
+      "function_name": "JsonPrinter::GenStruct",
+      "bug_class": "heap_oob_read_of_unverified_deprecated_vtable_slot",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "flatbuffers-gentext-skip-deprecated-fields",
+      "patch_sha256": "c6686dbcf01da3af384ad5854ebdf0e575da9dbbf0fce1e71a02479c8501bfdd",
+      "unpatched_red_log_sha256": "a7374071a3b01558399ed7764bc32d832792fad0700f427cfe0a3f9db09512b1",
+      "patched_green_log_sha256": "e4a0dfd13217683f7037bd7382b8df94ee9d6a3e0fe274ebbccbac8d17c8db4d",
+      "vuln_code_sha256": "6b363058395324b9960ec5233b3f36a4409b959ab3bcbab7b303490107fc06c0",
+      "benign_code_sha256": "7171bc87db2b4da8706abf22733441e5d6b537126447ce334e185348cecc684a",
+      "twin_similarity": 0.973,
+      "sink_lines": [
+        18
+      ],
+      "root_lines": [
+        9
+      ],
+      "guard_lines": [
+        16
+      ],
+      "vuln_harness": "harnesses/RW11_vuln.cpp",
+      "benign_harness": "harnesses/RW11_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 9,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW11"
+    },
+    {
+      "pair_id": "RW12",
+      "vuln_case_id": "RW12-V",
+      "benign_case_id": "RW12-S",
+      "repo": "libjxl/libjxl",
+      "base_commit": "b7ec9c0f63a62a845901873f01918758f0df7e67",
+      "file_path": "lib/extras/enc/pnm.cc",
+      "function_name": "BasePNMEncoder::Encode",
+      "bug_class": "heap_oob_read_on_mismatched_frame_extra_channels_count",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "libjxl-extras-apng-pnm-extra-channel-bounds",
+      "patch_sha256": "dc361f0dbc28afad7b5f2cd6d19689702948a9906177d435ceecb456d724028b",
+      "unpatched_red_log_sha256": "c6fe801815d7ef783b3252ff58c3a7b59764e70dc51124f89db657486a2e0484",
+      "patched_green_log_sha256": "3127d292d8e57de2aa5eac38060094b57e56653db7d771de0ee516eb9253163a",
+      "vuln_code_sha256": "e49f511db934fe81cb03c89fb74f36c72c3fb47c3eee10f5d419d238e6186eb0",
+      "benign_code_sha256": "345a69d83fc4422c412da585deb0ad9da41b02585f7f7b371608bc71b9284de9",
+      "twin_similarity": 0.976,
+      "sink_lines": [
+        22
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        19
+      ],
+      "vuln_harness": "harnesses/RW12_vuln.cpp",
+      "benign_harness": "harnesses/RW12_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 22,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW12"
+    },
+    {
+      "pair_id": "RW13",
+      "vuln_case_id": "RW13-V",
+      "benign_case_id": "RW13-S",
+      "repo": "google/XNNPACK",
+      "base_commit": "fc1a2623138f0b7d94d77255d9042034882ad6ac",
+      "file_path": "src/subgraph/reshape-helpers.c",
+      "function_name": "resize_unary_elementwise_output_tensor",
+      "bug_class": "oob_write_copying_unvalidated_input_rank_into_tensor_shape",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "xnnpack-subgraph-slice-and-reshape-bounds-v2",
+      "patch_sha256": "cf2d206349c391e515f79a58509f089d484cb36303e27dae30406d2fd6fc96cf",
+      "unpatched_red_log_sha256": "c2885f24a3c7701d1abf4dbd294cbc99c402168b30853c353064391f9f3d4408",
+      "patched_green_log_sha256": "7a645aa56ab0f29ea576f33dc82e65e9b04cc08d37075cf76197f8512f32deb9",
+      "vuln_code_sha256": "711ac768b07a0016fb072fb266962d9824c4af1b33460ec1eb0cd231f8e39d74",
+      "benign_code_sha256": "8738478bd124ab7e37c3be0d8642aa87690a68ebb86ba1fbc8d663f985012931",
+      "twin_similarity": 0.942,
+      "sink_lines": [
+        12
+      ],
+      "root_lines": [
+        11
+      ],
+      "guard_lines": [
+        11
+      ],
+      "vuln_harness": "harnesses/RW13_vuln.cpp",
+      "benign_harness": "harnesses/RW13_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 12,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW13"
+    },
+    {
+      "pair_id": "RW14",
+      "vuln_case_id": "RW14-V",
+      "benign_case_id": "RW14-S",
+      "repo": "vllm-project/vllm",
+      "base_commit": "4527515cd705db206ae927cf5acef506abc64bdd",
+      "file_path": "csrc/cpu/sgl-kernels/moe.cpp",
+      "function_name": "moe_align_block_size",
+      "bug_class": "heap_oob_write_indexing_moe_workspace_with_unvalidated_topk_ids",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "vllm-cpu-hash-moe-tid2eid-bounds",
+      "patch_sha256": "3a3651e4173671018da4f63012b4ddbd9df653445a2f5b57296eefcd663bb895",
+      "unpatched_red_log_sha256": "f04a5d6b490ea8398dff6d36876f98a981ac56a83b5e0af22428df9dda42a355",
+      "patched_green_log_sha256": "2d13b7b780981f37cf8273532ef77a8b578147fa5a8e9c278397478a807b2c32",
+      "vuln_code_sha256": "9222f464ecccba1d8657459a088f78ce49ebcde91df7966799826070e754a3e4",
+      "benign_code_sha256": "7fdf84dc3c49cf7f7c66c2723a1dd6e78036fd102141aa5f2a1935098d5fc247",
+      "twin_similarity": 0.808,
+      "sink_lines": [
+        7
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        7
+      ],
+      "vuln_harness": "harnesses/RW14_vuln.cpp",
+      "benign_harness": "harnesses/RW14_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 7,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW14"
+    },
+    {
+      "pair_id": "RW15",
+      "vuln_case_id": "RW15-V",
+      "benign_case_id": "RW15-S",
+      "repo": "mlc-ai/xgrammar",
+      "base_commit": "11f65251738b0a1a24618a7bf81505a87fa99ce5",
+      "file_path": "cpp/grammar_functor.cc",
+      "function_name": "GrammarFSMBuilderImpl::BuildRegex",
+      "bug_class": "heap_uaf_reading_rule_name_pointer_after_rule_vector_reallocation",
+      "gold_class": "USE_AFTER_FREE",
+      "family": "F03",
+      "cwe": "CWE-416",
+      "crucible_packet_id": "xgrammar-build-regex-rule-reallocation-uaf-and-recursion-bounds",
+      "patch_sha256": "76122bec5a8f81a83b14282a7480975e79c92d90f34bb20dadb5d7424d7b0846",
+      "unpatched_red_log_sha256": "1f3222c25b1773509e5d8c9f0eb9565b001d54062b63473219420167a63512b8",
+      "patched_green_log_sha256": "00421b9c1b600d8e35ee76aaa50df3b15393fc5002de532b6dca31a1156b98d7",
+      "vuln_code_sha256": "a729f713efcdf86d1078d2d711b2f5a911829532815748597901668d68ecc983",
+      "benign_code_sha256": "fd8ce3109e74e22ebcf5ee9ee08897a0ba8eeb31b76610a0ee38e6832d5a9857",
+      "twin_similarity": 0.84,
+      "sink_lines": [
+        24
+      ],
+      "root_lines": [
+        22
+      ],
+      "guard_lines": [
+        21,
+        22
+      ],
+      "vuln_harness": "harnesses/RW15_vuln.cpp",
+      "benign_harness": "harnesses/RW15_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 24,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW15"
+    },
+    {
+      "pair_id": "RW16",
+      "vuln_case_id": "RW16-V",
+      "benign_case_id": "RW16-S",
+      "repo": "mlc-ai/xgrammar",
+      "base_commit": "ca1acf28bf35b9ba9092800b69aebc7d4ce1f7a7",
+      "file_path": "cpp/lark_converter.cc",
+      "function_name": "LarkParser::ParseAtom",
+      "bug_class": "unbounded_recursion_on_nested_lark_grammar_blocks",
+      "gold_class": "UNBOUNDED_RECURSION",
+      "family": "F12",
+      "cwe": "CWE-674",
+      "crucible_packet_id": "xgrammar-lark-nested-grammar-depth-guard-v2",
+      "patch_sha256": "76b2f09fbb35d026326b4ac2812da0e4cd8c565856f4b7e18822c6c56be806ba",
+      "unpatched_red_log_sha256": "2929cb57a2aca89191e423424f48f32cbc3a723a6b3ce7131de6298b5e0ea93f",
+      "patched_green_log_sha256": "60e5c659d396c7552c7b8ba3c68a9f492576b137ef63564b173e92e7f18b3935",
+      "vuln_code_sha256": "e54ac228c8eef1bec19b5b1723d2018956496e487e5ccb268383dda65f3981ea",
+      "benign_code_sha256": "f2fc8f6a7d66aec1fa7c0afa340f585010d42cb9612ceb4aa02fd52b98850d85",
+      "twin_similarity": 0.914,
+      "sink_lines": [
+        15
+      ],
+      "root_lines": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "guard_lines": [
+        12,
+        16
+      ],
+      "vuln_harness": "harnesses/RW16_vuln.cpp",
+      "benign_harness": "harnesses/RW16_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 10,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW16"
+    },
+    {
+      "pair_id": "RW17",
+      "vuln_case_id": "RW17-V",
+      "benign_case_id": "RW17-S",
+      "repo": "onnx/onnx",
+      "base_commit": "48ace3d46387558f6dbd858ea3ed8758d7607b90",
+      "file_path": "onnx/defs/controlflow/utils.cc",
+      "function_name": "LoopInferenceFunction",
+      "bug_class": "assert_only_loop_input_count_check_underflows_in_ndebug",
+      "gold_class": "ASSERT_ONLY_CHECK",
+      "family": "F10",
+      "cwe": "CWE-617",
+      "crucible_packet_id": "onnx-loop-shape-inference-input-count",
+      "patch_sha256": "98d31397be797776063413f775a2a9365a6498294713551f0f561b5f6394b02c",
+      "unpatched_red_log_sha256": "d00ad7be564f8ef9abcbd299cd3674db02131e5f3af9583b4dd047b8a3cdd1f4",
+      "patched_green_log_sha256": "2ce71a6392a6bde66be3505fe00088a9f806f2df756bd72a6f4a6c5aec66cc4b",
+      "vuln_code_sha256": "b32271f8bb51bb6e50e795947961fd8c14f69d7e5304fbfc330aff20bf993dbb",
+      "benign_code_sha256": "d35c19feee73c56045a563b9fdaa17c86748a0c69dd0cb5425909b969e9c1b28",
+      "twin_similarity": 0.946,
+      "sink_lines": [
+        17
+      ],
+      "root_lines": [
+        8,
+        13
+      ],
+      "guard_lines": [
+        13
+      ],
+      "vuln_harness": "harnesses/RW17_vuln.cpp",
+      "benign_harness": "harnesses/RW17_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 8,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW17"
+    },
+    {
+      "pair_id": "RW18",
+      "vuln_case_id": "RW18-V",
+      "benign_case_id": "RW18-S",
+      "repo": "opencv/opencv",
+      "base_commit": "7dc486f74c625533a3b1fcdcbe6fc082ca25a945",
+      "file_path": "modules/dnn/src/darknet/darknet_io.cpp",
+      "function_name": "ReadDarknetConvGroups",
+      "bug_class": "divide_by_zero_on_zero_convolutional_groups_in_darknet_importer",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "opencv-darknet-conv-groups-zero",
+      "patch_sha256": "c52000389e0c1f3d8d22367070946d58f7577ea5bada3b54ca104fcfb9336c00",
+      "unpatched_red_log_sha256": "a7d330e92fc4d31ec68c9f497f3cde8d3819ada5bfdf218a51d1d4978812e249",
+      "patched_green_log_sha256": "0b2982966cb42d64b8dc808e02ca2ed2d0dfa069b729ce34271372d60f1dd6eb",
+      "vuln_code_sha256": "aa987ef2e3e1488ffeeadcb011076d1114fde57b2d2483b19722c3aa01ffbf79",
+      "benign_code_sha256": "3637eea7b0234dca584c5d059e62659fde667d5c015369c67e8f827316c94c09",
+      "twin_similarity": 0.874,
+      "sink_lines": [
+        5
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        5
+      ],
+      "vuln_harness": "harnesses/RW18_vuln.cpp",
+      "benign_harness": "harnesses/RW18_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 5,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW18"
+    },
+    {
+      "pair_id": "RW19",
+      "vuln_case_id": "RW19-V",
+      "benign_case_id": "RW19-S",
+      "repo": "opencv/opencv",
+      "base_commit": "7dc486f74c625533a3b1fcdcbe6fc082ca25a945",
+      "file_path": "modules/ml/src/tree.cpp",
+      "function_name": "DTreesImpl::predictTrees",
+      "bug_class": "heap_oob_read_on_unvalidated_dtree_split_variable_index",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "opencv-ml-dtrees-load-bounds",
+      "patch_sha256": "20f13b0b629989b4b743c7d406e1b207389289b1ba3e86afeaa70f7632b6c438",
+      "unpatched_red_log_sha256": "a948a3e3fdd8d857fdc6f9b71de04e472f540b668de162c93cb0a003dc347772",
+      "patched_green_log_sha256": "c1aa323f99228260ac3abc3055f5627b48b0da8e2bf8004ebd8e79c21f1ff585",
+      "vuln_code_sha256": "bb4b5955832bd60522fae175bf05c1a80b6b8dc307d1bbb788ad4b788695a2ef",
+      "benign_code_sha256": "6068dd74a5f60f93c101b667b34deca7bd43840ca9640db4c6f3d4bca6bab211",
+      "twin_similarity": 0.876,
+      "sink_lines": [
+        10
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        10
+      ],
+      "vuln_harness": "harnesses/RW19_vuln.cpp",
+      "benign_harness": "harnesses/RW19_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 10,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW19"
+    },
+    {
+      "pair_id": "RW20",
+      "vuln_case_id": "RW20-V",
+      "benign_case_id": "RW20-S",
+      "repo": "opencv/opencv",
+      "base_commit": "f706833347e1b9ab0ce6330cca05a419e3a190d1",
+      "file_path": "modules/dnn/src/torch/torch_importer.cpp",
+      "function_name": "TorchImporter::readTensor",
+      "bug_class": "type_confusion_and_heap_oob_when_reusing_torch_storage_of_smaller_type",
+      "gold_class": "TYPE_CONFUSION",
+      "family": "F11",
+      "cwe": "CWE-843",
+      "crucible_packet_id": "opencv-torch-storage-reuse-type-check",
+      "patch_sha256": "e68262e635bb78ffb021d833652d3ba94d103776e323a1428c6053c889f9ed97",
+      "unpatched_red_log_sha256": "d0987e6a9bc40adfa7ab43e41366c4ddc715c25a1aeeb37f25dcba4cdf9e6d7f",
+      "patched_green_log_sha256": "37b3c5ebdd821704f1ff6cb9851e63e2f4d674667f4ef3d172d33a2747364d0a",
+      "vuln_code_sha256": "8993635005d6b50fa8f302b764b985cf5063392c1b95470e55b490e895be3455",
+      "benign_code_sha256": "7bad97bb2937fa41143f6f8994c05d40ab2e85201fd894edbdf38fca7d00492e",
+      "twin_similarity": 0.935,
+      "sink_lines": [
+        20
+      ],
+      "root_lines": [
+        19
+      ],
+      "guard_lines": [
+        18
+      ],
+      "vuln_harness": "harnesses/RW20_vuln.cpp",
+      "benign_harness": "harnesses/RW20_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 20,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW20"
+    },
+    {
+      "pair_id": "RW21",
+      "vuln_case_id": "RW21-V",
+      "benign_case_id": "RW21-S",
+      "repo": "openvinotoolkit/openvino",
+      "base_commit": "a05daefea7cbebefec1608a033f0c9347582726f",
+      "file_path": "src/plugins/intel_cpu/src/utils/graph_serializer/deserializer.cpp",
+      "function_name": "ModelDeserializer::process_model",
+      "bug_class": "heap_oob_read_in_memcpy_when_compiled_model_blob_smaller_than_header",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openvino-cpu-compiled-model-sections-master-rebase",
+      "patch_sha256": "765491c6dd29c329109f19af723599e23c628beaf1a3eb7b8e6b2214b6233400",
+      "unpatched_red_log_sha256": "48d63cbf9c3d1a954faabccef051c3dc575978ae555ed650fe4ffd599cb18c8f",
+      "patched_green_log_sha256": "5f038f37da62324c2a34b7a48b9027019ec8b7ac4029188dae361f05640c5785",
+      "vuln_code_sha256": "8d17eb7a7a324d934ae6617d2443b0a98c163f9bc05d5774429387f71aa3a31a",
+      "benign_code_sha256": "d3f425caacfc63f51571ddeeb91de0568f0da68b244b3c9246912b7910a446cc",
+      "twin_similarity": 0.817,
+      "sink_lines": [
+        15
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        15,
+        18,
+        19
+      ],
+      "vuln_harness": "harnesses/RW21_vuln.cpp",
+      "benign_harness": "harnesses/RW21_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 15,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW21"
+    },
+    {
+      "pair_id": "RW22",
+      "vuln_case_id": "RW22-V",
+      "benign_case_id": "RW22-S",
+      "repo": "apache/arrow",
+      "base_commit": "1d3cf6f18205870b88b2beecabc92a6567dfefb0",
+      "file_path": "cpp/src/arrow/ipc/message.cc",
+      "function_name": "ReadMessageAsync",
+      "bug_class": "signed_int64_overflow_in_arrow_ipc_metadata_plus_body_length",
+      "gold_class": "INTEGER_OVERFLOW",
+      "family": "F04",
+      "cwe": "CWE-190",
+      "crucible_packet_id": "arrow-ipc-readmessage-body-length",
+      "patch_sha256": "c1fb2cd98f9daf6e719a0a2b032c45a3f9b0c690864bf9d63b2336556d63f54f",
+      "unpatched_red_log_sha256": "c549c3c71fd135ad5bbd6510718dcf029188595017508a59d447d7ea09ce2486",
+      "patched_green_log_sha256": "14b091238bff0cd0806359b5cc6a944e3e995aae0d979a7da1bfbaabafb26b65",
+      "vuln_code_sha256": "a12532069608b9f7e636eeef09b92d2e65f31c74d847b7021933b2d620a733bd",
+      "benign_code_sha256": "fa38b5df80901ef60a8b2ffebf499279dd3466d4edb8f4defab5eb3f413d36e1",
+      "twin_similarity": 0.841,
+      "sink_lines": [
+        10
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        11
+      ],
+      "vuln_harness": "harnesses/RW22_vuln.cpp",
+      "benign_harness": "harnesses/RW22_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 10,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW22"
+    },
+    {
+      "pair_id": "RW23",
+      "vuln_case_id": "RW23-V",
+      "benign_case_id": "RW23-S",
+      "repo": "apache/arrow",
+      "base_commit": "1d3cf6f18205870b88b2beecabc92a6567dfefb0",
+      "file_path": "cpp/src/arrow/ipc/reader.cc",
+      "function_name": "RecordBatchFileReaderImpl::GetRecordBatchBlock",
+      "bug_class": "dcheck_only_record_batch_index_check_allows_oob_in_release",
+      "gold_class": "ASSERT_ONLY_CHECK",
+      "family": "F10",
+      "cwe": "CWE-617",
+      "crucible_packet_id": "arrow-ipc-record-batch-index-bounds",
+      "patch_sha256": "5719a47836aaca6ad298a5a87af45602830bdeb4cf81dd8d9984a74d3b927808",
+      "unpatched_red_log_sha256": "b280fb9f2e2f270c57c6996d72bafa0bb744266ecff829cc6891652470e3d087",
+      "patched_green_log_sha256": "f1ad278ba7a2e70b18f3fc106c1341857564e14bd32bf3400a464f59edf7a3a8",
+      "vuln_code_sha256": "02785223ce7e30b534a749d1755ad0fc6ac8defb400d49b01abfda1344bb0a98",
+      "benign_code_sha256": "26a9afc5d64982b82a2f4055ef70b970ffdb17ad6f984661e922d5b6e6df98a5",
+      "twin_similarity": 0.795,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [
+        12
+      ],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW23_vuln.cpp",
+      "benign_harness": "harnesses/RW23_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 13,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW23"
+    },
+    {
+      "pair_id": "RW24",
+      "vuln_case_id": "RW24-V",
+      "benign_case_id": "RW24-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/hlo/evaluator/hlo_evaluator.cc",
+      "function_name": "HloEvaluator::HandleSort",
+      "bug_class": "heap_oob_read_indexing_key_shape_dimensions_before_sort_dim_check",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openxla-xla-hlo-evaluator-dimension-bounds",
+      "patch_sha256": "8e77bb1de80857cd8a6e05ac2799b130902971e76595bb35355933c1b6ec1160",
+      "unpatched_red_log_sha256": "445deee70145c2354f52f05de0c8b75e51971788bc539e7fb1ca69d7de140d9e",
+      "patched_green_log_sha256": "bc4ebb042a02a42c129256bbaf35d4bb2f5a4ebb5e674f3765711825cb6e01f3",
+      "vuln_code_sha256": "7fc8718b2128eae50a7c2c1199be50036f422ee2a36be029b85f76492db2482b",
+      "benign_code_sha256": "e3d28e6ed683047ecc4f4e8f8ec3763edfb1fe1626479225cc81e963d9294de2",
+      "twin_similarity": 0.905,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        8
+      ],
+      "guard_lines": [
+        14
+      ],
+      "vuln_harness": "harnesses/RW24_vuln.cpp",
+      "benign_harness": "harnesses/RW24_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 8,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW24"
+    },
+    {
+      "pair_id": "RW25",
+      "vuln_case_id": "RW25-V",
+      "benign_case_id": "RW25-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/tsl/lib/io/snappy/snappy_inputbuffer.cc",
+      "function_name": "SnappyInputBuffer::Inflate",
+      "bug_class": "dcheck_only_snappy_output_buffer_capacity_check_allows_heap_oob_write",
+      "gold_class": "ASSERT_ONLY_CHECK",
+      "family": "F10",
+      "cwe": "CWE-617",
+      "crucible_packet_id": "openxla-xla-tsl-snappy-input-buffer-capacity",
+      "patch_sha256": "aea5089a50752871d7be5b765c5cfb7693827377f3c9af2be76f8b955a222dff",
+      "unpatched_red_log_sha256": "f2ec991daafef03c7a350622e80feb5b365a3b3c901a376eb78c26870b5c0354",
+      "patched_green_log_sha256": "3a00941bc6e58969474de7d9b9c95842954da3b6af9c03b390b269f95caa8fbd",
+      "vuln_code_sha256": "4722289cd2f969c4117ae458b0b8768ec52c015ce2df8a7ed57b21b1ed0b4daa",
+      "benign_code_sha256": "ba4af8c982c1ddc23e4f9635453b16fba233865773cc7c0068a10d974f141c53",
+      "twin_similarity": 0.919,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        12
+      ],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW25_vuln.cpp",
+      "benign_harness": "harnesses/RW25_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 14,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW25"
+    },
+    {
+      "pair_id": "RW26",
+      "vuln_case_id": "RW26-V",
+      "benign_case_id": "RW26-S",
+      "repo": "openxla/xla",
+      "base_commit": "bae1f051129af495c55dbaf9d736dd0502019dda",
+      "file_path": "xla/service/hlo_verifier.cc",
+      "function_name": "ShapeVerifier::VerifyEntryComputationLayout",
+      "bug_class": "heap_oob_read_indexing_parameter_layout_on_out_of_range_alias_parameter_number",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "openxla-xla-hlo-verifier-alias-and-sort-bounds",
+      "patch_sha256": "01a291bc7745c231b1e7bd58cfbd689defc5288e5085d4e3ffe7732b236156a2",
+      "unpatched_red_log_sha256": "7b4ee0b51cd3cbee42acdbd37f6edc4997e5ea921228281578a1783ff4c577c4",
+      "patched_green_log_sha256": "3cb6bd173f1e1aea1ad8fe37de0f8ad2869df1d3529f68664a5259a55d2dc87d",
+      "vuln_code_sha256": "4ca78a3bd28c64b46fa3819673b4028104023f5ff3937c676b9b004ff71601d0",
+      "benign_code_sha256": "e210a7a2c68e59e0004d9518db24dee75af87bc47bd25ca402bee8cee6a91d42",
+      "twin_similarity": 0.917,
+      "sink_lines": [
+        14
+      ],
+      "root_lines": [
+        9
+      ],
+      "guard_lines": [
+        14
+      ],
+      "vuln_harness": "harnesses/RW26_vuln.cpp",
+      "benign_harness": "harnesses/RW26_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 9,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW26"
+    },
+    {
+      "pair_id": "RW27",
+      "vuln_case_id": "RW27-V",
+      "benign_case_id": "RW27-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "4a50894fcbae79897a7b728f7db3f782542cd26b",
+      "file_path": "tensorflow/core/grappler/optimizers/generic_layout_optimizer.cc",
+      "function_name": "IsCancellableConstPermTransposeNodePair",
+      "bug_class": "heap_oob_read_indexing_fanout_permutation_with_unvalidated_fanin_entry",
+      "gold_class": "HEAP_BUFFER_OVERFLOW",
+      "family": "F01",
+      "cwe": "CWE-122",
+      "crucible_packet_id": "tensorflow-grappler-generic-layout-pad-perm-oob",
+      "patch_sha256": "20268b61b8d8cc326dea810580a7c5c802b598d96428c38764646667abe61f20",
+      "unpatched_red_log_sha256": "e259aeda5689cf7fc3be96f5abcae008b6d7b78db9c85131e97f1ca03939aef0",
+      "patched_green_log_sha256": "3c97358a384597a9eebd59b93844b11cc2216faa0635442a42ff7ec2bd9b13f2",
+      "vuln_code_sha256": "dd1ee11be78054664381bce7a64a3cdd75c18e8aceb95a32bbe55d7c851b373a",
+      "benign_code_sha256": "463675c5c1f048f3940c150516dd5b39a4af4b4b0f3322184b5c9b292704e52e",
+      "twin_similarity": 0.886,
+      "sink_lines": [
+        13
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        14
+      ],
+      "vuln_harness": "harnesses/RW27_vuln.cpp",
+      "benign_harness": "harnesses/RW27_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 13,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW27"
+    },
+    {
+      "pair_id": "RW28",
+      "vuln_case_id": "RW28-V",
+      "benign_case_id": "RW28-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "ace46d5052cf64a198194df7291af365a1380105",
+      "file_path": "tensorflow/core/grappler/optimizers/constant_folding.cc",
+      "function_name": "ConstantFolding::PrepareConstantPushDown",
+      "bug_class": "null_dereference_binding_reference_to_missing_child_input_node",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "tensorflow-grappler-constant-folding-mulconv-and-rank-guards",
+      "patch_sha256": "4e21ba7abf572195da0a4782718b9fc010292b0ee2f5512b5cd3b08c95f6b7bb",
+      "unpatched_red_log_sha256": "510cfbd568da377c207d90db088ccdbe151c10655ff7bd3f8908acec474ea528",
+      "patched_green_log_sha256": "eeaff921fbed046203e64517e3e0a7248a1621a64ba1dceb10289f7b5d3c6733",
+      "vuln_code_sha256": "0d69d279b4b0c98dc4a862e2c84f7b920fa8d391d6ec065842d17b52fa562180",
+      "benign_code_sha256": "7defbaf2579ee22b0c618729f572f5391c3dcaf64933d5498dd0ef79e8217fdc",
+      "twin_similarity": 0.932,
+      "sink_lines": [
+        16
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        16
+      ],
+      "vuln_harness": "harnesses/RW28_vuln.cpp",
+      "benign_harness": "harnesses/RW28_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 16,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW28"
+    },
+    {
+      "pair_id": "RW29",
+      "vuln_case_id": "RW29-V",
+      "benign_case_id": "RW29-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "cd7fc0e41c85fa887d32a7deb3a175b712dc9522",
+      "file_path": "tensorflow/core/util/tensor_bundle/tensor_bundle.cc",
+      "function_name": "BundleReader::GetValue",
+      "bug_class": "negative_section_size_converted_to_size_t_in_threaded_tensor_bundle_restore",
+      "gold_class": "SIGN_CONVERSION",
+      "family": "F05",
+      "cwe": "CWE-195",
+      "crucible_packet_id": "tensorflow-tensor-bundle-getvalue-threaded-restore-bounds",
+      "patch_sha256": "1e805f02c9a079e8a12d7089bbb8ca8a1e32538b1f3112c04b810d18c38a92c8",
+      "unpatched_red_log_sha256": "d53c7f67dcb50245275111f20301052c90a081866512b3ab1092536ac5e17911",
+      "patched_green_log_sha256": "e847bbbe597b007366de538fcaab21ecccfb26c887bf52fcd233ad458f9a25f5",
+      "vuln_code_sha256": "5e0b5d5278de71442458f184390367380831e3d7e633fa483dc74f552d696fcb",
+      "benign_code_sha256": "a4f47cbbc17d16109708738874663f3fc9bd5fd5b4868d246e7d305c1f50d9dd",
+      "twin_similarity": 0.771,
+      "sink_lines": [
+        12
+      ],
+      "root_lines": [
+        10
+      ],
+      "guard_lines": [
+        10,
+        11
+      ],
+      "vuln_harness": "harnesses/RW29_vuln.cpp",
+      "benign_harness": "harnesses/RW29_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 12,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW29"
+    },
+    {
+      "pair_id": "RW30",
+      "vuln_case_id": "RW30-V",
+      "benign_case_id": "RW30-S",
+      "repo": "tensorflow/tensorflow",
+      "base_commit": "d384f6f8186efb7af1ca68c80ad32ea7b250d6cd",
+      "file_path": "tensorflow/lite/core/interpreter_builder.cc",
+      "function_name": "InterpreterBuilder::operator()",
+      "bug_class": "null_dereference_when_tflite_model_omits_subgraphs_vector",
+      "gold_class": "NULL_DEREFERENCE",
+      "family": "F07",
+      "cwe": "CWE-476",
+      "crucible_packet_id": "tensorflow-tflite-interpreter-builder-null-subgraphs",
+      "patch_sha256": "6e36cd58011dbbaa4f2b1101164f8d1630eebcd2970bf344dfbc3c7033c57de2",
+      "unpatched_red_log_sha256": "fa0c12ae5100ad1c7bdedee0cfa0caff57b1d8373fb0b95f06798b459b5a9dc5",
+      "patched_green_log_sha256": "e1e26bc705b795161eb39fa2e5953fd1b75861d1b71bf0c488a5b8862144f8b3",
+      "vuln_code_sha256": "bf31344b0f559c4a8eea1ea63aa208a13d83bf318118d58497799e6b74106079",
+      "benign_code_sha256": "fc1cd8e0ccad67a31042831f7102c980cab7ff768916664d2263c569ec0b6b27",
+      "twin_similarity": 0.984,
+      "sink_lines": [
+        12
+      ],
+      "root_lines": [],
+      "guard_lines": [
+        12
+      ],
+      "vuln_harness": "harnesses/RW30_vuln.cpp",
+      "benign_harness": "harnesses/RW30_benign.cpp",
+      "clang_O1_verification": {
+        "vuln_trigger_exit_code": 1,
+        "vuln_trigger_sanitizer_reported": true,
+        "vuln_trigger_report_line": 12,
+        "benign_trigger_exit_code": 0,
+        "benign_trigger_sanitizer_reported": false,
+        "vuln_control_exit_code": 0,
+        "benign_control_exit_code": 0,
+        "status": "PASS"
+      },
+      "case_id": "RW30"
+    }
+  ]
+}

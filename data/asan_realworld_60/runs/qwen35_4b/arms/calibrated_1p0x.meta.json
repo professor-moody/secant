@@ -1,0 +1,27 @@
+{
+  "arm": "calibrated_1p0x",
+  "status": "COMPLETE",
+  "batch_size": 16,
+  "calibration": null,
+  "weights_restored_after_arm": true,
+  "elapsed_seconds": 645.6725209360011,
+  "generation_seconds_total": 645.443900205195,
+  "rows_sha256": "f342e45e3fced66c9703935020a206dc57b423301893ba119a8b5843babeb581",
+  "summary": {
+    "tpr": 0.6,
+    "tnr": 0.4,
+    "ba": 0.5,
+    "mcc": 0.0,
+    "rc_recall": 0.1,
+    "class_acc": 0.16666666666666666,
+    "sink_acc": 0.36666666666666664,
+    "pair_both": 0.1,
+    "strict_ba": 0.25,
+    "n_pairs": 30
+  },
+  "parsed": 58,
+  "n": 60,
+  "think_started": 0,
+  "think_closed": 0,
+  "hit_token_cap": 7
+}

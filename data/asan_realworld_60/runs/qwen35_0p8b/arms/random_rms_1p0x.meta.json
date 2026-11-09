@@ -1,0 +1,76 @@
+{
+  "arm": "random_rms_1p0x",
+  "status": "COMPLETE",
+  "batch_size": 16,
+  "calibration": {
+    "status": "CALIBRATED",
+    "delta_target": 1.5063007475668329,
+    "tolerance": 0.02,
+    "final_correction": {
+      "security": 1.0,
+      "math": 1.0,
+      "science": 1.0,
+      "code": 1.0
+    },
+    "realized_shift": {
+      "security": 1.506384015083313,
+      "math": 1.5063101053237915,
+      "science": 1.5063334107398987,
+      "code": 1.5061707496643066
+    },
+    "realized_over_target": {
+      "security": 1.000055279476303,
+      "math": 1.0000062124094233,
+      "science": 1.0000216843635765,
+      "code": 0.9999136972462265
+    },
+    "iterations": [
+      {
+        "iteration": 0,
+        "correction": {
+          "security": 1.0,
+          "math": 1.0,
+          "science": 1.0,
+          "code": 1.0
+        },
+        "realized_over_target": {
+          "security": 1.000055279476303,
+          "math": 1.0000062124094233,
+          "science": 1.0000216843635765,
+          "code": 0.9999136972462265
+        }
+      }
+    ],
+    "realized_frobenius": 0.830715000629425,
+    "analytic_frobenius_unrounded": 0.8306822758814808,
+    "nonzero_columns": 131,
+    "support_sha256": "f8912413cf77864d7648e68b39daf573aa3289970840b1813433ac0866a303df",
+    "per_edit_beta": {
+      "security": 0.1348463042974192,
+      "math": 0.11114425705171117,
+      "science": 0.10873318086754577,
+      "code": 0.10337404773547328
+    }
+  },
+  "weights_restored_after_arm": true,
+  "elapsed_seconds": 117.23968344298191,
+  "generation_seconds_total": 115.58311989891808,
+  "rows_sha256": "0a91f29ca281c87bcb0207826c1aa5a46cb89ec9937e568bb0709a73861544b8",
+  "summary": {
+    "tpr": 0.0,
+    "tnr": 1.0,
+    "ba": 0.5,
+    "mcc": 0.0,
+    "rc_recall": 0.0,
+    "class_acc": 0.0,
+    "sink_acc": 0.1,
+    "pair_both": 0.0,
+    "strict_ba": 0.5,
+    "n_pairs": 30
+  },
+  "parsed": 60,
+  "n": 60,
+  "think_started": 0,
+  "think_closed": 0,
+  "hit_token_cap": 0
+}

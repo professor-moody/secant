@@ -1,0 +1,76 @@
+{
+  "arm": "composed_rms_1p0x",
+  "status": "COMPLETE",
+  "batch_size": 16,
+  "calibration": {
+    "status": "CALIBRATED",
+    "delta_target": 22.19896892135888,
+    "tolerance": 0.02,
+    "final_correction": {
+      "security": 1.0,
+      "math": 1.0,
+      "science": 1.0,
+      "code": 1.0
+    },
+    "realized_shift": {
+      "security": 22.201154708862305,
+      "math": 22.19944167137146,
+      "science": 22.196977376937866,
+      "code": 22.20002794265747
+    },
+    "realized_over_target": {
+      "security": 1.000098463469685,
+      "math": 1.0000212960347057,
+      "science": 0.99991028662511,
+      "code": 1.0000477058777975
+    },
+    "iterations": [
+      {
+        "iteration": 0,
+        "correction": {
+          "security": 1.0,
+          "math": 1.0,
+          "science": 1.0,
+          "code": 1.0
+        },
+        "realized_over_target": {
+          "security": 1.000098463469685,
+          "math": 1.0000212960347057,
+          "science": 0.99991028662511,
+          "code": 1.0000477058777975
+        }
+      }
+    ],
+    "realized_frobenius": 4.598555564880371,
+    "analytic_frobenius_unrounded": 4.598418450653008,
+    "nonzero_columns": 149,
+    "support_sha256": "d68632779b4f21f1878fcaf1a4cbcc3575f04695cce31a20b43c09a87bab942a",
+    "per_edit_beta": {
+      "security": 0.16196035481488427,
+      "math": 0.30260585332021867,
+      "science": 0.27860604792054783,
+      "code": 0.2093698337240586
+    }
+  },
+  "weights_restored_after_arm": true,
+  "elapsed_seconds": 196.48455216002185,
+  "generation_seconds_total": 192.65279028599616,
+  "rows_sha256": "6bc23aa22cc06fcc382b0e635002f8a3910e87401154d892fb564094786d955b",
+  "summary": {
+    "tpr": 0.1,
+    "tnr": 0.8,
+    "ba": 0.45,
+    "mcc": -0.14002800840280097,
+    "rc_recall": 0.0,
+    "class_acc": 0.0,
+    "sink_acc": 0.13333333333333333,
+    "pair_both": 0.03333333333333333,
+    "strict_ba": 0.4,
+    "n_pairs": 30
+  },
+  "parsed": 60,
+  "n": 60,
+  "think_started": 0,
+  "think_closed": 0,
+  "hit_token_cap": 0
+}

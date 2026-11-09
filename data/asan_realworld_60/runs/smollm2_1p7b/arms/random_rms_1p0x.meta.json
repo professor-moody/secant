@@ -1,0 +1,76 @@
+{
+  "arm": "random_rms_1p0x",
+  "status": "COMPLETE",
+  "batch_size": 16,
+  "calibration": {
+    "status": "CALIBRATED",
+    "delta_target": 108.65618717756715,
+    "tolerance": 0.02,
+    "final_correction": {
+      "security": 1.0,
+      "math": 1.0,
+      "science": 1.0,
+      "code": 1.0
+    },
+    "realized_shift": {
+      "security": 108.65654850006104,
+      "math": 108.66297626495361,
+      "science": 108.66082572937012,
+      "code": 108.66171264648438
+    },
+    "realized_over_target": {
+      "security": 1.000003325374314,
+      "math": 1.0000624822898982,
+      "science": 1.0000426901764499,
+      "code": 1.0000508527775616
+    },
+    "iterations": [
+      {
+        "iteration": 0,
+        "correction": {
+          "security": 1.0,
+          "math": 1.0,
+          "science": 1.0,
+          "code": 1.0
+        },
+        "realized_over_target": {
+          "security": 1.000003325374314,
+          "math": 1.0000624822898982,
+          "science": 1.0000426901764499,
+          "code": 1.0000508527775616
+        }
+      }
+    ],
+    "realized_frobenius": 21.77547836303711,
+    "analytic_frobenius_unrounded": 21.77410468849922,
+    "nonzero_columns": 160,
+    "support_sha256": "dd229c24495987c15e6e6a7dde7c9e63b33748da8fbd2fbec41ce8985652b665",
+    "per_edit_beta": {
+      "security": 0.9821733097146321,
+      "math": 1.1326121901217703,
+      "science": 1.249040321029832,
+      "code": 0.9995854795038522
+    }
+  },
+  "weights_restored_after_arm": true,
+  "elapsed_seconds": 344.9742682200158,
+  "generation_seconds_total": 341.44138364010723,
+  "rows_sha256": "fe8a6d1a4f58b0730d0cbd0129b525b4e62d335316a03bb42e67039e982a97bf",
+  "summary": {
+    "tpr": 1.0,
+    "tnr": 0.0,
+    "ba": 0.5,
+    "mcc": 0.0,
+    "rc_recall": 0.0,
+    "class_acc": 0.16666666666666666,
+    "sink_acc": 0.13333333333333333,
+    "pair_both": 0.0,
+    "strict_ba": 0.0,
+    "n_pairs": 30
+  },
+  "parsed": 60,
+  "n": 60,
+  "think_started": 0,
+  "think_closed": 0,
+  "hit_token_cap": 0
+}
