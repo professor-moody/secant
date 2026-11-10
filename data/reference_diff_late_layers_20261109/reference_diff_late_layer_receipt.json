@@ -122,7 +122,7 @@
         {
           "dose_pct": 6.0,
           "patched_sha256": "9e4b699c6e6f406b9ae20f0489976e6b5868c8cda6ef7facf1c2082882b6d409",
-          "plan_sha256": "aba9dc70df2dfec0cf26a8b9c437f8f0a66a37268689ac361f5485ff3bc47b",
+          "plan_sha256": "aba9dc70df2dfec0cf26a8b9c437f8f8f0a66a37268689ac361f5485ff3bc47b",
           "reference_receipt_sha256": "4ea8f7090cc8c7005ad6c1aa6757efaa5cf1197ad30695d11f4ed7c258ce238e",
           "exit_code": 0,
           "relative_delta": 0.06000207355173615,

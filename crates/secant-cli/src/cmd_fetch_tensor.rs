@@ -8,7 +8,7 @@ use reqwest::{
 };
 use secant_core::{
     container::sha256_hex,
-    dtype::{f32_from_bf16, f32_from_f16},
+    dtype::{f32_from_bf16, f32_from_f16, f32_from_f8_e4m3, f32_from_f8_e5m2},
     Error,
 };
 use serde_json::{json, Value};
@@ -148,6 +148,7 @@ fn npy(dtype: &str, shape: &[u64], raw: &[u8]) -> Result<(Vec<u8>, &'static str)
         "F64" => ("<f8", 8),
         "F32" => ("<f4", 4),
         "F16" | "BF16" => ("<f4", 2),
+        "F8_E4M3" | "F8_E5M2" => ("<f4", 1),
         "I64" => ("<i8", 8),
         "I32" => ("<i4", 4),
         "I16" => ("<i2", 2),
@@ -175,6 +176,11 @@ fn npy(dtype: &str, shape: &[u64], raw: &[u8]) -> Result<(Vec<u8>, &'static str)
         for b in raw.chunks_exact(2) {
             let bits = u16::from_le_bytes([b[0], b[1]]);
             let v = if dtype == "F16" { f32_from_f16(bits) } else { f32_from_bf16(bits) };
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+    } else if dtype == "F8_E4M3" || dtype == "F8_E5M2" {
+        for &b in raw {
+            let v = if dtype == "F8_E4M3" { f32_from_f8_e4m3(b) } else { f32_from_f8_e5m2(b) };
             out.extend_from_slice(&v.to_le_bytes());
         }
     } else {
@@ -249,7 +255,7 @@ fn fetch(a: &Args) -> Result<Value, Error> {
         "F64" | "I64" | "U64" => 8,
         "F32" | "I32" | "U32" => 4,
         "BF16" | "F16" | "I16" | "U16" => 2,
-        "I8" | "U8" | "BOOL" => 1,
+        "I8" | "U8" | "BOOL" | "F8_E4M3" | "F8_E5M2" => 1,
         _ => return Err(err(format!("unsupported dtype {}", dtype))),
     };
     let shape: Vec<u64> = t["shape"]

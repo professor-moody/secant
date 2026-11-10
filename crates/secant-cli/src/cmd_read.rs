@@ -55,6 +55,7 @@ pub fn run(a: &Args) -> i32 {
         marchenko_pastur: a.marchenko_pastur,
         mp_threshold: a.mp_threshold.unwrap_or(0.0),
         reference: a.reference.clone(),
+        rank_k: 0,
     };
     if a.mp_threshold == Some(0.0) {
         return usage("--mp-threshold must be > 0");

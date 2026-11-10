@@ -1139,6 +1139,12 @@ pub mod sanitize {
         if o.output.is_empty() {
             return Ok(());
         }
+        if let Some(t) = layout.tensors.iter().find(|t| crate::dtype::is_fp8_dtype(&t.dtype)) {
+            return Err(Error::msg(format!(
+                "tensor {:?}: {} remediation is not supported (sanitize scan is read-only for FP8)",
+                t.name, t.dtype
+            )));
+        }
         if !fsx::lstat_not_exist(&o.output) {
             return Err(Error::msg(format!("output must not exist: {}", o.output)));
         }
@@ -1787,6 +1793,410 @@ pub mod sanitize {
                 assert_eq!(before.examples[0].tensor, want_key, "case {}", tag);
                 let _ = std::fs::remove_dir_all(&dir);
             }
+
+            // 3. Companion tokenizer_config.json / tokenizer.json added_tokens_decoder bounds
+            let dir = make_dir("tok_valid");
+            let model_path = dir.join("model.safetensors");
+            std::fs::write(&model_path, &model_bytes).unwrap();
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":151936}"#).unwrap();
+            std::fs::write(
+                dir.join("tokenizer_config.json"),
+                r#"{"added_tokens_decoder":{"151643":{"content":"<|endoftext|>"},"151935":{"content":"<|last|>"}}}"#,
+            )
+            .unwrap();
+            std::fs::write(
+                dir.join("tokenizer.json"),
+                r#"{"added_tokens_decoder":{"151644":{"content":"<|im_start|>"}}}"#,
+            )
+            .unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
+            let _ = std::fs::remove_dir_all(&dir);
+
+            let tok_cases = [
+                (
+                    "tok_cfg_eq_vocab",
+                    "tokenizer_config.json",
+                    r#"{"added_tokens_decoder":{"151936":{"content":"<|oob|>"}}}"#,
+                    "tokenizer_config.json:added_tokens_decoder",
+                ),
+                (
+                    "tok_json_gt_vocab",
+                    "tokenizer.json",
+                    r#"{"added_tokens_decoder":{"200000":{"content":"<|oob|>"}}}"#,
+                    "tokenizer.json:added_tokens_decoder",
+                ),
+                (
+                    "tok_cfg_neg_id",
+                    "tokenizer_config.json",
+                    r#"{"added_tokens_decoder":{"-1":{"content":"<|neg|>"}}}"#,
+                    "tokenizer_config.json:added_tokens_decoder",
+                ),
+            ];
+            for (tag, file, body, want_key) in tok_cases {
+                let dir = make_dir(tag);
+                let model_path = dir.join("model.safetensors");
+                std::fs::write(&model_path, &model_bytes).unwrap();
+                std::fs::write(dir.join("config.json"), r#"{"vocab_size":151936}"#).unwrap();
+                std::fs::write(dir.join(file), body).unwrap();
+                let mut repair_opts = opts.clone();
+                repair_opts.repair = true;
+                repair_opts.output = dir.join("out.safetensors").to_str().unwrap().to_string();
+                let rep = sanitize_file(model_path.to_str().unwrap(), &repair_opts).unwrap();
+                assert_eq!(rep.status, "findings", "case {}", tag);
+                assert!(!rep.output_published, "case {}", tag);
+                let before = rep.before.as_ref().unwrap();
+                assert_eq!(before.counts.get("s0_companion_added_token_id_oob"), Some(&1), "case {}", tag);
+                assert_eq!(before.examples.len(), 1, "case {}", tag);
+                assert_eq!(before.examples[0].tensor, want_key, "case {}", tag);
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+
+            // 4. Malformed or unreadable companion configs fail closed (status == "unknown", Err -> exit 2)
+            let malformed_cases: [(&str, &str, Option<&str>); 5] = [
+                ("malformed_cfg", "config.json", Some(r#"{"vocab_size": 151936"#)),
+                ("non_obj_gen_cfg", "generation_config.json", Some(r#"[1, 2, 3]"#)),
+                ("null_tok_cfg", "tokenizer_config.json", Some(r#"null"#)),
+                ("trailing_tok_json", "tokenizer.json", Some(r#"{} trailing"#)),
+                ("dir_as_cfg", "config.json", None),
+            ];
+            for (tag, file, contents) in malformed_cases {
+                let dir = make_dir(tag);
+                let model_path = dir.join("model.safetensors");
+                std::fs::write(&model_path, &model_bytes).unwrap();
+                match contents {
+                    Some(raw) => std::fs::write(dir.join(file), raw).unwrap(),
+                    None => std::fs::create_dir(dir.join(file)).unwrap(),
+                }
+                let (rep, res) = sanitize_file_report(model_path.to_str().unwrap(), &opts);
+                assert!(res.is_err(), "case {} expected fail-closed error, got Ok", tag);
+                assert_eq!(rep.status, "unknown", "case {}", tag);
+                assert!(!rep.error.is_empty(), "case {}", tag);
+                assert!(rep.input_unchanged, "case {}", tag);
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
+
+        #[test]
+        fn fp8_safetensors_sanitize_read_only_scan() {
+            use crate::builder::{build_safetensors, BuildTensor};
+            let make_dir = |tag: &str| {
+                let p = std::env::temp_dir().join(format!("secant-fp8-sanitize-{}-{}", std::process::id(), tag));
+                let _ = std::fs::remove_dir_all(&p);
+                std::fs::create_dir_all(&p).unwrap();
+                p
+            };
+            let opts = SanitizeOptions { attempt_id: "att-fp8-test".into(), ..Default::default() };
+
+            // 1. Clean F8_E4M3 (including 0x7E = 448.0, 0xFE = -448.0, subnormals 0x01/0x87, ±0) + F8_E5M2 (normals <= 1e4, subnormals, ±0) + F32 scale_inv
+            let e4m3_clean = vec![0x00, 0x80, 0x01, 0x87, 0x08, 0x38, 0x78, 0x7E, 0xFE, 0xB8, 0x40, 0x20];
+            let e5m2_clean = vec![0x00, 0x80, 0x01, 0x83, 0x04, 0x3C, 0xBC, 0x6F]; // 0x6F = 2^(27-15)*1.75 = 7168.0 <= 1e4
+            let scale_inv: Vec<u8> = [0.02f32, 0.05f32].iter().flat_map(|x| x.to_le_bytes()).collect();
+            let clean_bytes = build_safetensors(
+                &[
+                    BuildTensor { name: "layers.0.mlp.weight".into(), dtype: "F8_E4M3".into(), shape: vec![3, 4], data: e4m3_clean },
+                    BuildTensor { name: "layers.0.mlp.weight_scale_inv".into(), dtype: "F32".into(), shape: vec![1, 2], data: scale_inv },
+                    BuildTensor { name: "layers.0.attn.weight".into(), dtype: "F8_E5M2".into(), shape: vec![2, 4], data: e5m2_clean },
+                ],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+
+            let dir = make_dir("clean");
+            let clean_path = dir.join("model.safetensors");
+            std::fs::write(&clean_path, &clean_bytes).unwrap();
+            let rep = sanitize_file(clean_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            assert!(rep.input_unchanged);
+            let before = rep.before.as_ref().unwrap();
+            assert_eq!(before.total_findings, 0);
+            assert_eq!(before.tensors, 3);
+            assert_eq!(before.float_elements, 12 + 2 + 8);
+            assert_eq!(before.divisor_elements, 2);
+            assert_eq!(before.info.get("subnormal_tolerated"), Some(&4)); // 2 in E4M3 + 2 in E5M2
+
+            // Under --strict-subnormal, those 4 subnormals are flagged
+            let mut strict_opts = opts.clone();
+            strict_opts.strict_subnormal = true;
+            let strict_rep = sanitize_file(clean_path.to_str().unwrap(), &strict_opts).unwrap();
+            assert_eq!(strict_rep.status, "findings");
+            assert_eq!(strict_rep.before.as_ref().unwrap().counts.get("subnormal"), Some(&4));
+
+            // Remediation (--clamp-nonfinite / --repair --out) on FP8 fails closed with status == "unknown"
+            let mut repair_opts = opts.clone();
+            repair_opts.repair = true;
+            repair_opts.output = dir.join("out.safetensors").to_str().unwrap().to_string();
+            let (unk_rep, unk_res) = sanitize_file_report(clean_path.to_str().unwrap(), &repair_opts);
+            assert!(unk_res.is_err());
+            assert_eq!(unk_rep.status, "unknown");
+            assert!(unk_rep.error.contains("remediation is not supported"));
+            assert!(!dir.join("out.safetensors").exists());
+            let _ = std::fs::remove_dir_all(&dir);
+
+            // 2. Hostile F8_E4M3 (0x7F / 0xFF -> nan, never inf) + Hostile F8_E5M2 (0x7C / 0xFC -> inf, 0x7D / 0xFF -> nan, 0x7B = 57344.0 -> extreme_finite)
+            let e4m3_bad = vec![0x38, 0x7F, 0x7E, 0xFF]; // [1.0, NaN, 448.0, -NaN] — note: odd tail exercises w=1 get_bits without OOB!
+            let e5m2_bad = vec![0x3C, 0x7C, 0xFC, 0x7D, 0xFF, 0x7B]; // [1.0, +Inf, -Inf, NaN, -NaN, 57344.0]
+            let hostile_bytes = build_safetensors(
+                &[
+                    BuildTensor { name: "a_e4m3".into(), dtype: "F8_E4M3".into(), shape: vec![2, 2], data: e4m3_bad },
+                    BuildTensor { name: "b_e5m2".into(), dtype: "F8_E5M2".into(), shape: vec![2, 3], data: e5m2_bad },
+                ],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+            let dir = make_dir("hostile");
+            let hostile_path = dir.join("hostile.safetensors");
+            std::fs::write(&hostile_path, &hostile_bytes).unwrap();
+            let rep = sanitize_file(hostile_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "findings");
+            let before = rep.before.as_ref().unwrap();
+            assert_eq!(before.counts.get("nan"), Some(&4)); // 2 from E4M3 + 2 from E5M2
+            assert_eq!(before.counts.get("inf"), Some(&2)); // 2 from E5M2 only
+            assert_eq!(before.counts.get("extreme_finite"), Some(&1)); // 0x7B = 57344.0 > 1e4
+            assert_eq!(before.total_findings, 7);
+            assert!(before.examples.iter().any(|e| e.tensor == "a_e4m3" && e.kind == "nan" && e.bits == "0x7f" && e.index == 1));
+            assert!(before.examples.iter().any(|e| e.tensor == "a_e4m3" && e.kind == "nan" && e.bits == "0xff" && e.index == 3));
+            assert!(before.examples.iter().any(|e| e.tensor == "b_e5m2" && e.kind == "inf" && e.bits == "0x7c" && e.index == 1));
+            assert!(before.examples.iter().any(|e| e.tensor == "b_e5m2" && e.kind == "extreme_finite" && e.bits == "0x7b" && e.index == 5));
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        #[test]
+        fn companion_zero_sentinels_vision_and_dense_hybrid() {
+            use crate::builder::{build_safetensors, BuildTensor};
+            let make_dir = |tag: &str| {
+                let p = std::env::temp_dir().join(format!("secant-s0-zero-sentinel-{}-{}", std::process::id(), tag));
+                let _ = std::fs::remove_dir_all(&p);
+                std::fs::create_dir_all(&p).unwrap();
+                p
+            };
+            let opts = SanitizeOptions { attempt_id: "att-s0-zero".into(), ..Default::default() };
+            let f32_ones: Vec<u8> = [1.0f32; 8].iter().flat_map(|x| x.to_le_bytes()).collect();
+
+            // 1. Vision-only model (no text embedding tensor) with vocab_size == 0 -> clean
+            let vision_bytes = build_safetensors(
+                &[
+                    BuildTensor {
+                        name: "vision_model.embeddings.patch_embedding.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![2, 4],
+                        data: f32_ones.clone(),
+                    },
+                    BuildTensor {
+                        name: "vision_model.embeddings.position_embedding.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![2, 4],
+                        data: f32_ones.clone(),
+                    },
+                ],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+            let dir = make_dir("vision_ok");
+            let model_path = dir.join("model.safetensors");
+            std::fs::write(&model_path, &vision_bytes).unwrap();
+            std::fs::write(
+                dir.join("config.json"),
+                r#"{"vocab_size":0,"bos_token_id":null,"eos_token_id":null,"pad_token_id":null}"#,
+            )
+            .unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
+
+            // Vision-only model with vocab_size == 0 BUT non-null token ID -> s0_companion_token_id_oob
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":0,"eos_token_id":5}"#).unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "findings");
+            assert_eq!(rep.before.as_ref().unwrap().counts.get("s0_companion_token_id_oob"), Some(&1));
+
+            // Negative vocab_size still fires even without text embeddings
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":-1}"#).unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "findings");
+            assert_eq!(rep.before.as_ref().unwrap().counts.get("s0_companion_vocab_size_mismatch"), Some(&1));
+            let _ = std::fs::remove_dir_all(&dir);
+
+            // 2. Model WITH non-empty text embedding tensor (flat or nested) and vocab_size == 0 -> mismatch
+            for emb_name in ["model.embed_tokens.weight", "model.language_model.embed_tokens.weight"] {
+                let bytes = build_safetensors(
+                    &[BuildTensor { name: emb_name.into(), dtype: "F32".into(), shape: vec![2, 4], data: f32_ones.clone() }],
+                    &BTreeMap::new(),
+                )
+                .unwrap();
+                let dir = make_dir("text_emb_zero_vocab");
+                let model_path = dir.join("model.safetensors");
+                std::fs::write(&model_path, &bytes).unwrap();
+                std::fs::write(dir.join("config.json"), r#"{"vocab_size":0}"#).unwrap();
+                let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+                assert_eq!(rep.status, "findings", "emb_name={}", emb_name);
+                assert_eq!(rep.before.as_ref().unwrap().counts.get("s0_companion_vocab_size_mismatch"), Some(&1));
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+
+            // 3. Dense hybrid model (no MoE tensors, AND 0-element [0, 4] MoE placeholder) with num_local_experts == 0 & num_experts_per_tok == 0 -> clean
+            let dense_hybrid_bytes = build_safetensors(
+                &[
+                    BuildTensor { name: "model.embed_tokens.weight".into(), dtype: "F32".into(), shape: vec![4, 2], data: f32_ones.clone() },
+                    BuildTensor {
+                        name: "model.layers.0.shared_mlp.input_linear.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![2, 4],
+                        data: f32_ones.clone(),
+                    },
+                ],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+            let dir = make_dir("dense_hybrid_ok");
+            let model_path = dir.join("model.safetensors");
+            std::fs::write(&model_path, &dense_hybrid_bytes).unwrap();
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":4,"num_local_experts":0,"num_experts_per_tok":0}"#).unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
+
+            // Also verify 0-element [0, 4] MoE placeholder tensor (Granite-4.0 pattern) scans clean
+            let mut hdr = br#"{"model.embed_tokens.weight":{"dtype":"F32","shape":[4,2],"data_offsets":[0,32]},"model.layers.0.block_sparse_moe.router.layer.weight":{"dtype":"F32","shape":[0,4],"data_offsets":[32,32]}}"#.to_vec();
+            while hdr.len() % 8 != 0 {
+                hdr.push(b' ');
+            }
+            let mut zero_moe_st = (hdr.len() as u64).to_le_bytes().to_vec();
+            zero_moe_st.extend_from_slice(&hdr);
+            zero_moe_st.extend_from_slice(&f32_ones);
+            std::fs::write(&model_path, &zero_moe_st).unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
+
+            // num_local_experts == 0 with num_experts_per_tok > 0 -> s0_companion_expert_used_count
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":4,"num_local_experts":0,"num_experts_per_tok":2}"#).unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "findings");
+            assert_eq!(rep.before.as_ref().unwrap().counts.get("s0_companion_expert_used_count"), Some(&1));
+            let _ = std::fs::remove_dir_all(&dir);
+
+            // 4. Model WITH non-empty MoE router tensor and num_local_experts == 0 -> s0_companion_expert_count
+            let moe_bytes = build_safetensors(
+                &[
+                    BuildTensor { name: "model.embed_tokens.weight".into(), dtype: "F32".into(), shape: vec![4, 2], data: f32_ones.clone() },
+                    BuildTensor {
+                        name: "model.layers.0.block_sparse_moe.router.layer.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![2, 4],
+                        data: f32_ones,
+                    },
+                ],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+            let dir = make_dir("moe_zero_experts");
+            let model_path = dir.join("model.safetensors");
+            std::fs::write(&model_path, &moe_bytes).unwrap();
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":4,"num_local_experts":0}"#).unwrap();
+            let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "findings");
+            assert_eq!(rep.before.as_ref().unwrap().counts.get("s0_companion_expert_count"), Some(&1));
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        #[test]
+        fn safetensors_u8_causal_masks_and_batchnorm_counters() {
+            use crate::builder::{build_safetensors, BuildTensor};
+            let make_dir = |tag: &str| {
+                let p = std::env::temp_dir().join(format!("secant-u8-bn-{}-{}", std::process::id(), tag));
+                let _ = std::fs::remove_dir_all(&p);
+                std::fs::create_dir_all(&p).unwrap();
+                p
+            };
+            let opts = SanitizeOptions { attempt_id: "att-u8-bn".into(), ..Default::default() };
+            let f32_four: Vec<u8> = [1.0f32; 4].iter().flat_map(|x| x.to_le_bytes()).collect();
+
+            // 1. Benign U8 *.bias / *mask*, BOOL mask, and scalar/1-elem I64/I32 *.num_batches_tracked skip cleanly
+            let clean_bytes = build_safetensors(
+                &[
+                    BuildTensor { name: "gpt_neox.layers.0.attention.bias".into(), dtype: "U8".into(), shape: vec![1, 1, 2, 2], data: vec![1, 0, 1, 1] },
+                    BuildTensor { name: "transformer.h.0.attn.attention.bias".into(), dtype: "U8".into(), shape: vec![2, 2], data: vec![1, 0, 1, 1] },
+                    BuildTensor { name: "decoder.causal_mask".into(), dtype: "BOOL".into(), shape: vec![2, 2], data: vec![1, 0, 1, 1] },
+                    BuildTensor {
+                        name: "encoder.layers.0.conv.norm.num_batches_tracked".into(),
+                        dtype: "I64".into(),
+                        shape: vec![],
+                        data: 42i64.to_le_bytes().to_vec(),
+                    },
+                    BuildTensor {
+                        name: "encoder.layers.1.conv.norm.num_batches_tracked".into(),
+                        dtype: "I32".into(),
+                        shape: vec![1],
+                        data: 7i32.to_le_bytes().to_vec(),
+                    },
+                    BuildTensor { name: "encoder.layers.0.conv.norm.weight".into(), dtype: "F32".into(), shape: vec![4], data: f32_four.clone() },
+                ],
+                &BTreeMap::new(),
+            )
+            .unwrap();
+            let dir = make_dir("clean_aux");
+            let clean_path = dir.join("model.safetensors");
+            std::fs::write(&clean_path, &clean_bytes).unwrap();
+            let rep = sanitize_file(clean_path.to_str().unwrap(), &opts).unwrap();
+            assert_eq!(rep.status, "clean");
+            let before = rep.before.as_ref().unwrap();
+            assert_eq!(before.total_findings, 0);
+            assert_eq!(before.ignored_integer_tensors, 5);
+            assert_eq!(before.norm_rows, 1);
+            assert_eq!(before.float_elements, 4);
+
+            // Explicit --norm-tensor targeting num_batches_tracked still fails closed
+            let mut explicit_norm = opts.clone();
+            explicit_norm.norm_tensor = vec!["encoder.layers.0.conv.norm.num_batches_tracked".into()];
+            let (erep, eres) = sanitize_file_report(clean_path.to_str().unwrap(), &explicit_norm);
+            assert!(eres.is_err());
+            assert_eq!(erep.status, "unknown");
+            let _ = std::fs::remove_dir_all(&dir);
+
+            // 2. Non-mask/non-bias U8 tensors, U8/BOOL routing/index tensors, multi-elem I64 norm tensors, and exotic floats fail closed
+            let bad_tensors = [
+                ("u8_generic", BuildTensor { name: "x".into(), dtype: "U8".into(), shape: vec![4], data: vec![0; 4] }),
+                ("u8_packed_weight", BuildTensor { name: "layers.0.mlp.weight".into(), dtype: "U8".into(), shape: vec![2, 2], data: vec![0; 4] }),
+                ("u8_g_idx", BuildTensor { name: "layers.0.g_idx".into(), dtype: "U8".into(), shape: vec![4], data: vec![0; 4] }),
+                ("bool_routing", BuildTensor { name: "layers.0.tid2eid.mask".into(), dtype: "BOOL".into(), shape: vec![2, 2], data: vec![0; 4] }),
+                (
+                    "multi_elem_bn_counter",
+                    BuildTensor {
+                        name: "encoder.layers.0.conv.norm.num_batches_tracked".into(),
+                        dtype: "I64".into(),
+                        shape: vec![2],
+                        data: vec![0; 16],
+                    },
+                ),
+            ];
+            for (tag, bt) in bad_tensors {
+                let bytes = build_safetensors(&[bt], &BTreeMap::new()).unwrap();
+                let dir = make_dir(tag);
+                let p = dir.join("bad.safetensors");
+                std::fs::write(&p, &bytes).unwrap();
+                let mut ropts = opts.clone();
+                ropts.num_experts = 4;
+                let (rep, res) = sanitize_file_report(p.to_str().unwrap(), &ropts);
+                assert!(res.is_err(), "case {} expected fail-closed Err", tag);
+                assert_eq!(rep.status, "unknown", "case {}", tag);
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+
+            // Exotic unimplemented float dtype F8_E4M3FNUZ fails closed (status == "unknown")
+            let hdr = br#"{"w":{"dtype":"F8_E4M3FNUZ","shape":[4],"data_offsets":[0,4]}}"#;
+            let mut raw = (hdr.len() as u64).to_le_bytes().to_vec();
+            raw.extend_from_slice(hdr);
+            raw.extend_from_slice(&[0u8; 4]);
+            let dir = make_dir("exotic_fp8");
+            let p = dir.join("exotic.safetensors");
+            std::fs::write(&p, &raw).unwrap();
+            let (rep, res) = sanitize_file_report(p.to_str().unwrap(), &opts);
+            assert!(res.is_err());
+            assert_eq!(rep.status, "unknown");
+            assert!(rep.error.contains("unsupported dtype"));
+            let _ = std::fs::remove_dir_all(&dir);
         }
     }
 
@@ -1798,6 +2208,7 @@ pub mod sanitize {
     #[derive(Default)]
     struct TensorRole {
         integer: bool,
+        aux_int: bool,
         float: bool,
         quant: Option<quant_scale::QuantScaleFormat>,
         routing: bool,
@@ -1807,6 +2218,25 @@ pub mod sanitize {
         norm: bool,
         divisor: bool,
         rope: bool,
+    }
+
+    fn is_batchnorm_step_counter(t: &TensorLocation) -> bool {
+        if !matches!(t.dtype.as_str(), "I64" | "I32") || t.elements() != 1 {
+            return false;
+        }
+        let lower = t.name.to_lowercase();
+        lower == "num_batches_tracked" || lower.ends_with(".num_batches_tracked")
+    }
+
+    fn is_benign_u8_or_bool_aux(t: &TensorLocation) -> bool {
+        if t.dtype == "BOOL" {
+            return true;
+        }
+        if t.dtype == "U8" {
+            let lower = t.name.to_lowercase();
+            return lower == "bias" || lower.ends_with(".bias") || lower.contains("mask");
+        }
+        false
     }
 
     pub(crate) fn sanitize_match(name: &str, patterns: &[String], automatic: &str) -> bool {
@@ -1913,13 +2343,15 @@ pub mod sanitize {
     fn classify_role(l: &Layout, t: &TensorLocation, o: &SanitizeOptions) -> TensorRole {
         let mut r = TensorRole {
             integer: t.dtype == "I32" || t.dtype == "I64",
+            aux_int: is_benign_u8_or_bool_aux(t),
             quant: quant_scale::QuantScaleFormat::from_dtype(&t.dtype),
             ..Default::default()
         };
-        r.float = !r.integer && r.quant.is_none() && !t.is_quantized();
+        r.float = !r.integer && !r.aux_int && !matches!(t.dtype.as_str(), "U8" | "BOOL") && r.quant.is_none() && !t.is_quantized();
         let leaf = sanitize_leaf(&t.name);
         r.routing = sanitize_match(&t.name, &o.routing_tensor, "routing");
-        r.norm = sanitize_match(&t.name, &o.norm_tensor, "norm");
+        let explicit_norm = sanitize_match(&t.name, &o.norm_tensor, "");
+        r.norm = explicit_norm || (!r.aux_int && !is_batchnorm_step_counter(t) && sanitize_match(&t.name, &[], "norm"));
         let auto_div = !o.no_default_divisor_scales && (DIVISOR_LEAVES.contains(&leaf.as_str()) || leaf.ends_with("scale_inv"));
         r.divisor = r.float && (sanitize_match(&t.name, &o.divisor_scale_tensor, "") || auto_div);
         r.rope = r.float && leaf.contains("rope_freqs");
@@ -1960,6 +2392,16 @@ pub mod sanitize {
             }
         }
         for t in &l.tensors {
+            if matches!(t.dtype.as_str(), "U8" | "BOOL") {
+                let leaf = sanitize_leaf(&t.name);
+                let is_auto_index = INDEX_LEAVES.iter().any(|&n| leaf == n || leaf.ends_with(&format!("_{}", n)));
+                if is_auto_index {
+                    return Err(Error::msg(format!("index tensor {:?} requires nonempty I32/I64 values", t.name)));
+                }
+                if !is_benign_u8_or_bool_aux(t) {
+                    return Err(Error::msg(format!("safetensors: tensor {:?} has unsupported dtype {:?}", t.name, t.dtype)));
+                }
+            }
             let r = classify_role(l, t, o);
             if r.routing {
                 if !r.integer || t.shape.is_empty() || t.size == 0 || o.num_experts <= 0 {
@@ -2020,6 +2462,34 @@ pub mod sanitize {
         let (exponent, mantissa): (u64, u64);
         let mut v = 0.0f64;
         match dtype {
+            "F8_E4M3" => {
+                let u = (b & 0xff) as u8;
+                if u & 0x7f == 0x7f {
+                    return (f64::NAN, Kind::Nan);
+                }
+                let val = crate::dtype::f32_from_f8_e4m3(u) as f64;
+                if u & 0x78 == 0 && u & 0x07 != 0 {
+                    return (val, Kind::Subnormal);
+                }
+                return (val, Kind::Normal);
+            }
+            "F8_E5M2" => {
+                let u = (b & 0xff) as u8;
+                if u & 0x7c == 0x7c {
+                    if u & 0x03 != 0 {
+                        return (f64::NAN, Kind::Nan);
+                    }
+                    if u & 0x80 != 0 {
+                        return (f64::NEG_INFINITY, Kind::Inf);
+                    }
+                    return (f64::INFINITY, Kind::Inf);
+                }
+                let val = crate::dtype::f32_from_f8_e5m2(u) as f64;
+                if u & 0x7c == 0 && u & 0x03 != 0 {
+                    return (val, Kind::Subnormal);
+                }
+                return (val, Kind::Normal);
+            }
             "F16" => {
                 exponent = 0x7c00;
                 mantissa = 0x03ff;
@@ -2070,6 +2540,8 @@ pub mod sanitize {
     /// the ordered positive IEEE encodings).
     pub fn finite_bound(dtype: &str, bound: f64) -> u64 {
         let mut hi: u64 = match dtype {
+            "F8_E4M3" => 0x7e,
+            "F8_E5M2" => 0x7b,
             "F16" => 0x7bff,
             "BF16" => 0x7f7f,
             "F32" => 0x7f7fffff,
@@ -2095,6 +2567,8 @@ pub mod sanitize {
     /// satisfies the rescan.
     pub fn divisor_floor_bits(dtype: &str, thr: f64, strict: bool) -> u64 {
         let mut hi: u64 = match dtype {
+            "F8_E4M3" => 0x7e,
+            "F8_E5M2" => 0x7b,
             "F16" => 0x7bff,
             "BF16" => 0x7f7f,
             "F32" => 0x7f7fffff,
@@ -2112,6 +2586,8 @@ pub mod sanitize {
         }
         if strict && classify(lo, dtype).1 == Kind::Subnormal {
             lo = match dtype {
+                "F8_E4M3" => 0x08,
+                "F8_E5M2" => 0x04,
                 "F16" => 0x0400,
                 "BF16" => 0x0080,
                 "F32" => 0x00800000,
@@ -2124,6 +2600,8 @@ pub mod sanitize {
 
     fn one_bits(dtype: &str) -> u64 {
         match dtype {
+            "F8_E4M3" => 0x38,
+            "F8_E5M2" => 0x3c,
             "F16" => 0x3c00,
             "BF16" => 0x3f80,
             "F32" => 0x3f800000,
@@ -2134,6 +2612,7 @@ pub mod sanitize {
 
     fn get_bits(b: &[u8], w: i64) -> u64 {
         match w {
+            1 => b[0] as u64,
             2 => u16::from_le_bytes([b[0], b[1]]) as u64,
             4 => u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as u64,
             _ => u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]),
@@ -2142,6 +2621,7 @@ pub mod sanitize {
 
     fn put_bits(b: &mut [u8], w: i64, v: u64) {
         match w {
+            1 => b[0] = v as u8,
             2 => b[..2].copy_from_slice(&(v as u16).to_le_bytes()),
             4 => b[..4].copy_from_slice(&(v as u32).to_le_bytes()),
             _ => b[..8].copy_from_slice(&v.to_le_bytes()),
@@ -2251,11 +2731,28 @@ pub mod sanitize {
         "first_k_dense_replace",
     ];
 
-    fn read_companion_json(path: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
-        let raw = std::fs::read(path).ok()?;
-        match serde_json::from_slice::<serde_json::Value>(&raw).ok()? {
-            serde_json::Value::Object(m) => Some(m),
-            _ => None,
+    fn read_companion_json(path: &str, file_name: &str) -> Result<Option<serde_json::Map<String, serde_json::Value>>> {
+        if let Err(e) = std::fs::symlink_metadata(path) {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                return Ok(None);
+            }
+            return Err(Error::msg(format!("companion config {}: {}", file_name, io_msg(&e))));
+        }
+        let mut f = fsx::open_regular(path)
+            .map_err(|e| Error::msg(format!("companion config {}: {}", file_name, e.message())))?;
+        let mut raw = Vec::new();
+        std::io::Read::read_to_end(&mut f, &mut raw)
+            .map_err(|e| Error::msg(format!("companion config {}: {}", file_name, io_msg(&e))))?;
+        match serde_json::from_slice::<serde_json::Value>(&raw) {
+            Ok(serde_json::Value::Object(m)) => Ok(Some(m)),
+            Ok(_) => Err(Error::msg(format!(
+                "companion config {}: expected top-level JSON object",
+                file_name
+            ))),
+            Err(e) => Err(Error::msg(format!(
+                "companion config {}: malformed JSON: {}",
+                file_name, e
+            ))),
         }
     }
 
@@ -2265,20 +2762,22 @@ pub mod sanitize {
         file: &str,
         m: &serde_json::Map<String, serde_json::Value>,
         vocab_size: i64,
+        zero_vocab_sentinel: bool,
     ) {
+        let is_oob = |id: i64| id < 0 || (vocab_size > 0 && id >= vocab_size) || (zero_vocab_sentinel && id >= 0);
         for key in COMPANION_TOKEN_KEYS {
             let Some(val) = m.get(key) else {
                 continue;
             };
             let loc = format!("{}:{}", file, key);
             if let Some(id) = val.as_i64() {
-                if id < 0 || (vocab_size > 0 && id >= vocab_size) {
+                if is_oob(id) {
                     add_meta(s, o, "s0_companion_token_id_oob", &loc);
                 }
             } else if let Some(arr) = val.as_array() {
                 for elem in arr {
                     if let Some(id) = elem.as_i64() {
-                        if id < 0 || (vocab_size > 0 && id >= vocab_size) {
+                        if is_oob(id) {
                             add_meta(s, o, "s0_companion_token_id_oob", &loc);
                         }
                     }
@@ -2287,9 +2786,114 @@ pub mod sanitize {
         }
     }
 
-    fn sanitize_companion_configs(l: &Layout, o: &SanitizeOptions, s: &mut SanitizeScan) {
-        if l.format != "safetensors" || l.path.is_empty() {
+    fn check_companion_added_tokens(
+        s: &mut SanitizeScan,
+        o: &SanitizeOptions,
+        file: &str,
+        m: &serde_json::Map<String, serde_json::Value>,
+        vocab_size: i64,
+        zero_vocab_sentinel: bool,
+    ) {
+        let Some(raw) = m.get("added_tokens_decoder") else {
             return;
+        };
+        let is_oob = |id: i64| id < 0 || (vocab_size > 0 && id >= vocab_size) || (zero_vocab_sentinel && id >= 0);
+        let loc = format!("{}:added_tokens_decoder", file);
+        match raw {
+            serde_json::Value::Object(dec) => {
+                let mut keys: Vec<&String> = dec.keys().collect();
+                keys.sort();
+                for k in keys {
+                    match k.parse::<i64>() {
+                        Ok(id) => {
+                            if is_oob(id) {
+                                add_meta(s, o, "s0_companion_added_token_id_oob", &loc);
+                            }
+                        }
+                        Err(e) => match e.kind() {
+                            std::num::IntErrorKind::NegOverflow => {
+                                add_meta(s, o, "s0_companion_added_token_id_oob", &loc);
+                            }
+                            std::num::IntErrorKind::PosOverflow if vocab_size > 0 || zero_vocab_sentinel => {
+                                add_meta(s, o, "s0_companion_added_token_id_oob", &loc);
+                            }
+                            _ => {}
+                        },
+                    }
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for elem in arr {
+                    if let Some(id) = elem.as_object().and_then(|obj| obj.get("id")).and_then(|v| v.as_i64()) {
+                        if is_oob(id) {
+                            add_meta(s, o, "s0_companion_added_token_id_oob", &loc);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn layout_has_text_embedding(l: &Layout, embed_rows: i64) -> bool {
+        if embed_rows > 0 {
+            return true;
+        }
+        l.tensors.iter().any(|t| {
+            if t.elements() <= 0 {
+                return false;
+            }
+            let lower = t.name.to_lowercase();
+            if lower.contains("vision")
+                || lower.contains("visual")
+                || lower.contains("patch")
+                || lower.contains("position")
+                || lower.contains("pos_emb")
+                || lower.contains("token_type")
+            {
+                return false;
+            }
+            COMPANION_EMBED_TENSORS.iter().any(|&n| lower == n)
+                || lower.ends_with(".embed_tokens.weight")
+                || lower.ends_with(".wte.weight")
+                || lower.ends_with("word_embeddings.weight")
+                || lower.ends_with(".tok_embeddings.weight")
+                || lower.ends_with(".lm_head.weight")
+                || lower.ends_with(".token_embedding.weight")
+        })
+    }
+
+    fn layout_has_moe_tensors(l: &Layout) -> bool {
+        l.tensors.iter().any(|t| {
+            if t.elements() <= 0 {
+                return false;
+            }
+            let lower = t.name.to_lowercase();
+            lower.contains(".block_sparse_moe.")
+                || lower.starts_with("block_sparse_moe.")
+                || lower.contains(".moe.")
+                || lower.contains(".experts.")
+                || lower.starts_with("experts.")
+                || lower.contains(".routed_experts.")
+                || lower.contains(".router.")
+                || lower.starts_with("router.")
+                || lower.contains("router_logits")
+                || lower.contains("ffn_gate_inp")
+                || lower.contains("e_score_correction_bias")
+                || lower.contains("tid2eid")
+                || lower.contains("expert_id")
+                || lower.contains("expert_map")
+                || lower.contains("ffn_gate_exps")
+                || lower.contains("ffn_up_exps")
+                || lower.contains("ffn_down_exps")
+                || lower.contains(".mlp.gate.")
+                || lower.starts_with("mlp.gate.")
+        })
+    }
+
+    fn sanitize_companion_configs(l: &Layout, o: &SanitizeOptions, s: &mut SanitizeScan) -> Result<()> {
+        if l.format != "safetensors" || l.path.is_empty() {
+            return Ok(());
         }
         let mut embed_rows = 0i64;
         for name in COMPANION_EMBED_TENSORS {
@@ -2300,23 +2904,31 @@ pub mod sanitize {
                 }
             }
         }
+        let has_text_embed = layout_has_text_embedding(l, embed_rows);
+        let has_moe = layout_has_moe_tensors(l);
         let mut vocab_size = embed_rows;
+        let mut zero_vocab_sentinel = false;
         let dir = gopath::dir(&l.path);
-        if let Some(cfg) = read_companion_json(&gopath::join(&dir, "config.json")) {
+        if let Some(cfg) = read_companion_json(&gopath::join(&dir, "config.json"), "config.json")? {
             if let Some(cfg_vocab) = cfg.get("vocab_size").and_then(|v| v.as_i64()) {
-                if cfg_vocab <= 0 || (embed_rows > 0 && cfg_vocab > embed_rows) {
+                if cfg_vocab < 0 || (cfg_vocab == 0 && has_text_embed) || (embed_rows > 0 && cfg_vocab > embed_rows) {
                     add_meta(s, o, "s0_companion_vocab_size_mismatch", "config.json:vocab_size");
+                } else if cfg_vocab == 0 {
+                    zero_vocab_sentinel = true;
                 }
                 if cfg_vocab > 0 && (vocab_size == 0 || cfg_vocab < vocab_size) {
                     vocab_size = cfg_vocab;
                 }
             }
-            check_companion_token_ids(s, o, "config.json", &cfg, vocab_size);
+            check_companion_token_ids(s, o, "config.json", &cfg, vocab_size, zero_vocab_sentinel);
             let mut expert_count = 0i64;
+            let mut zero_expert_sentinel = false;
             for key in COMPANION_EXPERT_COUNT_KEYS {
                 if let Some(c) = cfg.get(key).and_then(|v| v.as_i64()) {
-                    if c <= 0 || c > i32::MAX as i64 {
+                    if c < 0 || c > i32::MAX as i64 || (c == 0 && has_moe) {
                         add_meta(s, o, "s0_companion_expert_count", &format!("config.json:{}", key));
+                    } else if c == 0 {
+                        zero_expert_sentinel = true;
                     } else if expert_count == 0 {
                         expert_count = c;
                     }
@@ -2324,7 +2936,7 @@ pub mod sanitize {
             }
             for key in COMPANION_EXPERT_USED_KEYS {
                 if let Some(u) = cfg.get(key).and_then(|v| v.as_i64()) {
-                    if u < 0 || (expert_count > 0 && (u == 0 || u > expert_count)) {
+                    if u < 0 || (expert_count > 0 && (u == 0 || u > expert_count)) || (expert_count == 0 && zero_expert_sentinel && u > 0) {
                         add_meta(s, o, "s0_companion_expert_used_count", &format!("config.json:{}", key));
                     }
                 }
@@ -2338,9 +2950,15 @@ pub mod sanitize {
                 }
             }
         }
-        if let Some(gen_cfg) = read_companion_json(&gopath::join(&dir, "generation_config.json")) {
-            check_companion_token_ids(s, o, "generation_config.json", &gen_cfg, vocab_size);
+        if let Some(gen_cfg) = read_companion_json(&gopath::join(&dir, "generation_config.json"), "generation_config.json")? {
+            check_companion_token_ids(s, o, "generation_config.json", &gen_cfg, vocab_size, zero_vocab_sentinel);
         }
+        for tok_file in ["tokenizer_config.json", "tokenizer.json"] {
+            if let Some(tok_cfg) = read_companion_json(&gopath::join(&dir, tok_file), tok_file)? {
+                check_companion_added_tokens(s, o, tok_file, &tok_cfg, vocab_size, zero_vocab_sentinel);
+            }
+        }
+        Ok(())
     }
 
     fn add(s: &mut SanitizeScan, o: &SanitizeOptions, kind: &str, t: &TensorLocation, i: i64, row: i64, bits: u64) {
@@ -2466,7 +3084,7 @@ pub mod sanitize {
     ) -> Result<SanitizeScan> {
         let mut s = SanitizeScan { tensors: l.tensors.len() as i64, examples: Vec::new(), ..Default::default() };
         sanitize_moe_parity(l, o, &mut s);
-        sanitize_companion_configs(l, o, &mut s);
+        sanitize_companion_configs(l, o, &mut s)?;
         let thr = (o.divisor_floor as f32) as f64;
         for t in &l.tensors {
             let role = classify_role(l, t, o);
@@ -2477,6 +3095,10 @@ pub mod sanitize {
             let w = dtype_size(&t.dtype);
             let n = t.size / w;
             let width = row_width(t, &l.format);
+            if role.aux_int {
+                s.ignored_integer_tensors += 1;
+                continue;
+            }
             if role.integer {
                 if role.routing {
                     let mut row_bytes = vec![0u8; (width * w) as usize];

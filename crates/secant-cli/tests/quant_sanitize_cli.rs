@@ -259,3 +259,131 @@ fn a_quantized_norm_tensor_is_unknown_not_clean() {
     assert_eq!(rep["status"], "unknown");
     assert!(rep["error"].as_str().unwrap().contains("norm-row checks are implemented for unquantized floats only"));
 }
+
+#[test]
+fn fp8_safetensors_cli_scans_clean_detects_findings_and_refuses_repair() {
+    let dir = Scratch::new("s4-fp8");
+    let clean = build_safetensors(
+        &[
+            BuildTensor {
+                name: "model.layers.0.mlp.down_proj.weight".into(),
+                dtype: "F8_E4M3".into(),
+                shape: vec![2, 4],
+                data: vec![0x00, 0x01, 0x38, 0x7E, 0x80, 0x87, 0xB8, 0xFE],
+            },
+            BuildTensor {
+                name: "model.layers.0.mlp.down_proj.weight_scale_inv".into(),
+                dtype: "F32".into(),
+                shape: vec![1, 1],
+                data: f32_bytes(&[0.0125]),
+            },
+            BuildTensor {
+                name: "model.layers.0.self_attn.o_proj.weight".into(),
+                dtype: "F8_E5M2".into(),
+                shape: vec![2, 2],
+                data: vec![0x3C, 0xBC, 0x01, 0x6F],
+            },
+        ],
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap();
+    let clean_path = dir.path("fp8_clean.safetensors");
+    write(&clean_path, &clean);
+    let (code, rep, err) = sanitize(&dir, &clean_path, "fp8_clean", &[]);
+    assert_eq!(code, 0, "{} {}", rep, err);
+    assert_eq!(rep["status"], "clean");
+    assert_eq!(rep["before"]["total_findings"], 0);
+    assert_eq!(rep["before"]["float_elements"], 13);
+    assert_eq!(rep["before"]["info"]["subnormal_tolerated"], 3);
+
+    // inspect --json also succeeds on FP8 SafeTensors
+    let (icode, irep, ierr) = secant(&["inspect", "--model", &clean_path, "--json"]);
+    assert_eq!(icode, 0, "{} {}", irep, ierr);
+    assert_eq!(irep["tensors"].as_array().unwrap().len(), 3);
+
+    // Hostile FP8 SafeTensors -> exit 1 ("findings")
+    let poisoned = build_safetensors(
+        &[
+            BuildTensor { name: "w_e4m3".into(), dtype: "F8_E4M3".into(), shape: vec![1, 3], data: vec![0x38, 0x7F, 0xFF] },
+            BuildTensor { name: "w_e5m2".into(), dtype: "F8_E5M2".into(), shape: vec![1, 3], data: vec![0x7C, 0x7D, 0x7B] },
+        ],
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap();
+    let poisoned_path = dir.path("fp8_poisoned.safetensors");
+    write(&poisoned_path, &poisoned);
+    let (code, rep, _) = sanitize(&dir, &poisoned_path, "fp8_poisoned", &[]);
+    assert_eq!(code, 1);
+    assert_eq!(rep["status"], "findings");
+    assert_eq!(rep["before"]["counts"]["nan"], 3);
+    assert_eq!(rep["before"]["counts"]["inf"], 1);
+    assert_eq!(rep["before"]["counts"]["extreme_finite"], 1);
+
+    // Remediation on FP8 fails closed with exit 2 ("unknown")
+    let out_path = dir.path("fp8_out.safetensors");
+    let (code, rep, _) = sanitize(&dir, &poisoned_path, "fp8_repair", &["--clamp-nonfinite", "--out", &out_path]);
+    assert_eq!(code, 2);
+    assert_eq!(rep["status"], "unknown");
+}
+
+#[test]
+fn u8_masks_batchnorm_counters_and_s0_zero_sentinels_cli() {
+    let dir = Scratch::new("s4-u8-bn-s0");
+    let sub = dir.path("ckpt");
+    std::fs::create_dir_all(&sub).unwrap();
+    let model = build_safetensors(
+        &[
+            BuildTensor {
+                name: "gpt_neox.layers.0.attention.bias".into(),
+                dtype: "U8".into(),
+                shape: vec![1, 1, 2, 2],
+                data: vec![1, 0, 1, 1],
+            },
+            BuildTensor {
+                name: "encoder.layers.0.conv.norm.num_batches_tracked".into(),
+                dtype: "I64".into(),
+                shape: vec![],
+                data: 12i64.to_le_bytes().to_vec(),
+            },
+            BuildTensor {
+                name: "encoder.layers.0.conv.norm.weight".into(),
+                dtype: "F32".into(),
+                shape: vec![4],
+                data: f32_bytes(&[1.0, 1.0, 1.0, 1.0]),
+            },
+            BuildTensor {
+                name: "vision_model.patch_embedding.weight".into(),
+                dtype: "F32".into(),
+                shape: vec![2, 2],
+                data: f32_bytes(&[0.5, -0.5, 0.25, 0.75]),
+            },
+        ],
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap();
+    let model_path = format!("{}/model.safetensors", sub);
+    write(&model_path, &model);
+    write(
+        &format!("{}/config.json", sub),
+        br#"{"vocab_size":0,"num_local_experts":0,"num_experts_per_tok":0,"bos_token_id":null,"eos_token_id":null}"#,
+    );
+
+    let (code, rep, err) = sanitize(&dir, &model_path, "u8_bn_s0_clean", &[]);
+    assert_eq!(code, 0, "{} {}", rep, err);
+    assert_eq!(rep["status"], "clean");
+    assert_eq!(rep["before"]["total_findings"], 0);
+    assert_eq!(rep["before"]["ignored_integer_tensors"], 2);
+    assert_eq!(rep["before"]["norm_rows"], 1);
+
+    // Non-mask U8 weight tensor still fails closed with exit 2
+    let packed_u8 = build_safetensors(
+        &[BuildTensor { name: "model.layers.0.mlp.weight".into(), dtype: "U8".into(), shape: vec![2, 2], data: vec![1, 2, 3, 4] }],
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap();
+    let packed_path = dir.path("packed_u8.safetensors");
+    write(&packed_path, &packed_u8);
+    let (code, rep, _) = sanitize(&dir, &packed_path, "packed_u8", &[]);
+    assert_eq!(code, 2);
+    assert_eq!(rep["status"], "unknown");
+}

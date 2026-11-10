@@ -576,7 +576,7 @@ pub fn scan_safetensors_layout(b: &[u8]) -> Result<Layout> {
             _ => Vec::new(),
         };
         match dtype.as_str() {
-            "F32" | "F16" | "BF16" | "F64" | "I32" | "I64" => {}
+            "F32" | "F16" | "BF16" | "F64" | "F8_E4M3" | "F8_E5M2" | "I32" | "I64" | "U8" | "BOOL" => {}
             _ => return Err(Error::msg(format!("safetensors: tensor {:?} has unsupported dtype {:?}", name, dtype))),
         }
         if offs.len() != 2 {
@@ -1496,7 +1496,7 @@ fn apply_edit(map: &mut [u8], layout: &Layout, edit: &Edit) -> Result<TensorPatc
         return Err(Error::msg(format!("no tensor name for format {}", layout.format)));
     }
     let t = layout.tensor(&name)?.clone();
-    if t.is_quantized() {
+    if t.is_quantized() || crate::dtype::is_fp8_dtype(&t.dtype) || matches!(t.dtype.as_str(), "U8" | "BOOL") {
         return Err(Error::msg(format!(
             "tensor {} is {}: float weight surgery supports F32/F16/BF16/F64/I32/I64 payloads only (use `secant quant` for block-aligned Q8_0 surgery)",
             name, t.dtype

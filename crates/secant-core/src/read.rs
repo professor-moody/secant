@@ -70,6 +70,15 @@ pub struct ReadOptions {
     /// tensor, when given, is read from `model`, not from the reference.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub reference: String,
+    /// Secant extension (`audit-trojan --rank-k`, omitted when 0): report the
+    /// cumulative top-k singular energy `sum sigma_i^2 / ||M||_F^2` (k in
+    /// {1, 2, 4, 8}) of each 2-D tensor, and with a vocabulary tensor the
+    /// rank-k subspace coherence of every token. The reader computes
+    /// `max(top_k_singular, rank_k)` triplets; `singular`, the
+    /// Marchenko-Pastur block and its notes still use the first
+    /// `top_k_singular` only, so enabling this never changes them.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub rank_k: usize,
 }
 
 /// Default `sigma_1 / sigma_MP` flag threshold.
@@ -180,6 +189,10 @@ pub struct TensorSpectrum {
     /// a reference run; says whether the statistics above are of `Delta W`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reference_diff: Option<ReferenceDiff>,
+    /// Secant extension (`audit-trojan --rank-k`): cumulative top-k energy
+    /// and vocabulary coherence of this tensor (of `Delta W` under `--reference`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rank_k: Option<crate::rankk::RankK>,
 }
 
 /// Per-tensor outcome of a `--reference` comparison. `status` is `compared`
@@ -297,11 +310,15 @@ pub struct ReadReport {
     /// Secant extension (`--reference`): identity and counts of the base checkpoint.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reference: Option<ReferenceInfo>,
+    /// Secant extension (`--rank-k`): every tensor with a defined cumulative
+    /// energy, by energy descending (ties by name).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rank_k_outliers: Option<Vec<crate::rankk::RankKOutlier>>,
 }
 
 // ------------------------------------------------------------------ arithmetic
 
-fn dot_nf(a: &[f64], b: &[f64]) -> f64 {
+pub(crate) fn dot_nf(a: &[f64], b: &[f64]) -> f64 {
     let mut s = 0f64;
     for i in 0..a.len() {
         let p = a[i] * b[i]; // separately rounded product, never contracted
@@ -310,14 +327,14 @@ fn dot_nf(a: &[f64], b: &[f64]) -> f64 {
     s
 }
 
-fn axpy_nf(acc: &mut [f64], s: f64, x: &[f64]) {
+pub(crate) fn axpy_nf(acc: &mut [f64], s: f64, x: &[f64]) {
     for i in 0..x.len() {
         let p = s * x[i];
         acc[i] += p;
     }
 }
 
-fn norm2_nf(a: &[f64]) -> f64 {
+pub(crate) fn norm2_nf(a: &[f64]) -> f64 {
     dot_nf(a, a).sqrt()
 }
 
@@ -330,11 +347,11 @@ fn splitmix64(state: &mut u64) -> u64 {
 }
 
 /// Logical `[rows = d_out x cols = d_in]` matrix over a raw payload.
-struct Dense<'a> {
+pub(crate) struct Dense<'a> {
     dtype: String,
     data: &'a [u8],
-    rows: usize,
-    cols: usize,
+    pub(crate) rows: usize,
+    pub(crate) cols: usize,
     /// `--reference`: when set, every row is `W - W_ref` (same logical
     /// geometry), formed as one separately rounded float64 subtraction after
     /// both rows are widened, so the delta is never materialised.
@@ -343,7 +360,7 @@ struct Dense<'a> {
 }
 
 impl<'a> Dense<'a> {
-    fn plain(dtype: String, data: &'a [u8], rows: usize, cols: usize) -> Self {
+    pub(crate) fn plain(dtype: String, data: &'a [u8], rows: usize, cols: usize) -> Self {
         Dense { dtype, data, rows, cols, sub: None, scratch: std::cell::RefCell::new(Vec::new()) }
     }
 
@@ -353,7 +370,7 @@ impl<'a> Dense<'a> {
         self
     }
 
-    fn row(&self, r: usize, dst: &mut [f64]) -> Result<()> {
+    pub(crate) fn row(&self, r: usize, dst: &mut [f64]) -> Result<()> {
         self.row_stored(r, dst)?;
         if let Some(rf) = &self.sub {
             let mut s = self.scratch.borrow_mut();
@@ -366,7 +383,7 @@ impl<'a> Dense<'a> {
     }
 
     fn row_stored(&self, r: usize, dst: &mut [f64]) -> Result<()> {
-        if is_float_dtype(&self.dtype) {
+        if is_readable_float_dtype(&self.dtype) {
             decode_row(&self.dtype, self.data, r * self.cols * dtype_size(&self.dtype) as usize, self.cols, dst);
             Ok(())
         } else {
@@ -551,6 +568,8 @@ struct Analyzed {
     spec: TensorSpectrum,
     u1: Option<Vec<f64>>,
     v1: Option<Vec<f64>>,
+    /// `(sigma_i, u_i)` for the `--rank-k` leading directions (empty when off).
+    uk: Vec<(f64, Vec<f64>)>,
 }
 
 /// What `--reference` gives one tensor: nothing asked, no usable counterpart
@@ -563,7 +582,7 @@ enum RefArg<'a> {
 
 /// Why `rt` cannot be subtracted from `t`, or `None` when it can.
 fn reference_incompatibility(t: &TensorLocation, rt: &TensorLocation) -> Option<String> {
-    if rt.dtype == "I32" || rt.dtype == "I64" {
+    if crate::dtype::is_integer_or_bool_dtype(&rt.dtype) {
         return Some(format!("reference dtype {} is an integer type", rt.dtype));
     }
     if rt.is_quantized() && quant::QuantFormat::from_dtype(&rt.dtype).is_none() {
@@ -614,6 +633,8 @@ fn stored_frobenius(m: &Dense) -> Result<Option<f64>> {
     Ok(Some(total.sqrt()))
 }
 
+// One call site, every argument a per-run constant of `read_model`: a parameter struct would only rename them.
+#[allow(clippy::too_many_arguments)]
 fn analyze_tensor(
     data_all: &[u8],
     t: &TensorLocation,
@@ -622,6 +643,7 @@ fn analyze_tensor(
     detect: bool,
     mp: Option<f64>,
     reference: &RefArg,
+    rank_k: usize,
 ) -> Result<Analyzed> {
     let mut spec = TensorSpectrum {
         name: t.name.clone(),
@@ -645,10 +667,11 @@ fn analyze_tensor(
         spectral_bulk: None,
         notes: vec![],
         reference_diff: None,
+        rank_k: None,
     };
-    let mut res = Analyzed { spec: spec.clone(), u1: None, v1: None };
+    let mut res = Analyzed { spec: spec.clone(), u1: None, v1: None, uk: vec![] };
     let quantized = t.is_quantized();
-    if t.dtype == "I32" || t.dtype == "I64" {
+    if crate::dtype::is_integer_or_bool_dtype(&t.dtype) {
         res.spec.status = "skipped: integer tensor (no spectrum defined)".into();
         return Ok(res);
     }
@@ -777,9 +800,25 @@ fn analyze_tensor(
         return Ok(res);
     }
     let k = top_k.min(m.rows).min(m.cols);
-    let trips = top_singular(&m, k)?;
+    // `--rank-k` may need more triplets than `top_k`. Power iteration with
+    // deflation is sequential, so the first `k` of `k_all` are bit-identical to
+    // a `k`-triplet run; the extras feed only the rank-k block.
+    let k_all = top_k.max(rank_k).min(m.rows).min(m.cols);
+    let mut trips = top_singular(&m, k_all)?;
+    let extra: Vec<Triplet> = if trips.len() > k { trips.split_off(k) } else { vec![] };
     for tr in &trips {
         spec.singular.push(tr.info.clone());
+    }
+    if rank_k > 0 {
+        let basis = if spec.reference_diff.is_some() { "delta_w" } else { "w" };
+        res.uk = trips.iter().chain(extra.iter()).take(rank_k).map(|t| (t.info.sigma, t.u.clone())).collect();
+        spec.rank_k = Some(if trips.is_empty() {
+            crate::rankk::undefined(basis, rank_k, "all singular values are zero within the rank floor")
+        } else {
+            let sigmas: Vec<f64> = trips.iter().chain(extra.iter()).map(|t| t.info.sigma).collect();
+            let converged = trips.iter().chain(extra.iter()).all(|t| t.info.converged);
+            crate::rankk::energy_report(basis, rank_k, &sigmas, converged, total)
+        });
     }
     if let Some(threshold) = mp {
         let sigmas: Vec<f64> = trips.iter().map(|t| t.info.sigma).collect();
@@ -1073,6 +1112,7 @@ fn normalize(mut o: ReadOptions) -> Result<ReadOptions> {
     if !o.tensor.is_empty() {
         path_match(&o.tensor, "")?;
     }
+    crate::rankk::validate_rank_k(o.rank_k)?;
     if o.marchenko_pastur {
         if o.mp_threshold == 0.0 {
             o.mp_threshold = MP_DEFAULT_THRESHOLD;
@@ -1138,6 +1178,27 @@ pub fn read_policy() -> ReadPolicy {
 
 /// Analyze the selected tensors of a model file. The input is mapped
 /// read-only, hashed before and after (bracket), and never written.
+/// A vocabulary (unembedding) tensor as a validated dense view: 2-D, float or
+/// dequantizable, within the read budget, every element finite.
+pub(crate) fn load_vocab<'a>(model: &'a Model, name: &str) -> Result<Dense<'a>> {
+    let vt = model.layout.tensor(name)?;
+    if !vt.is_2d() || !(is_readable_float_dtype(&vt.dtype) || quant::QuantFormat::from_dtype(&vt.dtype).is_some()) {
+        return Err(Error::msg(format!("vocab tensor {} must be a 2-D float tensor (dtype {}, shape {:?})", vt.name, vt.dtype, vt.shape)));
+    }
+    if vt.size > MAX_TENSOR_BYTES {
+        return Err(Error::msg(format!("vocab tensor {}: {} bytes exceeds the {} byte read budget", vt.name, vt.size, MAX_TENSOR_BYTES)));
+    }
+    let d = Dense::plain(vt.dtype.clone(), model.tensor_bytes(vt), vt.logical_out, vt.logical_in);
+    let mut chk = vec![0f64; d.cols];
+    for r in 0..d.rows {
+        d.row(r, &mut chk)?;
+        if chk.iter().any(|x| x.is_nan() || x.is_infinite()) {
+            return Err(Error::msg(format!("vocab tensor {} holds non-finite values; projection undefined", vt.name)));
+        }
+    }
+    Ok(d)
+}
+
 pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
     let o = normalize(o)?;
     let f = open_regular_file(&o.model)?;
@@ -1163,6 +1224,7 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
         vector_files: vec![],
         spectral_outliers: None,
         reference: None,
+        rank_k_outliers: None,
     };
 
     // `--reference`: map the base checkpoint read-only under the same bracket.
@@ -1212,28 +1274,7 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
 
     let mut vocab: Option<Dense> = None;
     if !o.vocab_tensor.is_empty() {
-        let vt = layout.tensor(&o.vocab_tensor)?;
-        if !vt.is_2d() || !(is_float_dtype(&vt.dtype) || quant::QuantFormat::from_dtype(&vt.dtype).is_some()) {
-            return Err(Error::msg(format!(
-                "vocab tensor {} must be a 2-D float tensor (dtype {}, shape {:?})",
-                vt.name, vt.dtype, vt.shape
-            )));
-        }
-        if vt.size > MAX_TENSOR_BYTES {
-            return Err(Error::msg(format!(
-                "vocab tensor {}: {} bytes exceeds the {} byte read budget",
-                vt.name, vt.size, MAX_TENSOR_BYTES
-            )));
-        }
-        let d = Dense::plain(vt.dtype.clone(), model.tensor_bytes(vt), vt.logical_out, vt.logical_in);
-        let mut chk = vec![0f64; d.cols];
-        for r in 0..d.rows {
-            d.row(r, &mut chk)?;
-            if chk.iter().any(|x| x.is_nan() || x.is_infinite()) {
-                return Err(Error::msg(format!("vocab tensor {} holds non-finite values; projection undefined", vt.name)));
-            }
-        }
-        vocab = Some(d);
+        vocab = Some(load_vocab(&model, &o.vocab_tensor)?);
     }
 
     let mut vec_dir: Option<String> = None;
@@ -1258,7 +1299,7 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
                 None => RefArg::Missing(format!("tensor {:?} is absent from the reference checkpoint", t.name)),
             },
         };
-        let mut a = analyze_tensor(model.bytes(), t, o.top_cols, o.top_k_singular, o.detect_anomalies, mp, &rarg)?;
+        let mut a = analyze_tensor(model.bytes(), t, o.top_cols, o.top_k_singular, o.detect_anomalies, mp, &rarg, o.rank_k)?;
         if let Some(ri) = rep.reference.as_mut() {
             if a.spec.reference_diff.is_none() {
                 a.spec.reference_diff = Some(ReferenceDiff {
@@ -1298,6 +1339,11 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
                 a.spec.vocab = Some(project_vocab_dense(v, u1)?);
             }
         }
+        if let (Some(v), Some(rk)) = (&vocab, a.spec.rank_k.as_mut()) {
+            if !a.uk.is_empty() {
+                rk.vocab = Some(crate::rankk::vocab_coherence(|r, b| v.row(r, b), v.rows, v.cols, &a.uk)?);
+            }
+        }
         if let (Some(dir), Some(u1), Some(v1)) = (&vec_dir, &a.u1, &a.v1) {
             let mut stem = safe_vector_name(&t.name);
             while used.contains(&stem) {
@@ -1316,6 +1362,9 @@ pub fn read_model(o: ReadOptions) -> Result<ReadReport> {
     }
     if o.marchenko_pastur {
         rep.spectral_outliers = Some(spectral_ranking(&rep.tensors));
+    }
+    if o.rank_k > 0 {
+        rep.rank_k_outliers = Some(crate::rankk::ranking(rep.tensors.iter().filter_map(|t| Some((t.name.as_str(), t.rank_k.as_ref()?)))));
     }
     let (post, _) = file_sha256(&o.model)?;
     rep.post_sha256 = post;

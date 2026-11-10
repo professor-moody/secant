@@ -6,7 +6,7 @@ This directory archives the receipt for the **Horizon 2 Priority 1 acceptance te
 
 | File | SHA-256 | Description |
 |---|---|---|
-| `reference_diff_late_layer_receipt.json` | `6c361f3ce150271ec46414f0be6db60cbe318be2cdcd4a4f6f0fe3d6e3b3c08a` | Complete 9-run `secant read --reference` receipt across `Qwen3.5-0.8B` (`04b1c301...4696`), verifying byte-identical patched submodels (`1.0%, 2.0%, 4.0%, 6.0%`), pre/post SHA-256 brackets on both `model` and `reference`, and exact target-token (`16657` `" cheese"`) vocabulary ranking |
+| `reference_diff_late_layer_receipt.json` | `76def87f376b3ff30e8cb98047f227384a0d3746fc86287964a63f0069f19d10` | Complete 9-run `secant read --reference` receipt across `Qwen3.5-0.8B` (`04b1c301...4696`), verifying byte-identical patched submodels (`1.0%, 2.0%, 4.0%, 6.0%`), pre/post SHA-256 brackets on both `model` and `reference`, and exact target-token (`16657` `" cheese"`) vocabulary ranking |
 | `README.md` | *(recorded in `MANIFEST.sha256`)* | Summary table and verification instructions |
 
 Verify the manifest from this directory with:
@@ -44,3 +44,5 @@ In all 9 sub-$g^*$ runs (including at the `1.0%` and `2.0%` doses well below the
 | `layers.20.linear_attn.out_proj.weight` | 9.60% | 9.0% | **4.0%** (91.7%) | **4.0%** | `d032d95d...e917f` | 0.040001 | 0.609844 | 0.609821 | **99.993%** (`0.999926`) | **Rank #1** (`promoted`) |
 
 *(Note on `promoted` vs. `suppressed` side: SVD defines the singular triplet $(u_1, v_1)$ up to a joint sign flip $(u_1, v_1) \leftrightarrow (-u_1, -v_1)$. `secant` fixes the sign of $v_1$ so that its largest-magnitude coordinate is positive, and sets $u_1 = (\Delta W)\, v_1 / \sigma_1$. When the largest-magnitude coordinate of $v_{\text{trigger}}$ is negative, $u_1(\Delta W) = -u_{\text{trojan}}$, placing the planted token at Rank #1 of `suppressed_tokens` rather than `promoted_tokens`—matching the sign-convention note in `docs/payload-security.md` Section 7.)*
+
+*(Provenance note on `cells[1].doses[2].plan_sha256`: In commit `43cd2f5`, the `plan_sha256` entry for `model.language_model.layers.19.self_attn.o_proj.weight` at `6.0%` dose was transcribed with 62 hex characters (`aba9dc70df2dfec0cf26a8b9c437f8f0a66a37268689ac361f5485ff3bc47b`, omitting `8f` at position 31). That field was corrected to the exact 64-character `sha256sum` of the retained `generated/Qwen3.5-0.8B_L19_self_attn_o_proj_g060/plan.json` (`aba9dc70df2dfec0cf26a8b9c437f8f8f0a66a37268689ac361f5485ff3bc47b`), updating `reference_diff_late_layer_receipt.json` from `6c361f3ce150271ec46414f0be6db60cbe318be2cdcd4a4f6f0fe3d6e3b3c08a` to `76def87f376b3ff30e8cb98047f227384a0d3746fc86287964a63f0069f19d10`.)*
