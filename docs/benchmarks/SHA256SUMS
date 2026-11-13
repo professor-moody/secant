@@ -1,0 +1,5 @@
+cde7fc5adb83e73a424775e02b7f05514f0fce8388ba394aeef086eaa6b1b7b7  docs/benchmarks/benign-fpr-v0.3.0.md
+d7fafdbf294a91b829def8320ca0813de9ca19845117deca29c4264fa7a40f4f  docs/benchmarks/benign-fpr-v0.3.0.json
+6fdbb0f984e22a9e0c506179e16bb4129a1495681a432baa45d5241891a77e27  scripts/bench_benign_fpr.py
+8e5607eec07ee8f3c2ea42975b1c44ea65d448e4dbb31761b7c86e06f9c4bbdf  scripts/test_bench_benign_fpr.py
+65c57cfcc85efdf8736208869f95c1becc04d8a86202d1e250814701e3e69832  crates/secant-core/examples/benign_fpr_fixtures.rs
