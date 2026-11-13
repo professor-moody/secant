@@ -49,10 +49,7 @@ pub fn run(a: &Args) -> i32 {
         if !ch.is_empty() {
             table(
                 &["INDEX", "CHANGED TENSOR", "STATUS"],
-                &ch.iter()
-                    .enumerate()
-                    .map(|(i, t)| vec![(i + 1).to_string(), t.clone(), "expected diff".to_string()])
-                    .collect::<Vec<_>>(),
+                &ch.iter().enumerate().map(|(i, t)| vec![(i + 1).to_string(), t.clone(), "expected diff".to_string()]).collect::<Vec<_>>(),
             );
         }
         for f in &rep.failures {

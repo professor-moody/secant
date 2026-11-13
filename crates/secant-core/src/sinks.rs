@@ -675,11 +675,8 @@ pub fn scan_sink_file(rel: &str, lang: &str, data: &[u8]) -> (Vec<SinkFinding>, 
         let loaded = r.loaded_value.is_match(code);
         if !mac.is_empty() && (load_path || kernel_path || loaded || mac == "partial_cmp.unwrap") {
             let base = if loaded || mac == "partial_cmp.unwrap" { 5.5 } else { 4.0 };
-            let (guard, kind) = if mac == "partial_cmp.unwrap" {
-                scope_has(scope, code, &r.nan_guard, true)
-            } else {
-                (false, String::new())
-            };
+            let (guard, kind) =
+                if mac == "partial_cmp.unwrap" { scope_has(scope, code, &r.nan_guard, true) } else { (false, String::new()) };
             add(SINK_RELEASE_ASSERT, base, guard, if guard { kind } else { String::new() }, format!("macro: {}", mac));
         }
     }

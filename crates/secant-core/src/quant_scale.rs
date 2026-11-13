@@ -121,18 +121,8 @@ impl QuantScaleFormat {
         }
     }
 
-    pub const ALL: [Self; 10] = [
-        Self::Q4_0,
-        Self::Q4_1,
-        Self::Q5_0,
-        Self::Q5_1,
-        Self::Q8_0,
-        Self::Q2K,
-        Self::Q3K,
-        Self::Q4K,
-        Self::Q5K,
-        Self::Q6K,
-    ];
+    pub const ALL: [Self; 10] =
+        [Self::Q4_0, Self::Q4_1, Self::Q5_0, Self::Q5_1, Self::Q8_0, Self::Q2K, Self::Q3K, Self::Q4K, Self::Q5K, Self::Q6K];
 
     pub fn fields(self) -> &'static [(&'static str, usize)] {
         match self {

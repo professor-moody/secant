@@ -206,13 +206,11 @@ fn incomplete_and_skipped_files_match_the_oracle() {
     assert_eq!(skipped[0]["reason"], "scan error: bufio.Scanner: token too long");
     assert_eq!(skipped[1]["path"], "src/oversize.c");
     assert_eq!(skipped[1]["reason"], "file exceeds 4194304 bytes");
-    assert!(
-        vr["limitations"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|l| l.as_str() == Some("INCOMPLETE: 2 file(s) were skipped (see skipped); an absence of findings is not a clean result"))
-    );
+    assert!(vr["limitations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|l| l.as_str() == Some("INCOMPLETE: 2 file(s) were skipped (see skipped); an absence of findings is not a clean result")));
 
     let Some(go) = oracle_bin() else { return not_run("incomplete_and_skipped_files_match_the_oracle") };
     let g = Command::new(&go).args(["wsp", "scan-sinks", "--source", src, "--top", "1000000", "--json"]).output().unwrap();

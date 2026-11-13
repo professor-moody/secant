@@ -1042,13 +1042,7 @@ pub mod sanitize {
         if (o.clamp_nonfinite || o.dedup_routing_rows || o.repair || o.clamp_extreme || o.flush_subnormal) != (!o.output.is_empty()) {
             return Err(Error::msg("remediation flags and a separate --out must be supplied together"));
         }
-        for p in o
-            .routing_tensor
-            .iter()
-            .chain(o.norm_tensor.iter())
-            .chain(o.divisor_scale_tensor.iter())
-            .chain(o.index_tensor.iter())
-        {
+        for p in o.routing_tensor.iter().chain(o.norm_tensor.iter()).chain(o.divisor_scale_tensor.iter()).chain(o.index_tensor.iter()) {
             if p.is_empty() {
                 return Err(Error::msg("empty tensor glob"));
             }
@@ -1704,12 +1698,7 @@ pub mod sanitize {
                 embed[i * 2..i * 2 + 2].copy_from_slice(&0x3c00u16.to_le_bytes());
             }
             let model_bytes = build_safetensors(
-                &[BuildTensor {
-                    name: "model.embed_tokens.weight".into(),
-                    dtype: "F16".into(),
-                    shape: vec![151936, 1],
-                    data: embed,
-                }],
+                &[BuildTensor { name: "model.embed_tokens.weight".into(), dtype: "F16".into(), shape: vec![151936, 1], data: embed }],
                 &BTreeMap::new(),
             )
             .unwrap();
@@ -1753,13 +1742,7 @@ pub mod sanitize {
                     "s0_companion_token_id_oob",
                     "generation_config.json:eos_token_id",
                 ),
-                (
-                    "vocab_mismatch",
-                    r#"{"vocab_size":200000}"#,
-                    r#"{}"#,
-                    "s0_companion_vocab_size_mismatch",
-                    "config.json:vocab_size",
-                ),
+                ("vocab_mismatch", r#"{"vocab_size":200000}"#, r#"{}"#, "s0_companion_vocab_size_mismatch", "config.json:vocab_size"),
                 (
                     "experts_used_oob",
                     r#"{"vocab_size":151936,"num_local_experts":8,"num_experts_per_tok":16}"#,
@@ -1804,11 +1787,7 @@ pub mod sanitize {
                 r#"{"added_tokens_decoder":{"151643":{"content":"<|endoftext|>"},"151935":{"content":"<|last|>"}}}"#,
             )
             .unwrap();
-            std::fs::write(
-                dir.join("tokenizer.json"),
-                r#"{"added_tokens_decoder":{"151644":{"content":"<|im_start|>"}}}"#,
-            )
-            .unwrap();
+            std::fs::write(dir.join("tokenizer.json"), r#"{"added_tokens_decoder":{"151644":{"content":"<|im_start|>"}}}"#).unwrap();
             let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
             assert_eq!(rep.status, "clean");
             assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
@@ -1996,11 +1975,8 @@ pub mod sanitize {
             let dir = make_dir("vision_ok");
             let model_path = dir.join("model.safetensors");
             std::fs::write(&model_path, &vision_bytes).unwrap();
-            std::fs::write(
-                dir.join("config.json"),
-                r#"{"vocab_size":0,"bos_token_id":null,"eos_token_id":null,"pad_token_id":null}"#,
-            )
-            .unwrap();
+            std::fs::write(dir.join("config.json"), r#"{"vocab_size":0,"bos_token_id":null,"eos_token_id":null,"pad_token_id":null}"#)
+                .unwrap();
             let rep = sanitize_file(model_path.to_str().unwrap(), &opts).unwrap();
             assert_eq!(rep.status, "clean");
             assert_eq!(rep.before.as_ref().unwrap().total_findings, 0);
@@ -2038,7 +2014,12 @@ pub mod sanitize {
             // 3. Dense hybrid model (no MoE tensors, AND 0-element [0, 4] MoE placeholder) with num_local_experts == 0 & num_experts_per_tok == 0 -> clean
             let dense_hybrid_bytes = build_safetensors(
                 &[
-                    BuildTensor { name: "model.embed_tokens.weight".into(), dtype: "F32".into(), shape: vec![4, 2], data: f32_ones.clone() },
+                    BuildTensor {
+                        name: "model.embed_tokens.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![4, 2],
+                        data: f32_ones.clone(),
+                    },
                     BuildTensor {
                         name: "model.layers.0.shared_mlp.input_linear.weight".into(),
                         dtype: "F32".into(),
@@ -2080,7 +2061,12 @@ pub mod sanitize {
             // 4. Model WITH non-empty MoE router tensor and num_local_experts == 0 -> s0_companion_expert_count
             let moe_bytes = build_safetensors(
                 &[
-                    BuildTensor { name: "model.embed_tokens.weight".into(), dtype: "F32".into(), shape: vec![4, 2], data: f32_ones.clone() },
+                    BuildTensor {
+                        name: "model.embed_tokens.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![4, 2],
+                        data: f32_ones.clone(),
+                    },
                     BuildTensor {
                         name: "model.layers.0.block_sparse_moe.router.layer.weight".into(),
                         dtype: "F32".into(),
@@ -2116,8 +2102,18 @@ pub mod sanitize {
             // 1. Benign U8 *.bias / *mask*, BOOL mask, and scalar/1-elem I64/I32 *.num_batches_tracked skip cleanly
             let clean_bytes = build_safetensors(
                 &[
-                    BuildTensor { name: "gpt_neox.layers.0.attention.bias".into(), dtype: "U8".into(), shape: vec![1, 1, 2, 2], data: vec![1, 0, 1, 1] },
-                    BuildTensor { name: "transformer.h.0.attn.attention.bias".into(), dtype: "U8".into(), shape: vec![2, 2], data: vec![1, 0, 1, 1] },
+                    BuildTensor {
+                        name: "gpt_neox.layers.0.attention.bias".into(),
+                        dtype: "U8".into(),
+                        shape: vec![1, 1, 2, 2],
+                        data: vec![1, 0, 1, 1],
+                    },
+                    BuildTensor {
+                        name: "transformer.h.0.attn.attention.bias".into(),
+                        dtype: "U8".into(),
+                        shape: vec![2, 2],
+                        data: vec![1, 0, 1, 1],
+                    },
                     BuildTensor { name: "decoder.causal_mask".into(), dtype: "BOOL".into(), shape: vec![2, 2], data: vec![1, 0, 1, 1] },
                     BuildTensor {
                         name: "encoder.layers.0.conv.norm.num_batches_tracked".into(),
@@ -2131,7 +2127,12 @@ pub mod sanitize {
                         shape: vec![1],
                         data: 7i32.to_le_bytes().to_vec(),
                     },
-                    BuildTensor { name: "encoder.layers.0.conv.norm.weight".into(), dtype: "F32".into(), shape: vec![4], data: f32_four.clone() },
+                    BuildTensor {
+                        name: "encoder.layers.0.conv.norm.weight".into(),
+                        dtype: "F32".into(),
+                        shape: vec![4],
+                        data: f32_four.clone(),
+                    },
                 ],
                 &BTreeMap::new(),
             )
@@ -2158,9 +2159,15 @@ pub mod sanitize {
             // 2. Non-mask/non-bias U8 tensors, U8/BOOL routing/index tensors, multi-elem I64 norm tensors, and exotic floats fail closed
             let bad_tensors = [
                 ("u8_generic", BuildTensor { name: "x".into(), dtype: "U8".into(), shape: vec![4], data: vec![0; 4] }),
-                ("u8_packed_weight", BuildTensor { name: "layers.0.mlp.weight".into(), dtype: "U8".into(), shape: vec![2, 2], data: vec![0; 4] }),
+                (
+                    "u8_packed_weight",
+                    BuildTensor { name: "layers.0.mlp.weight".into(), dtype: "U8".into(), shape: vec![2, 2], data: vec![0; 4] },
+                ),
                 ("u8_g_idx", BuildTensor { name: "layers.0.g_idx".into(), dtype: "U8".into(), shape: vec![4], data: vec![0; 4] }),
-                ("bool_routing", BuildTensor { name: "layers.0.tid2eid.mask".into(), dtype: "BOOL".into(), shape: vec![2, 2], data: vec![0; 4] }),
+                (
+                    "bool_routing",
+                    BuildTensor { name: "layers.0.tid2eid.mask".into(), dtype: "BOOL".into(), shape: vec![2, 2], data: vec![0; 4] },
+                ),
                 (
                     "multi_elem_bn_counter",
                     BuildTensor {
@@ -2710,26 +2717,10 @@ pub mod sanitize {
         "shared.weight",
         "wte.weight",
     ];
-    const COMPANION_TOKEN_KEYS: [&str; 4] = [
-        "eos_token_id",
-        "bos_token_id",
-        "pad_token_id",
-        "decoder_start_token_id",
-    ];
-    const COMPANION_EXPERT_COUNT_KEYS: [&str; 4] = [
-        "num_local_experts",
-        "n_routed_experts",
-        "num_experts",
-        "moe_num_experts",
-    ];
-    const COMPANION_EXPERT_USED_KEYS: [&str; 2] = [
-        "num_experts_per_tok",
-        "num_selected_experts",
-    ];
-    const COMPANION_DENSE_BLOCK_KEYS: [&str; 2] = [
-        "leading_dense_block",
-        "first_k_dense_replace",
-    ];
+    const COMPANION_TOKEN_KEYS: [&str; 4] = ["eos_token_id", "bos_token_id", "pad_token_id", "decoder_start_token_id"];
+    const COMPANION_EXPERT_COUNT_KEYS: [&str; 4] = ["num_local_experts", "n_routed_experts", "num_experts", "moe_num_experts"];
+    const COMPANION_EXPERT_USED_KEYS: [&str; 2] = ["num_experts_per_tok", "num_selected_experts"];
+    const COMPANION_DENSE_BLOCK_KEYS: [&str; 2] = ["leading_dense_block", "first_k_dense_replace"];
 
     fn read_companion_json(path: &str, file_name: &str) -> Result<Option<serde_json::Map<String, serde_json::Value>>> {
         if let Err(e) = std::fs::symlink_metadata(path) {
@@ -2738,21 +2729,13 @@ pub mod sanitize {
             }
             return Err(Error::msg(format!("companion config {}: {}", file_name, io_msg(&e))));
         }
-        let mut f = fsx::open_regular(path)
-            .map_err(|e| Error::msg(format!("companion config {}: {}", file_name, e.message())))?;
+        let mut f = fsx::open_regular(path).map_err(|e| Error::msg(format!("companion config {}: {}", file_name, e.message())))?;
         let mut raw = Vec::new();
-        std::io::Read::read_to_end(&mut f, &mut raw)
-            .map_err(|e| Error::msg(format!("companion config {}: {}", file_name, io_msg(&e))))?;
+        std::io::Read::read_to_end(&mut f, &mut raw).map_err(|e| Error::msg(format!("companion config {}: {}", file_name, io_msg(&e))))?;
         match serde_json::from_slice::<serde_json::Value>(&raw) {
             Ok(serde_json::Value::Object(m)) => Ok(Some(m)),
-            Ok(_) => Err(Error::msg(format!(
-                "companion config {}: expected top-level JSON object",
-                file_name
-            ))),
-            Err(e) => Err(Error::msg(format!(
-                "companion config {}: malformed JSON: {}",
-                file_name, e
-            ))),
+            Ok(_) => Err(Error::msg(format!("companion config {}: expected top-level JSON object", file_name))),
+            Err(e) => Err(Error::msg(format!("companion config {}: malformed JSON: {}", file_name, e))),
         }
     }
 
@@ -3019,10 +3002,8 @@ pub mod sanitize {
                 let blk = &mut chunk[(j * bb) as usize..((j + 1) * bb) as usize];
                 let i = base + j;
                 s.quant_blocks += 1;
-                let policy = quant_scale::ScanPolicy {
-                    strict_subnormal: o.strict_subnormal || o.flush_subnormal,
-                    check_extreme: o.clamp_extreme,
-                };
+                let policy =
+                    quant_scale::ScanPolicy { strict_subnormal: o.strict_subnormal || o.flush_subnormal, check_extreme: o.clamp_extreme };
                 for &(_, foff) in q.fields() {
                     let u = u16::from_le_bytes([blk[foff], blk[foff + 1]]);
                     if u & 0x7fff == 0 {
@@ -3130,7 +3111,8 @@ pub mod sanitize {
                             seen.insert(v);
                             used.insert(v);
                         }
-                        if let (Some(d), true) = (dst, (o.dedup_routing_rows || o.repair) && (valid || o.repair) && width <= o.num_experts) {
+                        if let (Some(d), true) = (dst, (o.dedup_routing_rows || o.repair) && (valid || o.repair) && width <= o.num_experts)
+                        {
                             let mut changed = false;
                             if o.repair && !valid {
                                 used = HashSet::new();

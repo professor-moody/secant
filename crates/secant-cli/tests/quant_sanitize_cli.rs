@@ -201,12 +201,7 @@ fn all_ten_mixed_gguf_quantized_formats_and_dry_run_scan_clean_and_detect_nan() 
                     data[pos..pos + 2].copy_from_slice(&0x3c00u16.to_le_bytes());
                 }
             }
-            BuildTensor {
-                name: format!("blk.{}.attn_q.weight", idx),
-                dtype: fmt.name().into(),
-                shape: vec![2, fmt.block_elems()],
-                data,
-            }
+            BuildTensor { name: format!("blk.{}.attn_q.weight", idx), dtype: fmt.name().into(), shape: vec![2, fmt.block_elems()], data }
         })
         .collect();
     let b = build_gguf(&[], &tensors, 32).unwrap();

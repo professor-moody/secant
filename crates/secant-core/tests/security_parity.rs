@@ -1772,7 +1772,12 @@ fn boundary3_b1_to_b5_oracle_parity_cli() {
         &root,
         "divisor.safetensors",
         &st(&[
-            bt("a.input_scale", "F32", &[4], raw_bits("F32", &[0, (-1.0f32).to_bits() as u64, (1e-20f32).to_bits() as u64, 1.0f32.to_bits() as u64])),
+            bt(
+                "a.input_scale",
+                "F32",
+                &[4],
+                raw_bits("F32", &[0, (-1.0f32).to_bits() as u64, (1e-20f32).to_bits() as u64, 1.0f32.to_bits() as u64]),
+            ),
             bt("a.v_scale.weight", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
             bt("a.q_scale", "F32", &[2], raw_bits("F32", &[(1e-20f32).to_bits() as u64, 1.0f32.to_bits() as u64])),
             bt("a.y_scale", "F32", &[2], raw_bits("F32", &[0, 1.0f32.to_bits() as u64])),
@@ -1795,22 +1800,10 @@ fn boundary3_b1_to_b5_oracle_parity_cli() {
             bt("a.v_scale", "F32", &[2], raw_bits("F32", &[0x00100000, 0x3f800000])),
         ]),
     );
-    let c = compare(
-        "b2-div-floor-scan",
-        &go,
-        &rs,
-        &root,
-        &san_args(&div_f16, &["--divisor-floor", "0.001", "--strict-subnormal"]),
-    );
+    let c = compare("b2-div-floor-scan", &go, &rs, &root, &san_args(&div_f16, &["--divisor-floor", "0.001", "--strict-subnormal"]));
     assert_eq!(c.code, 1);
     let div_nan_only = put(&root, "div_nan.safetensors", &st(&[bt("a.k_scale", "F16", &[2], raw_bits("F16", &[0x7e00, 0x3c00]))]));
-    let c = compare(
-        "b2-div-f16-clamp-default",
-        &go,
-        &rs,
-        &root,
-        &san_args(&div_nan_only, &["--clamp-nonfinite", "--out", "{OUT}"]),
-    );
+    let c = compare("b2-div-f16-clamp-default", &go, &rs, &root, &san_args(&div_nan_only, &["--clamp-nonfinite", "--out", "{OUT}"]));
     assert_eq!(c.code, 0);
     let c = compare(
         "b2-div-f16-clamp-strict-subnormal",
