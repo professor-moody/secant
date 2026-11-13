@@ -23,6 +23,10 @@ project:
   toc:
     - file: docs/index.md
       title: Overview & Architecture
+    - file: docs/OFFENSIVE-RESEARCHERS-GUIDE.md
+      title: "Offensive Researcher's Guide"
+    - file: docs/PYTORCH-10-LINE-HEALING-GUIDE.md
+      title: PyTorch 10-Line Healing Guide
     - file: docs/quickstart.md
       title: Quickstart & Live CLI Receipts
     - file: docs/theory-and-calibration.md

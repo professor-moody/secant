@@ -13,13 +13,32 @@
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange?style=flat-square)](https://www.rust-lang.org/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](https://www.python.org/)
 
-**[Documentation](https://professor-moody.github.io/secant/)** · **[4-Part Blog Series](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series)** · **[Quickstart](https://professor-moody.github.io/secant/quickstart)** · **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal](https://professor-moody.github.io/secant/project-then-heal)** · **[Payload Security](https://professor-moody.github.io/secant/payload-security)** · **[Technical Paper](https://professor-moody.github.io/secant/paper)**
+**[Documentation](https://professor-moody.github.io/secant/)** · **[60s Test Drive](examples/test-drive/README.md)** · **[Offensive Researcher's Guide](docs/OFFENSIVE-RESEARCHERS-GUIDE.md)** · **[PyTorch 10-Line Healing Guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md)** · **[4-Part Blog Series](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series)** · **[Quickstart](https://professor-moody.github.io/secant/quickstart)** · **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal](https://professor-moody.github.io/secant/project-then-heal)** · **[Payload Security](https://professor-moody.github.io/secant/payload-security)** · **[Technical Paper](https://professor-moody.github.io/secant/paper)**
 
 <br/>
 
 <img src="docs/assets/secant-pipeline.svg" alt="Secant Four-Stage Architecture" width="100%" />
 
 </div>
+
+---
+
+## Start Here (5-Minute Guides & 60s Test Drive)
+
+Format scanners (`SafeTensors`, `Picklescan`, `ModelScan`) prevent deserialization code execution, but they do not inspect weight values. Poisoned weights inside a valid `.safetensors` or `.gguf` file can trigger out-of-bounds MoE expert indexing, `NaN` output collapse, `20x-100x` IEEE-754 subnormal CPU stalls, or quantization-activated trojans. Conversely, during legitimate model customization, fine-tuning an edited or safety-aligned model on as few as 50 benign examples rotates weights back across protected directions and erases the edit.
+
+Secant addresses both problems directly on `.safetensors` and `.gguf` files via `mmap` (`139.40 MiB/s`, `0.0%` benign false-positive rate across `114` public Hub checkpoints and `105` synthetic configurations) and in PyTorch (`secant.nn.ProjectThenHealLinear`). Start with these hands-on guides before diving into the mathematical reference:
+
+| Guide / Kit | What You Will Do | Time |
+| :--- | :--- | :---: |
+| **[60-Second Hands-On Test Drive (`examples/test-drive/`)](examples/test-drive/README.md)** | Run one zero-dependency script (`python3 examples/test-drive/test_drive.py`) that synthesizes 9 clean and poisoned SafeTensors/GGUF checkpoints in a temp directory, scans and repairs them with `secant`, and prints a pass/fail table. | **60 sec** |
+| **[Offensive Researcher's Guide (`docs/OFFENSIVE-RESEARCHERS-GUIDE.md`)](docs/OFFENSIVE-RESEARCHERS-GUIDE.md)** | Understand the 4 concrete weight-tensor attack classes that bypass `SafeTensors`/`Picklescan` and copy-paste CLI recipes (`secant probe`, `sanitize`, `audit-trojan`) to benchmark any model-ingestion scanner. | **5 min** |
+| **[PyTorch 10-Line Healing Guide (`docs/PYTORCH-10-LINE-HEALING-GUIDE.md`)](docs/PYTORCH-10-LINE-HEALING-GUIDE.md)** | Drop `secant.nn.ProjectThenHealLinear` into a PyTorch fine-tuning loop in 10 lines of code and verify that safety/refusal directions stay locked (`< 1e-6` in `float32`, `< 1e-12` in `float64`). | **5 min** |
+
+```sh
+# Run the self-contained 60-second test drive from the repo root:
+python3 examples/test-drive/test_drive.py
+```
 
 ---
 
@@ -97,6 +116,7 @@ Every `secant` subcommand follows a strict, fail-closed three-state exit-code co
 
 ## Documentation, Blog Series & Paper
 
+- **[60-Second Hands-On Test Drive](examples/test-drive/README.md)** · **[Offensive Researcher's Guide](docs/OFFENSIVE-RESEARCHERS-GUIDE.md)** · **[PyTorch 10-Line Healing Guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md)**
 - **[Full Technical Paper](https://professor-moody.github.io/secant/paper)**: Complete statistical benchmarks, multi-seed random controls, dose-response curves, derivations, and SHA-256 reproducibility receipts.
 - **[4-Part Blog Series ("From Sparks to Secant")](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series)**: Plain-English walkthrough and interactive visualizers for Parts I to IV.
 - **[Documentation Home](https://professor-moody.github.io/secant/)** · **[Quickstart & Live CLI Captures](https://professor-moody.github.io/secant/quickstart)** · **[CLI & Python Reference](https://professor-moody.github.io/secant/cli-and-python-reference)**
