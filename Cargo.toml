@@ -11,6 +11,7 @@ authors = ["Nathan Keys <professor.moody@pm.me>"]
 repository = "https://github.com/professor-moody/secant"
 homepage = "https://professor-moody.github.io/secant/"
 documentation = "https://professor-moody.github.io/secant/"
+readme = "README.md"
 
 [workspace.dependencies]
 memmap2 = "0.9"

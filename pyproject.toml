@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "secant"
+dynamic = ["version"]
+description = "Static checkpoint auditing and deterministic weight-space programming"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Nathan Keys", email = "professor.moody@pm.me" }]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Rust",
+    "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://professor-moody.github.io/secant/"
+Repository = "https://github.com/professor-moody/secant"
+Documentation = "https://professor-moody.github.io/secant/"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "crates/secant-cli/Cargo.toml"
+strip = true

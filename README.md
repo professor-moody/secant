@@ -59,6 +59,9 @@ In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural 
 ## Quickstart
 
 ```sh
+# After the v0.3.0 wheel is published, run the self-contained CLI with uv:
+uvx secant --version
+
 # 1. Build and install the Rust CLI
 cargo install --path crates/secant-cli
 

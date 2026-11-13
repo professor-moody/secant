@@ -8,6 +8,13 @@ description = "Secant core: containers, subspaces, reader, Project-Then-Heal, te
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
+readme.workspace = true
+exclude = [
+    "tests/**/*.bin",
+    "tests/**/*.gguf",
+    "tests/**/*.npy",
+    "tests/**/*.safetensors",
+]
 
 [dependencies]
 memmap2.workspace = true

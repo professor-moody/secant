@@ -1,0 +1,48 @@
+name: Secant static weight audit
+description: Run Secant's fail-closed static sanitizer on a GGUF or SafeTensors model
+author: professor-moody
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  model:
+    description: Path to the .gguf or .safetensors file to scan
+    required: true
+  receipt:
+    description: Path for the secant.wsp.sanitize.v1 JSON receipt
+    required: false
+    default: secant-sanitize.json
+  attempt-id:
+    description: Stable identity recorded in the receipt
+    required: false
+    default: github-action
+  num-experts:
+    description: Exclusive routed-expert bound, or 0 when not applicable
+    required: false
+    default: "0"
+
+outputs:
+  receipt:
+    description: Path to the sanitizer receipt
+    value: ${{ inputs.receipt }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Secant
+      shell: bash
+      run: |
+        cargo install --locked --path "$GITHUB_ACTION_PATH/crates/secant-cli" --root "$RUNNER_TEMP/secant-action"
+        echo "$RUNNER_TEMP/secant-action/bin" >> "$GITHUB_PATH"
+    - name: Sanitize model
+      shell: bash
+      run: |
+        secant sanitize \
+          --model "${{ inputs.model }}" \
+          --receipt "${{ inputs.receipt }}" \
+          --attempt-id "${{ inputs.attempt-id }}" \
+          --num-experts "${{ inputs.num-experts }}" \
+          --dry-run \
+          --json

@@ -9,9 +9,10 @@
 //!
 //! Every scenario is executed against both arithmetic policies of the Rust
 //! side: `portable` (unfused float64, identical on every host) and
-//! `go-arm64-fma` (reproduces the fused multiply-adds the arm64 Go compiler
-//! emits). The host-matching policy must be bit-exact; the other policy's
-//! result is reported, not asserted.
+//! `go-arm64-fma` (reproduces legacy fused Go-oracle builds). Fixed Crucible
+//! oracles are portable on every architecture; set
+//! `SECANT_ORACLE_POLICY=go-arm64-fma` only when comparing an older arm64
+//! oracle. The selected policy must be bit-exact; the other is reported.
 //!
 //! Plans and profiles fed to BOTH tools carry the legacy schema id (the only
 //! one the oracle reads; Secant accepts it on input). The oracle's outputs
@@ -188,12 +189,17 @@ fn oracle_arch() -> &'static str {
     "unknown"
 }
 
-/// The Go compiler fuses `x*y+z` on arm64 but not on amd64 (GOAMD64<v3).
-fn host_variant() -> &'static str {
-    match oracle_arch() {
-        "aarch64" => "go-arm64-fma",
-        "x86_64" => "portable",
-        other => panic!("cannot determine the oracle architecture ({}); refusing to pick an arithmetic policy", other),
+/// Fixed Crucible oracles explicitly fence every multiply-add and therefore
+/// use the portable policy on both architectures. The opt-in exists only for
+/// differential checks against a legacy arm64 oracle.
+fn oracle_policy() -> &'static str {
+    match std::env::var("SECANT_ORACLE_POLICY") {
+        Err(std::env::VarError::NotPresent) => "portable",
+        Ok(v) if v == "portable" => "portable",
+        Ok(v) if v == "go-arm64-fma" => "go-arm64-fma",
+        Ok(v) if v.is_empty() => panic!("SECANT_ORACLE_POLICY is present but empty"),
+        Ok(v) => panic!("SECANT_ORACLE_POLICY must be portable or go-arm64-fma, got {:?}", v),
+        Err(e) => panic!("SECANT_ORACLE_POLICY: {}", e),
     }
 }
 
@@ -604,7 +610,7 @@ fn differential_conformance() {
     }
 
     // ---- report
-    println!("\nORACLE {} arch={} (policy asserted: {})", oracle_bin().unwrap(), oracle_arch(), host_variant());
+    println!("\nORACLE {} arch={} (policy asserted: {})", oracle_bin().unwrap(), oracle_arch(), oracle_policy());
     println!("{:<4} {:<14} {:<62} detail", "ok", "policy", "scenario");
     let mut host_fail = Vec::new();
     for (s, v, ok, d) in &t.rows {
@@ -612,13 +618,13 @@ fn differential_conformance() {
         // (informational: it is the expected last-bit fusion difference, see the file header).
         let tag = if *ok {
             "PASS"
-        } else if *v == host_variant() {
+        } else if *v == oracle_policy() {
             "FAIL"
         } else {
             "DIFF"
         };
         println!("{:<4} {:<14} {:<62} {}", tag, v, s, d);
-        if !*ok && *v == host_variant() {
+        if !*ok && *v == oracle_policy() {
             host_fail.push(format!("{} [{}]: {}", s, v, d));
         }
     }
@@ -648,7 +654,7 @@ fn random_geometry_sweep() {
         not_run("random_geometry_sweep");
         return;
     }
-    let fma = host_variant() == "go-arm64-fma";
+    let fma = oracle_policy() == "go-arm64-fma";
     let s = Scratch::new("sweep");
     let mut rng = Rng(0xA11CE);
     let n = sweep_cases();
@@ -717,5 +723,5 @@ fn random_geometry_sweep() {
         }
     }
     println!("random sweep: {} cases, {} failures; coverage {:?}", n, failures.len(), by_dtype);
-    assert!(failures.is_empty(), "sweep mismatches vs oracle ({}):\n{}", host_variant(), failures.join("\n"));
+    assert!(failures.is_empty(), "sweep mismatches vs oracle ({}):\n{}", oracle_policy(), failures.join("\n"));
 }

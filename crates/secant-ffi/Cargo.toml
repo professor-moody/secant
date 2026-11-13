@@ -8,6 +8,13 @@ description = "C ABI for Secant (libsecant.a / libsecant.so)"
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
+readme.workspace = true
+exclude = [
+    "tests/**/*.bin",
+    "tests/**/*.gguf",
+    "tests/**/*.npy",
+    "tests/**/*.safetensors",
+]
 
 [lib]
 name = "secant"

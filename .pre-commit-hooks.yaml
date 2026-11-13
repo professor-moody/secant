@@ -1,0 +1,11 @@
+- id: secant-sanitize
+  name: secant sanitize
+  description: Fail closed on static weight-value findings in GGUF and SafeTensors files
+  entry: >-
+    bash -c 'for model do receipt_dir=$(mktemp -d "${TMPDIR:-/tmp}/secant-pre-commit.XXXXXX") || exit 2;
+    secant sanitize --dry-run --attempt-id pre-commit --receipt "$receipt_dir/receipt.json" --model "$model";
+    hook_rc=$?; rm -r "$receipt_dir"; if [ "$hook_rc" -ne 0 ]; then exit "$hook_rc"; fi; done'
+    secant-sanitize
+  language: system
+  files: '\.(gguf|safetensors)$'
+  require_serial: true
