@@ -91,7 +91,7 @@ fn logical_orientation_agrees_across_containers() {
     let s = Scratch::new("orient");
     let st = s.path("a.safetensors");
     let gg = s.path("a.gguf");
-    write(&st, &build_safetensors(&[t.clone()], &BTreeMap::new()).unwrap());
+    write(&st, &build_safetensors(std::slice::from_ref(&t), &BTreeMap::new()).unwrap());
     write(&gg, &build_gguf(&[], &[t], 32).unwrap());
     let (ms, mg) = (Model::open(&st).unwrap(), Model::open(&gg).unwrap());
     let (ts, tg) = (ms.layout.tensor("w").unwrap(), mg.layout.tensor("w").unwrap());
@@ -193,7 +193,10 @@ fn permute_hf_to_gguf_then_back_is_identity_and_verify_catches_tampering() {
     b[9] ^= 0xFF; // version/counts region of the header
     let bad = s.path("bad.gguf");
     write(&bad, &b);
-    assert!(verify_patch(&base, &bad, &[name.clone()]).is_err() || !verify_patch(&base, &bad, &[name.clone()]).unwrap().ok);
+    assert!(
+        verify_patch(&base, &bad, std::slice::from_ref(&name)).is_err()
+            || !verify_patch(&base, &bad, std::slice::from_ref(&name)).unwrap().ok
+    );
     let m = Model::open(&o1).unwrap();
     let other = m.layout.tensor("other.weight").unwrap().offset as usize;
     let mut c = std::fs::read(&o1).unwrap();

@@ -1,151 +1,75 @@
-# How to Fine-Tune with `ProjectThenHealLinear` in 10 Lines of PyTorch Without Losing Safety Alignment
+# Fine-Tune with Protected Output Directions
 
-This guide shows how to fine-tune a PyTorch model using `secant.nn.ProjectThenHealLinear` so your LoRA adapter cannot overwrite protected safety directions or previously applied weight edits.
+`ProjectThenHealLinear` is a frozen linear layer plus a trainable LoRA adapter. It projects the adapter away from output directions you supply on every forward pass. This lets you preserve a measured local constraint while adapting a model. It does not guarantee preservation of all safety behavior: direction selection, other layers, storage precision, and held-out behavior tests still matter.
 
----
+## Choose What to Protect
 
-## 1. The Concrete Failure Mode: Why Benign Fine-Tuning Breaks Guardrails
+Supply a vector of length `out_features` or a matrix of shape `[k, out_features]`, as an array, tensor, or `.npy` path. The module orthonormalizes the rows in float64 and rejects zero, dependent, non-finite, or incompatible directions. Use directions measured for the selected layer, for example with the contrastive capture workflow in the [quickstart](quickstart.md). A random direction tests the numerical mechanism only.
 
-When you fine-tune an aligned language model on as few as 10 to 100 benign customer-support or formatting examples, standard LoRA updates rotate weights across the model's safety-refusal and reasoning directions (Qi et al., ICLR 2024). Even if your training dataset contains zero harmful examples, the adapter adds components back into the protected output subspace and silently degrades guardrails or undoes prior surgical weight edits.
+`from_linear(linear, rank, directions, alpha=None, **kwargs)` copies and freezes the base weight and bias. It creates trainable `lora_A` and `lora_B_tilde`; `alpha` defaults to `rank`, giving a scale of one. Other model parameters remain your responsibility. Replacing one layer does not freeze the rest of a model.
 
-A common workaround is to project the backward gradient (`grad_B`) before calling `optimizer.step()`. Under **AdamW**, gradient projection still leaks:
-- AdamW divides each coordinate of the gradient's first moment by its running per-coordinate root-mean-square variance (`sqrt(v_hat_t) + eps`).
-- Scaling coordinates by different numbers tilts an orthogonal vector back into the forbidden subspace (`3.6%` to `4.7%` leakage formalized by Chen et al., *GOAL*, Oct 2026; `0.33%` to `2.98%` relative leakage measured across Secant's 15-model H100 and 3-seed AdamW benchmarks).
+## The Ten-Line Integration
 
-**How `ProjectThenHealLinear` solves this**: Instead of relying on the optimizer to preserve gradient angles, `ProjectThenHealLinear` projects the LoRA output matrix $B$ **inside the forward pass** twice in `float64` before every matrix multiplication. No matter how AdamW updates the underlying parameter `lora_B_tilde`, the effective adapter matrix `locked_B()` stays orthogonal to your protected directions down to floating-point rounding (`< 1e-6` in `float32` and `< 1e-12` in `float64`).
+[Recipe 4](RECIPES.md#recipe-4-fine-tune-and-export-in-ten-lines) contains the ten-line training and plain-layer export. This complete CPU example supplies all inputs, trains for 25 steps, and checks both float32 and float64:
 
----
-
-## 2. The 10-Line PyTorch Integration
-
-Install the local Python package:
-
-```bash
-pip install -e "./python[torch]"
-```
-
-Here is the complete 10-line integration that wraps an existing `torch.nn.Linear` writer layer (`model.layers[15].mlp.down_proj`), runs an AdamW training step, and verifies the subspace lock:
-
-```python
-import torch
-from secant.nn import ProjectThenHealLinear
-
-# 1. Wrap the target nn.Linear layer (base weight & bias are copied and frozen)
-locked = ProjectThenHealLinear.from_linear(
-    linear_layer, rank=16, directions=protected_dirs, alpha=16.0
-)
-model.layers[15].mlp.down_proj = locked
-
-# 2. Train only the LoRA parameters (lora_A and lora_B_tilde) with standard AdamW
-optimizer = torch.optim.AdamW([p for p in locked.parameters() if p.requires_grad], lr=5e-4)
-loss = loss_fn(model(inputs), targets)
-loss.backward()
-optimizer.step()
-
-# 3. Verify that worst-case subspace leakage max|D @ B_locked| stays below tolerance
-assert locked.leakage() < 1e-6  # < 1e-6 for float32 modules; < 1e-12 for float64 modules
-```
-
-### Line-by-Line Plain-English Breakdown
-
-1. **`from secant.nn import ProjectThenHealLinear`**: Imports the subspace-locked LoRA module (`python/secant/nn.py`).
-2. **`ProjectThenHealLinear.from_linear(linear_layer, rank=16, directions=protected_dirs, alpha=16.0)`**:
-   - Copies `linear_layer.weight` (`[out_features, in_features]`) and `linear_layer.bias` into frozen parameters (`requires_grad=False`).
-   - Takes `directions` (`[k, out_features]` NumPy array, PyTorch tensor, or `.npy` file path), orthonormalizes its rows in `float64` via two-pass modified Gram-Schmidt, and stores the orthonormal basis as a non-trainable `float64` buffer `locked.D`. If the supplied directions are linearly dependent, zero, or contain `NaN`/`Inf`, construction fails closed with `DirectionError`.
-   - Creates two trainable parameters: `locked.lora_A` (`[rank, in_features]`, Kaiming-uniform initialized) and `locked.lora_B_tilde` (`[out_features, rank]`, zero-initialized by default so step-0 output is identical to the base layer).
-3. **`model.layers[15].mlp.down_proj = locked`**: Replaces the target MLP or attention output projection layer in your model with the wrapped layer.
-4. **`optimizer = torch.optim.AdamW([p for p in locked.parameters() if p.requires_grad], lr=5e-4)`**: Passes only the trainable adapter weights (`lora_A` and `lora_B_tilde`) to standard PyTorch `AdamW`.
-5. **`loss = loss_fn(model(inputs), targets)`**: During `locked.forward(x)`, the layer promotes `lora_B_tilde` to `float64`, removes any component along `locked.D` twice (`b = b - D.T @ (D @ b)`), casts `locked_B()` back to the working dtype, and adds `scale * F.linear(F.linear(x, lora_A), locked_B())` to the frozen base output.
-6. **`loss.backward()` and `optimizer.step()`**: Backpropagates gradients through the projection operator and updates `lora_A` and `lora_B_tilde`.
-7. **`assert locked.leakage() < 1e-6`**: Computes $\max |D \, B_{\text{locked}}|$ in `float64` on the working-dtype `locked_B()` matrix to confirm that zero protected-subspace drift occurred.
-
----
-
-## 3. Runnable Self-Contained Verification Script (`float32` & `float64`)
-
-Copy and run this standalone script to test 25 steps of AdamW training in both `float32` (`< 1e-6`) and `float64` (`< 1e-12`), merge the trained adapter into the base weight matrix, and export a `.safetensors` adapter:
-
-```bash
-uv run --offline --with torch --with numpy --with ./python python3 - <<'PY'
+```sh
+python3 -m pip install -e './python[torch]'
+python3 - <<'PY'
 import tempfile
 import numpy as np
 import torch
-from torch import nn
 from secant.nn import ProjectThenHealLinear
 
 torch.manual_seed(0)
 rng = np.random.default_rng(0)
-
 for dtype, tol in [(torch.float32, 1e-6), (torch.float64, 1e-12)]:
-    # Create a 64x32 linear layer and 3 protected output directions of length 64
-    base_linear = nn.Linear(32, 64, bias=False).to(dtype)
-    protected_dirs = rng.standard_normal((3, 64))
-
+    linear = torch.nn.Linear(32, 64, bias=True).to(dtype)
     locked = ProjectThenHealLinear.from_linear(
-        base_linear,
-        rank=8,
-        directions=protected_dirs,
-        alpha=16.0,
-        b_init_std=0.1,
+        linear, rank=8, directions=rng.standard_normal((3, 64)), alpha=16.0,
         module_name="model.layers.15.mlp.down_proj",
     )
-
-    opt = torch.optim.AdamW([p for p in locked.parameters() if p.requires_grad], lr=1e-2)
-    x = torch.randn(16, 32, dtype=dtype)
-    target = torch.randn(16, 64, dtype=dtype)
-
+    optimizer = torch.optim.AdamW([p for p in locked.parameters() if p.requires_grad], lr=1e-2)
+    inputs = torch.randn(16, 32, dtype=dtype)
+    targets = torch.randn(16, 64, dtype=dtype)
     for _ in range(25):
-        opt.zero_grad()
-        loss = (locked(x) - target).pow(2).mean()
-        loss.backward()
-        opt.step()
-
-    adapter_leak = locked.leakage()
-    merge_leak = locked.merged_leakage()
-    ortho_err = locked.orthonormality_error()
-    print(
-        f"dtype={str(dtype):13s} | orthonorm_err={ortho_err:.2e} "
-        f"| adapter_leak={adapter_leak:.2e} | merged_leak={merge_leak:.2e} (tol={tol:.0e})"
-    )
-    assert ortho_err < 1e-12
-    assert adapter_leak < tol
-    assert merge_leak < tol
-
-    # Export to a PEFT-compatible .safetensors file
+        optimizer.zero_grad()
+        (locked(inputs) - targets).square().mean().backward()
+        optimizer.step()
+    assert locked.orthonormality_error() < 1e-12
+    assert locked.leakage() < tol
+    assert locked.merged_leakage() < tol
+    exported = torch.nn.Linear(32, 64, bias=True).to(dtype)
+    exported.load_state_dict({"weight": locked.merge_into(), "bias": locked.bias.detach()})
+    torch.testing.assert_close(exported(inputs), locked(inputs), rtol=1e-5, atol=1e-6)
     with tempfile.TemporaryDirectory() as tmp:
         meta = locked.export_lora(f"{tmp}/adapter.safetensors")
-        print(f"  exported {meta['path']} (scale={meta['scale']}, tensors={meta['tensors']})")
+        print(dtype, "adapter leak", locked.leakage(), "merge leak", locked.merged_leakage(), "scale", meta["scale"])
 PY
 ```
 
-### Verifying an Exported or External LoRA Adapter from the CLI
+The exported `nn.Linear` uses standard weights and has no adapter operations at inference. `merge_into()` returns a weight tensor, not a layer, which is why the example copies it into `nn.Linear`. Copy the bias as well.
 
-If you already trained a standard `.safetensors` LoRA adapter (or want an independent CLI receipt before deployment), use `secant heal` and `secant verify-subspace`:
+## Read the Checks Correctly
 
-```bash
-# 1. Project an existing LoRA adapter's lora_B weights out of the protected subspace
-#    and optionally merge into a copy of the base checkpoint
-secant heal \
-  --lora adapter_model.safetensors \
-  --vectors vectors/ \
-  --out adapter_locked.safetensors \
-  --base model.safetensors \
-  --merge-out model_healed.safetensors \
-  --scale 2.0 \
-  --tol 1e-5 \
-  --json
+`leakage()` measures the largest protected component of the working-dtype adapter factor. `merged_leakage()` measures the actual stored difference after adding the adapter to the base. Multiplication by the other LoRA factor, adapter scaling, and merge rounding make these different checks. The example's tolerances are acceptance criteria for its small numerical inputs, not universal bounds for arbitrary magnitudes.
 
-# 2. Independently verify that (W_healed - W_base) has <= 1e-5 projection onto vectors/
-secant verify-subspace \
-  --base model.safetensors \
-  --healed model_healed.safetensors \
-  --vectors vectors/ \
-  --tensors "model.layers.15.mlp.down_proj.weight" \
-  --tol 1e-5 \
-  --json
+The basis remains float64 across dtype conversions. However, lower-precision activations or autocast can round the effective adapter during a forward pass. Use float32 or float64 outside autocast when requiring agreement with `leakage()`. Recheck after merging and after quantization.
+
+Gradient projection alone does not impose the same constraint under AdamW because its per-coordinate scaling can change the update direction. Forward-pass projection constrains the effective adapter regardless of that optimizer rescaling. The [formal guide](project-then-heal.md) retains derivations and measured comparisons with ordinary and gradient-projected LoRA.
+
+## Export an Adapter or Verify a Checkpoint
+
+`export_lora(path, module_name=None, *, locked=True, dtype=None, overwrite=False)` writes the adapter tensors in float32 or float64. Use the real model module name. Pass the returned `scale` to `secant heal --scale` when merging; the CLI does not infer it from PEFT configuration. The file is a tensor export, not a complete PEFT package with an `adapter_config.json`.
+
+```sh
+secant heal --lora adapter.safetensors --vectors protected.npy \
+  --out adapter-locked.safetensors --base model.safetensors \
+  --merge-out model-healed.safetensors --scale 2.0 --tol 1e-5 --json
+secant verify-subspace --base model.safetensors --healed model-healed.safetensors \
+  --vectors protected.npy --tensors model.layers.15.mlp.down_proj.weight --tol 1e-5 --json
 ```
 
----
+Use `2.0` only when it matches your exported scale, such as the example's `alpha=16`, `rank=8`. `verify-subspace` defaults to `1e-5` and measures the maximum absolute projection of the stored weight difference. It accepts Q8_0 and Q4_K exports as described in [recipe 5](RECIPES.md#recipe-5-verify-a-quantized-export). Retain hash brackets for the tool, directions, base, and healed files. A passing selected-layer check still requires held-out behavioral evaluation.
 
 ## 4. Technical Details & Precision Guardrails (Collapsible Reference)
 
@@ -163,7 +87,7 @@ Given an orthonormal row basis $D \in \mathbb{R}^{k \times d_{\text{out}}}$ ($D 
 2. **Numerical Effect of the Second Pass**:
    In floating-point arithmetic, a single Gram-Schmidt subtraction $\tilde{B} - D^\top (D \tilde{B})$ can leave a small cancellation residue when $\tilde{B}$ has a large component along $D$. Across 120 seeded Gaussian test cases ($d_{\text{out}} \in \{1024..8192\}$, $k \in \{3, 4\}$, $r \in \{8, 16\}$), applying the projection a second time lowers $\max |D B_{\text{locked}}|$ by a median of `5.6x` (down to $\le 2.24 \times 10^{-15}$ in `float64`).
 3. **Working Dtype & `bfloat16` Merge Warning**:
-   `locked.D` is kept in `float64` even if you call `locked.float()` or `locked.half()`. In `float32`, the final cast `b.to(torch.float32)` bounds $\max |D B_{\text{locked}}|$ around $10^{-10}$ to $10^{-7}$ (`< 1e-6`). Avoid storing or merging the locked adapter directly in `bfloat16` (`7` mantissa bits, step size $2^{-7} \approx 7.8 \times 10^{-3}$), because `bfloat16` rounding re-introduces $\sim 10^{-4}$ to $10^{-3}$ subspace leakage; `export_lora()` therefore enforces `dtype in ("float32", "float64")`.
+   `locked.D` is kept in `float64` even if you call `locked.float()` or `locked.half()`. In `float32`, the final cast `b.to(torch.float32)` has produced measured $\max |D B_{\text{locked}}|$ around $10^{-10}$ to $10^{-7}$ (`< 1e-6`). Avoid storing or merging the locked adapter directly in `bfloat16` (`7` mantissa bits, step size $2^{-7} \approx 7.8 \times 10^{-3}$), because `bfloat16` rounding re-introduces $\sim 10^{-4}$ to $10^{-3}$ subspace leakage; `export_lora()` therefore enforces `dtype in ("float32", "float64")`.
 
 </details>
 

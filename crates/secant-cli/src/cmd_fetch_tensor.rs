@@ -160,7 +160,7 @@ fn npy(dtype: &str, shape: &[u64], raw: &[u8]) -> Result<(Vec<u8>, &'static str)
         "BOOL" => ("|b1", 1),
         _ => return Err(err(format!("unsupported dtype {}", dtype))),
     };
-    if raw.len() % width != 0 {
+    if !raw.len().is_multiple_of(width) {
         return Err(err("unaligned tensor payload"));
     }
     let dims = shape.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(", ");
@@ -173,8 +173,8 @@ fn npy(dtype: &str, shape: &[u64], raw: &[u8]) -> Result<(Vec<u8>, &'static str)
     out.extend_from_slice(&len.to_le_bytes());
     out.extend_from_slice(h.as_bytes());
     if dtype == "F16" || dtype == "BF16" {
-        for b in raw.chunks_exact(2) {
-            let bits = u16::from_le_bytes([b[0], b[1]]);
+        for b in raw.as_chunks::<2>().0 {
+            let bits = u16::from_le_bytes(*b);
             let v = if dtype == "F16" { f32_from_f16(bits) } else { f32_from_bf16(bits) };
             out.extend_from_slice(&v.to_le_bytes());
         }

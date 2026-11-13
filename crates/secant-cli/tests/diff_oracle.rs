@@ -68,7 +68,7 @@ fn i32_tensor(name: &str, vals: &[i32]) -> BuildTensor {
 
 fn build_fixtures() -> Fx {
     let dir = Scratch::new("diff");
-    let mut rng = Rng(0x5EC4_17);
+    let mut rng = Rng(0x005E_C417);
     // --- SafeTensors (HF naming)
     let st_tensors = vec![
         tensor("lm_head.weight", "F32", &[VOCAB, D_OUT], &mut rng),
@@ -231,8 +231,8 @@ fn check_original_targets(plan: &Value, vectors: &str) {
                 continue;
             }
             for (c, coeff) in other.cols.iter().zip(&other.coeffs) {
-                for o in 0..raw.len() {
-                    response[o] += other.direction[o] * coeff * edit.h_ref[*c as usize];
+                for (o, value) in response.iter_mut().enumerate() {
+                    *value += other.direction[o] * coeff * edit.h_ref[*c as usize];
                 }
             }
         }
@@ -432,7 +432,7 @@ fn differential_conformance() {
         vectors: Option<&'a str>,
         extra: Vec<&'a str>,
     }
-    let cases = vec![
+    let cases = [
         C { name: "compose/custom target-shift default", profile: &fx.profile, vectors: Some(&fx.vectors), extra: vec![] },
         C {
             name: "compose/custom --target-shift -7",
@@ -664,7 +664,7 @@ fn random_geometry_sweep() {
         let d_out = 2 + (rng.next_u64() % 23) as usize;
         let d_in = 3 + (rng.next_u64() % 61) as usize;
         let dtype = ["F32", "BF16", "F16", "F64"][(rng.next_u64() % 4) as usize];
-        let gguf = rng.next_u64() % 2 == 0;
+        let gguf = rng.next_u64().is_multiple_of(2);
         *by_dtype.entry(format!("{}/{}", if gguf { "gguf" } else { "st" }, dtype)).or_insert(0) += 1;
         let name = if gguf { "blk.0.ffn_down.weight" } else { "model.language_model.layers.0.mlp.down_proj.weight" };
         let tensors = vec![tensor(name, dtype, &[d_out, d_in], &mut rng), tensor("other.weight", "F32", &[3, 3], &mut rng)];
@@ -681,7 +681,7 @@ fn random_geometry_sweep() {
         let mut edits = vec![serde_json::json!({
             "id": "R", "role": "x", "op": "rank1-columns", "tensor": name, "tensor_safetensors": name,
             "direction": norm(rng.vec(d_out)), "cols": cols, "coeffs": rng.vec(k)})];
-        if rng.next_u64() % 2 == 0 {
+        if rng.next_u64().is_multiple_of(2) {
             edits.push(serde_json::json!({
                 "id": "P", "role": "x", "op": "projector-subtract", "tensor": name, "tensor_safetensors": name,
                 "direction": norm(rng.vec(d_out)), "gamma": 0.1 + 0.9 * (rng.unit().abs())}));

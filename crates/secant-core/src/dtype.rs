@@ -464,10 +464,9 @@ mod tests {
         let tb = TensorBuffer::new("F8_E4M3", payload.clone());
         let mut row = vec![0.0f64; 256];
         decode_row("F8_E4M3", &payload, 0, 256, &mut row);
-        for i in 0..256 {
+        for (i, &c) in row.iter().enumerate() {
             let a = tb.get(i as i64);
             let b = read_elem(&payload, "F8_E4M3", i);
-            let c = row[i];
             if a.is_nan() {
                 assert!(b.is_nan() && c.is_nan());
             } else {

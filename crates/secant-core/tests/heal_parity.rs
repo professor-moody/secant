@@ -635,7 +635,7 @@ fn check_verify(tag: &str, base: &str, healed: &str, vectors: &str, tensors: &[&
                     df.as_deref().map(|x| format!("DIFF({})", x)).unwrap_or("MATCH".into())
                 );
                 // accepted only if the fused (arm64 oracle) policy reproduces it
-                d = if df.is_none() { None } else { Some(format!("{} / fused: {}", unfused, df.unwrap())) };
+                d = df.map(|diff| format!("{} / fused: {}", unfused, diff));
             } else {
                 println!("PARITY {} policy=unfused MATCH exit={}", tag, go.0);
             }

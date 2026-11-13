@@ -244,19 +244,19 @@ fn compose_correlated_control_measures_combined_update_on_original_directions() 
         })
         .unwrap();
         let units = [vec![1., 0.], vec![std::f64::consts::FRAC_1_SQRT_2; 2]];
-        for i in 0..2 {
+        for (i, unit) in units.iter().enumerate() {
             let mut delta_h = vec![0.; 2];
             for edit in &plan.edits {
                 if edit.tensor != plan.edits[i].tensor {
                     continue;
                 }
                 for (col, coeff) in edit.cols.iter().zip(&edit.coeffs) {
-                    for o in 0..2 {
-                        delta_h[o] += edit.direction[o] * coeff * plan.edits[i].h_ref[*col as usize];
+                    for (o, value) in delta_h.iter_mut().enumerate() {
+                        *value += edit.direction[o] * coeff * plan.edits[i].h_ref[*col as usize];
                     }
                 }
             }
-            assert!((dot(&units[i], &delta_h) - plan.edits[i].achieved_shift).abs() < 1e-12);
+            assert!((dot(unit, &delta_h) - plan.edits[i].achieved_shift).abs() < 1e-12);
         }
         assert_eq!(plan.edits[0].achieved_shift, flag_shift);
         assert_eq!(plan.edits[1].achieved_shift, if ha == "[1]" { 1. } else { -2. });

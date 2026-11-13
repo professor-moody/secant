@@ -217,7 +217,7 @@ fn unpack_q3_k_scales(scales: &[u8]) -> [i8; 16] {
     let a0 = u32::from_le_bytes([scales[0], scales[1], scales[2], scales[3]]);
     let a1 = u32::from_le_bytes([scales[4], scales[5], scales[6], scales[7]]);
     let tmp = u32::from_le_bytes([scales[8], scales[9], scales[10], scales[11]]);
-    let u0 = (a0 & kmask2) | (((tmp >> 0) & kmask1) << 4);
+    let u0 = (a0 & kmask2) | ((tmp & kmask1) << 4);
     let u1 = (a1 & kmask2) | (((tmp >> 2) & kmask1) << 4);
     let u2 = ((a0 >> 4) & kmask2) | (((tmp >> 4) & kmask1) << 4);
     let u3 = ((a1 >> 4) & kmask2) | (((tmp >> 6) & kmask1) << 4);

@@ -1,4 +1,4 @@
-# Theory: Choose a Direction and Size the Edit
+# Theory Choose a Direction and Size the Edit
 
 Secant's calculations answer three practical questions:
 

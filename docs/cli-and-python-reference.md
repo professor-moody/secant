@@ -8,13 +8,13 @@ Choose the interface that matches your workflow: shell commands, Python training
 
 A **receipt** is a structured record of a command's inputs, measurements, and checks. A successful exit applies to the command's stated scope; it does not certify the model's behavior.
 
-Command shapes were checked against the installed binary's `--help` and Rust argument definitions on 2026-11-06. Python signatures come from `python/secant/nn.py`. Pin the binary and source revision together: installed help describes that executable, not necessarily an unbuilt checkout. Examples with angle-bracket placeholders are templates, not shell-ready commands.
+Command shapes are defined by the shipping Rust argument definitions; the recipes use those flags. Python signatures come from `python/secant/nn.py`. Pin the binary and source revision together: installed help describes that executable, not necessarily an unbuilt checkout. Examples with angle-bracket placeholders are templates, not shell-ready commands.
 
 ---
 
 ## 1. Exit Code Contract
 
-Every `secant` CLI command obeys a three-state exit code contract:
+Secant uses three exit-code classes. A completed read or audit can exit `0` while reporting outliers; only commands with a policy gate turn findings into exit `1`:
 
 | Exit Code | Meaning | Example |
 |---|---|---|

@@ -11,6 +11,7 @@ book:
   repo-actions: [edit, issue]
   chapters:
     - index.md
+    - RECIPES.md
     - OFFENSIVE-RESEARCHERS-GUIDE.md
     - PYTORCH-10-LINE-HEALING-GUIDE.md
     - quickstart.md

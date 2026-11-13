@@ -4,7 +4,7 @@
 
 # Secant
 
-**Deterministic Weight-Space Programming, In-Place Quantized Block Surgery (`Q8_0`), Static Checkpoint Auditing, and Subspace-Locked LoRA (`Project-Then-Heal`)**
+**Check model files before loading them. Keep chosen directions fixed during fine-tuning.**
 
 [![Documentation](https://img.shields.io/badge/Docs-professor--moody.github.io%2Fsecant-0A66C2?style=flat-square)](https://professor-moody.github.io/secant/)
 [![Technical Paper](https://img.shields.io/badge/Paper-MyST_%2F_Quarto-8A2BE2?style=flat-square)](https://professor-moody.github.io/secant/paper)
@@ -13,114 +13,77 @@
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange?style=flat-square)](https://www.rust-lang.org/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](https://www.python.org/)
 
-**[Documentation](https://professor-moody.github.io/secant/)** · **[60s Test Drive](examples/test-drive/README.md)** · **[Offensive Researcher's Guide](docs/OFFENSIVE-RESEARCHERS-GUIDE.md)** · **[PyTorch 10-Line Healing Guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md)** · **[4-Part Blog Series](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series)** · **[Quickstart](https://professor-moody.github.io/secant/quickstart)** · **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal](https://professor-moody.github.io/secant/project-then-heal)** · **[Payload Security](https://professor-moody.github.io/secant/payload-security)** · **[Technical Paper](https://professor-moody.github.io/secant/paper)**
-
-<br/>
-
-<img src="docs/assets/secant-pipeline.svg" alt="Secant Four-Stage Architecture" width="100%" />
+[Recipes](docs/RECIPES.md) · [Test drive](examples/test-drive/README.md) · [PyTorch guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md) · [Technical paper](docs/PAPER.md)
 
 </div>
 
----
+## What Secant Does and Why It Matters
 
-## Start Here (5-Minute Guides & 60s Test Drive)
+A model file can load successfully and still contain harmful weights. SafeTensors avoids pickle-style code execution during deserialization; GGUF describes tensors and metadata. Neither format proves that the weights behave as intended. Non-finite weights or corrupted scales can spoil outputs, and invalid routing indices can reach unsafe operations in runtimes that do not validate them. Finite weights can also carry a behavioral backdoor. Separately, legitimate fine-tuning can change behavior you meant to preserve.
 
-Format scanners (`SafeTensors`, `Picklescan`, `ModelScan`) prevent deserialization code execution, but they do not inspect weight values. Poisoned weights inside a valid `.safetensors` or `.gguf` file can trigger out-of-bounds MoE expert indexing, `NaN` output collapse, `20x-100x` IEEE-754 subnormal CPU stalls, or quantization-activated trojans. Conversely, during legitimate model customization, fine-tuning an edited or safety-aligned model on as few as 50 benign examples rotates weights back across protected directions and erases the edit.
+Secant offers two practical tools:
 
-Secant addresses both problems directly on `.safetensors` and `.gguf` files via `mmap` (`139.40 MiB/s`, `0.0%` benign false-positive rate across `114` public Hub checkpoints and `105` synthetic configurations) and in PyTorch (`secant.nn.ProjectThenHealLinear`). Start with these hands-on guides before diving into the mathematical reference:
+- **Check a downloaded model before loading it.** `secant inspect` lists tensors and storage formats. `secant sanitize` checks supported `.safetensors` and `.gguf` payloads and companion configuration files, without a GPU or inference. It can write a repaired copy for supported numerical defects. A clean scan means those checks passed; it does not rule out behavioral backdoors.
+- **Constrain a PyTorch LoRA adapter.** `ProjectThenHealLinear` keeps its update out of output directions you supply. You can merge it into an ordinary `nn.Linear`, with zero additional adapter operations at inference. The lock is local to the selected layers and directions; evaluate model behavior and check leakage again after export.
 
-| Guide / Kit | What You Will Do | Time |
-| :--- | :--- | :---: |
-| **[60-Second Hands-On Test Drive (`examples/test-drive/`)](examples/test-drive/README.md)** | Run one zero-dependency script (`python3 examples/test-drive/test_drive.py`) that synthesizes 9 clean and poisoned SafeTensors/GGUF checkpoints in a temp directory, scans and repairs them with `secant`, and prints a pass/fail table. | **60 sec** |
-| **[Offensive Researcher's Guide (`docs/OFFENSIVE-RESEARCHERS-GUIDE.md`)](docs/OFFENSIVE-RESEARCHERS-GUIDE.md)** | Understand the 4 concrete weight-tensor attack classes that bypass `SafeTensors`/`Picklescan` and copy-paste CLI recipes (`secant probe`, `sanitize`, `audit-trojan`) to benchmark any model-ingestion scanner. | **5 min** |
-| **[PyTorch 10-Line Healing Guide (`docs/PYTORCH-10-LINE-HEALING-GUIDE.md`)](docs/PYTORCH-10-LINE-HEALING-GUIDE.md)** | Drop `secant.nn.ProjectThenHealLinear` into a PyTorch fine-tuning loop in 10 lines of code and verify that safety/refusal directions stay locked (`< 1e-6` in `float32`, `< 1e-12` in `float64`). | **5 min** |
+The retained scanner benchmark observed **0.0% false positives on 105 default configurations per platform**, comprising 100 synthetic configurations and five retained configurations. This is a measured corpus result, not a guarantee for every production model. The [benchmark report](docs/benchmarks/benign-fpr-v0.3.0.md) separates controls, formats, and historical coverage; its [JSON receipt](docs/benchmarks/benign-fpr-v0.3.0.json) has SHA-256 `63ac1125e6a1f87f65acd5c3163e7fdf3ad2c479a1dee8968c8dd0bf80a64fac`.
+
+## Try It in 30 Seconds
+
+From a checkout, run:
 
 ```sh
-# Run the self-contained 60-second test drive from the repo root:
 python3 examples/test-drive/test_drive.py
 ```
 
----
+No GPU, Python packages, or model download is needed. The script creates tiny synthetic SafeTensors and GGUF files, runs nine checks covering clean controls, numerical defects, repair, and a rank-one spectral change, then deletes its temporary files. Success ends with `RESULT: 9/9`. The first run builds the CLI if necessary and requires Rust; that build can take longer than 30 seconds. The nine checks are a small demonstration, not a general detection-rate benchmark.
 
-## Overview
+## Practical Recipes and How-Tos
 
-In [*"Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights"*](https://rikiyat.github.io/blog/weight-space-programming/) (MIT CSAIL, Nov 2026), Takehi, Teoh, Zhang, and Khattab showed that an LLM agent (`gpt-6-astra`) could inspect activations and edit `0.016%` of `Qwen3.5-0.8B`'s weights to lift its `MATH-500` score from `7.9%` to `48.1%`, while calling for *"turning what currently seems like black magic into a rigorous, reproducible engineering discipline"* and *"auditing without evaluation."*
+| You want to | Start here |
+| --- | --- |
+| Scan a downloaded Hugging Face model before vLLM or llama.cpp loads it | [1. Scan a downloaded model](docs/RECIPES.md#recipe-1-scan-a-downloaded-model) |
+| Test your scanner with clean controls and numerical fixtures | [2. Test a scanner with synthetic fixtures](docs/RECIPES.md#recipe-2-test-a-scanner-with-synthetic-fixtures) |
+| Repair supported corrupted scales into a separate, hash-verified copy | [3. Repair a copy and verify its hashes](docs/RECIPES.md#recipe-3-repair-a-copy-and-verify-its-hashes) |
+| Add a protected LoRA layer and export a plain PyTorch layer | [4. Fine-tune and export in ten lines](docs/RECIPES.md#recipe-4-fine-tune-and-export-in-ten-lines) |
+| Check whether a Q8_0 or Q4_K export preserved the chosen directions | [5. Verify a quantized export](docs/RECIPES.md#recipe-5-verify-a-quantized-export) |
 
-**Secant** (`v0.3.0`) is a Rust CLI/library (`secant-core`, `secant-cli`, `secant-ffi`) and PyTorch package (`secant.nn.ProjectThenHealLinear`, `secant.capture`) built to test and productionize weight-space programming across **`17` models (`0.8B` to `32.8B`)** and **`59,440` H100 benchmark evaluations** (plus a `17`-checkpoint Project-Then-Heal study reaching `72.7B` on single shards). Every operation runs directly on `.safetensors` and `.gguf` files via `mmap` and is bracketed by pre/post SHA-256 receipts.
+For more context, read the [scanner evaluation guide](docs/OFFENSIVE-RESEARCHERS-GUIDE.md) or the [PyTorch walkthrough](docs/PYTORCH-10-LINE-HEALING-GUIDE.md).
 
----
+## Install and Interpret Results
 
-## Core Capabilities
+```sh
+cargo install --path crates/secant-cli
+# Optional Python package for fine-tuning
+python3 -m pip install -e './python[torch]'
+```
 
-### 1. Pre-Load Value & Companion Sanitization (`secant sanitize`)
-- Scans `.safetensors` (`F32`, `F16`, `BF16`, `F8_E4M3`, `F8_E5M2`) and `.gguf` (`Q8_0`, `Q4_K`, and all 10 standard block formats) via `mmap` without deserializing weights into a Python runtime.
-- Detects `NaN`/`Inf` injection (`Rule B3-1`, `B3-2A`), sub-floor norms and divisor scales (`Rule B3-2B`), out-of-range MoE routing and permutation indices (`Rule B3-3`), and cross-file companion JSON (`config.json`, `tokenizer_config.json`, `tokenizer.json`, `generation_config.json`) vs. tensor-shape mismatches (`Rule S-0`, including `added_tokens_decoder` bounds and disabled-modality `0` sentinels).
-- Skips benign non-index auxiliary masks and counters (`BOOL`, `U8` causal masks/`*.bias`, scalar `I64` `num_batches_tracked`) cleanly while failing closed (exit `2`) on malformed companion JSON or unimplemented float/quantized formats. Verified **`0.00%` weight/block FPR** across **`110` public Hub checkpoints** (`32.5B` float elements + `201.8M` GGUF blocks).
+`inspect` describes a file; it does not scan its weight values. For `sanitize` and `verify-subspace`, use the exit code as well as the JSON report:
 
-### 2. Spectral & Reference-Diff Checkpoint Auditing (`secant audit-trojan`, `secant read --reference`)
-- **Reference-free screening:** Iterative Marchenko-Pastur bulk peeling, rank-$k$ singular energy (`--rank-k`), native PEFT LoRA `B * A` sibling outlier Z-scores, and unembedding vocabulary projection (`E * u_1`) to surface concentrated weight tampering without running inference.
-- **Exact reference-diff (`--reference`):** Streams $\Delta W = W - W_{\text{ref}}$ row-by-row in `float64` across SafeTensors and GGUF (`F32`/`F16`/`BF16`/`FP8`/`Q8_0`/`Q4_K`), isolating surgical rank-$k$ and column-sparse weight edits (`100%` precision/recall on Takehi et al.'s `p50c` checkpoint and sub-$g^*$ late-layer edits).
+| Exit | Meaning | Next step |
+| --- | --- | --- |
+| `0` | The requested check passed, or sanitization published a copy that passed its rescan | Retain the receipt and continue your validation |
+| `1` | Numerical findings remain, or a verification tolerance failed | Review the findings before loading the file |
+| `2` | Usage, I/O, unsupported input, or an incomplete check | Resolve the error and rerun; treat the result as unknown |
 
-### 3. Calibrated `mmap` & Quantized `Q8_0` Weight Surgery (`secant analyze`, `compose`, `patch`, `quant patch`)
-- **Activation-calibrated composition:** Orthogonalizes contrastive directions in `float64` (`R^-1` modified Gram-Schmidt) and sizes edits from the target model's own reference activations rather than transferring raw edit ratios across scales.
-- **Hash-bracketed disk surgery:** Applies sub-tensor byte-range edits on `.safetensors` and 34-byte block-aligned edits on `Q8_0` `.gguf` files (copy-by-default or atomic `--in-place`), while refusing `Q4_K` superblock surgery where 256-weight blocks cross 128-column panel boundaries.
+A completed `audit-trojan` report can exit `0` while containing outliers. Read its findings; this command does not share `sanitize`'s finding gate. New receipt and output paths must not already exist. See the [CLI and Python reference](docs/cli-and-python-reference.md) for command-specific contracts.
 
-### 4. Subspace-Locked LoRA Healing (`ProjectThenHealLinear`, `secant heal`, `verify-subspace`)
-- **Forward-pass subspace projection:** Locks LoRA factor $B$ orthogonal to the edited subspace ($P_\perp(P_\perp B)$ in `float64`) inside the forward pass so AdamW coordinate rescaling cannot re-introduce an ablated direction, holding post-edit leakage below **`10^-10` (`F32`)** and **`10^-17` (`float64`)**.
+## How It Works Under the Hood and Formal Guarantees
+
+The [paper](docs/PAPER.md) retains the derivations, formal guarantees, commutation bounds, control arms, and benchmark tables. Its studies have different scopes: the completed response-benchmark cohort spans 17 model identities from 0.8B to 32.8B, while the separate 17-checkpoint Project-Then-Heal study reaches 72.7B using single shards for the largest checkpoints. The paper accounts for 59,440 retained H100 evaluation rows, including 300 partial Gemma-2-27B baseline rows. Those counts describe retained experiments, not fresh results from this test drive.
+
+- **Static numerical checks.** The [payload reference](docs/payload-security.md) defines finite-value, divisor-scale, routing-index, and companion-config rules. Supported SafeTensors floating types include F64, F32, F16, BF16, F8_E4M3, and F8_E5M2. The scanner checks scale headers in ten GGUF block formats; unsupported types fail closed.
+- **Spectral and reference comparison.** `audit-trojan` and `read --reference` expose unusual matrix structure or differences from a trusted checkpoint. Spectral outliers are review signals, not proof of malicious intent. The paper retains the measured detection limits and reference-diff studies.
+- **Calibrated edits.** [Theory and calibration](docs/theory-and-calibration.md) derives the edit size for a supplied reference activation. That local equality does not guarantee a response on unseen prompts.
+- **Quantized storage.** [Quantized surgery](docs/quantized-surgery.md) explains Q8_0 block edits, rounding error, commutation bounds, and why the Rust patcher refuses Q4_K surgery. Reading, sanitizing, and verifying Q4_K remain supported.
+- **Constrained adapters.** [Project-Then-Heal](docs/project-then-heal.md) derives the double projection and documents finite-precision and downstream-layer limits. The adapter check and the stored merged-weight check measure different quantities.
 
 <p align="center">
-  <img src="docs/assets/secant-patch.gif" alt="secant patch live terminal recording" width="49%" />
-  <img src="docs/assets/secant-probe.gif" alt="secant probe live terminal recording" width="49%" />
+  <img src="docs/assets/secant-patch.gif" alt="secant patch terminal recording" width="49%" />
+  <img src="docs/assets/secant-probe.gif" alt="secant probe terminal recording" width="49%" />
 </p>
 
----
-
-## Quickstart
-
-```sh
-# After the v0.3.0 wheel is published, run the self-contained CLI with uv:
-uvx secant --version
-
-# 1. Build and install the Rust CLI
-cargo install --path crates/secant-cli
-
-# 2. Install the Python package (PyTorch ProjectThenHealLinear + contrastive capture)
-pip install -e python/
-```
-
-```sh
-# Audit a checkpoint on disk for Boundary-3 kernel hazards and spectral Trojans
-secant sanitize --model model-Q4_K_M.gguf --receipt /tmp/sanitize.json --attempt-id quickstart --num-experts 8 --dry-run --json
-secant audit-trojan --model model.safetensors --vocab-tensor model.embed_tokens.weight --top 16 --json
-
-# Compose an activation-calibrated plan and patch a Q8_0 GGUF checkpoint in place
-secant compose --profile profile.json --vectors vec/ --target-shift -4.0 --out plan.json --json
-secant quant patch --base model-q8_0.gguf --plan plan.json --out model-patched-q8_0.gguf --json
-
-# Lock a LoRA adapter away from the excised subspace and verify orthogonality
-secant heal --lora lora_adapter.safetensors --vectors vec/ --out lora_locked.safetensors --base model.safetensors --merge-out model_healed.safetensors --json
-secant verify-subspace --base model.safetensors --healed model_healed.safetensors --vectors vec/ --tensors "model.layers.15.mlp.down_proj.weight" --json
-```
-
-### Exit Codes (`0` / `1` / `2`)
-
-Every `secant` subcommand follows a strict, fail-closed three-state exit-code contract suitable for CI and automated pre-load gates. Supported SafeTensors payload dtypes are `F64`, `F32`, `BF16`, `F16`, `F8_E4M3`, and `F8_E5M2` (plus bounded integer routing/index tensors and skipped `BOOL`/`U8` masks and scalar `I64` `num_batches_tracked` counters):
-
-| Exit Code | Meaning | Typical Conditions |
-| :---: | --- | --- |
-| **`0`** | **Clean / Passed / Remediated** | Inspection or read completed; `sanitize` found zero violations (or `--out` published a clean remediated copy); `verify-patch` / `verify-subspace` / `quant witness` passed all byte-identity and orthogonality tolerances. |
-| **`1`** | **Policy or Verification Gate Failed** | `sanitize` detected `Rule S-0` or `Boundary-3` (`B3-1..B3-3`) security findings that remain unremediated; `verify-patch` detected unexpected tensor/header mutation; `verify-subspace` exceeded the subspace leakage bound. |
-| **`2`** | **Usage, I/O, or Fail-Closed `UNKNOWN`** | Invalid CLI flags; missing or unreadable file; existing `--out` / `--receipt` path refusal; malformed or non-object sibling companion JSON (`config.json`, `generation_config.json`, `tokenizer_config.json`, `tokenizer.json`); exotic or unimplemented float/quantized format (e.g., `F6_E2M3`/`F4` or unreviewed GGUF `Q8_K`/`IQ*`/`TQ*`); unbounded integer index tensor; or `pre_sha256 != post_sha256` hash-bracket violation. |
-
----
-
-## Documentation, Blog Series & Paper
-
-- **[60-Second Hands-On Test Drive](examples/test-drive/README.md)** · **[Offensive Researcher's Guide](docs/OFFENSIVE-RESEARCHERS-GUIDE.md)** · **[PyTorch 10-Line Healing Guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md)**
-- **[Full Technical Paper](https://professor-moody.github.io/secant/paper)**: Complete statistical benchmarks, multi-seed random controls, dose-response curves, derivations, and SHA-256 reproducibility receipts.
-- **[4-Part Blog Series ("From Sparks to Secant")](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series)**: Plain-English walkthrough and interactive visualizers for Parts I to IV.
-- **[Documentation Home](https://professor-moody.github.io/secant/)** · **[Quickstart & Live CLI Captures](https://professor-moody.github.io/secant/quickstart)** · **[CLI & Python Reference](https://professor-moody.github.io/secant/cli-and-python-reference)**
-- **[Theory & Calibration](https://professor-moody.github.io/secant/theory-and-calibration)** · **[Quantized Surgery (`Q8_0` vs. `Q4_K`)](https://professor-moody.github.io/secant/quantized-surgery)** · **[Project-Then-Heal LoRA](https://professor-moody.github.io/secant/project-then-heal)** · **[Payload Security](https://professor-moody.github.io/secant/payload-security)**
+The [documentation home](docs/index.md), [technical quickstart](docs/quickstart.md), and [blog series](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series) provide further examples. The [paper's experimental sections](docs/PAPER.md) provide receipt identities, controls, and adjusted statistics for benchmark claims.
 
 ## Citation
 

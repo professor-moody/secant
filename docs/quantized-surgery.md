@@ -1,4 +1,4 @@
-# Editing Quantized Weights: `Q8_0` and `Q4_K`
+# Editing Quantized Weights `Q8_0` and `Q4_K`
 
 Quantization stores approximate weights in compact groups called blocks. Values within a block share encoding parameters, so changing one value can change how its neighbors are reconstructed.
 

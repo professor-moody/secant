@@ -59,12 +59,8 @@ fn inputs() -> Vec<(String, Vec<f32>)> {
     v.push(("negative".into(), rng.vec(1024).iter().map(|x| -(x.abs() + 0.1) as f32).collect()));
     // zero and constant blocks mixed in
     let mut mixed: Vec<f32> = rng.vec(1024).iter().map(|x| *x as f32).collect();
-    for i in 0..256 {
-        mixed[i] = 0.0;
-    }
-    for i in 256..512 {
-        mixed[i] = 0.75;
-    }
+    mixed[..256].fill(0.0);
+    mixed[256..512].fill(0.75);
     v.push(("zero-and-constant-blocks".into(), mixed));
     v
 }

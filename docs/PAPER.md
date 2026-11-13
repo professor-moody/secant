@@ -1,7 +1,7 @@
-# Secant: Calibrated Weight Edits, Quantized Files, and Constrained LoRA
+# Secant Calibrated Weight Edits, Quantized Files, and Constrained LoRA
 
 **Author:** Nathan Keys (`m00dy`, `@professor-moody`)  
-**Version:** `v0.3.0` (`2026-11-09` — Horizon 1 Edition; body text frozen upon `v0.3.0` release tag; subsequent Horizon 2 studies append to dated addenda)
+**Version:** `v0.3.0` (`2026-11-09`, Horizon 1 Edition; body text frozen upon `v0.3.0` release tag; subsequent Horizon 2 studies append to dated addenda)
 
 ## Abstract
 
@@ -176,7 +176,7 @@ The retained `Qwen3.5-0.8B` `ssm_out` experiment reported a target weight compon
 ---
 
 (project-then-heal-structural-orthogonal-complement-lora)=
-## 3. Project-Then-Heal: Keep Adapter Updates Out of Protected Directions
+## 3. Project-Then-Heal Keep Adapter Updates Out of Protected Directions
 
 LoRA fine-tunes a model by adding a small trainable matrix product to a frozen weight matrix. Ordinary LoRA can add back a component that an earlier edit removed. Project-Then-Heal removes protected components from the adapter each time the model computes an output. This is a constraint on selected writers, not a guarantee about all later model behavior.
 
@@ -259,7 +259,7 @@ The numerical results below are retained experimental reports, not fresh runs ma
 Cohorts overlap, so these model counts must not be added. The live-healing range uses model-name sizes; the larger H100 tables retain reported parameter counts. The focused Qwen3.5-4B dose-response case study follows the multi-model results in [Section 4.6](#sec-paper-dose-response).
 
 (sec-paper-stage1)=
-### 4.1 H100 Stage-1: Calibration and Three Adapter Arms Across 15 Models
+### 4.1 H100 Stage-1 Calibration and Three Adapter Arms Across 15 Models
 
 This sweep checks the shift at a reference input and compares three adapter methods on one selected writer per model. It uses one seed per model and a synthetic target plus a real-token cross-entropy term. Public behavioral benchmarks were `NOT_RUN` in this sweep; the local numerical results do not establish generation quality.
 
@@ -323,7 +323,7 @@ The three adapter arms in the leakage table, on a log scale. Left: step-60 relat
 ```
 
 (sec-paper-public-benchmarks)=
-### 4.2 H100 Stage-2: Public Benchmarks Across 14 Models
+### 4.2 H100 Stage-2 Public Benchmarks Across 14 Models
 
 Section 4.1 checks the local arithmetic of each edit. This section asks a different question: what the same `B2 + B3` edits do to a model's answers on public benchmarks. The receipt is `public-benchmarks/irrefutable-receipt.json` (SHA-256 `9859ef3e0603318e09b0366e6dae6994b47f7d7cc4456cfff1fff7ddb2253132`, `status: PASS`, completed `2026-11-06T20:41:59Z`), with per-item rows in `predictions.jsonl` (SHA-256 `0c2d65e1...86fe`). It covers 14 of the 15 Stage-1 models (`14 x 1,970 = 27,580` completed five-arm rows). `Gemma-2-27B` is marked `HOLD` in the summary receipt because its gated repository returned HTTP 401 on the edited arms (`300` base-only records for `MATH-500`, `GSM8K`, and `MMLU-Pro` remain in `predictions.jsonl`, bringing the file total to `27,880` rows, while `Gemma-2-27B` has no completed paired benchmark cohort). The aligned edits (layers, column support $S$, $\beta$), model revisions, and seed (`20261105`) are those of Section 4.1, and the healing results in this receipt are identical to the Stage-1 receipt for all 14 shared models.
 
@@ -423,7 +423,7 @@ ASan-30 counts out of 30 for each model: base (gray ring), calibrated `1.0x` (bl
 | Qwen3-32B | 14 / 16 / 17 | 15 / 15 / 15 |
 
 (sec-paper-regime-c)=
-### 4.3 H100 Regime C: Adversarial Subspace Pull Across 14 Checkpoints
+### 4.3 H100 Regime C Adversarial Subspace Pull Across 14 Checkpoints
 
 This stress test deliberately asks the adapter to learn a change inside the protected subspace. A successful lock must leave that part of the task unfitted, so low leakage comes with a loss floor. The unconstrained and locked numbers below use different metrics and must not be read as a direct ratio.
 
@@ -457,7 +457,7 @@ The retained Regime C sources are `h100_scaleup_6models_complete_receipt.json`, 
 > - **Outlier-dimension diagnostic (`Phi-4`):** In Regime C's uncalibrated capture on `Phi-4` (`L32`), peak $\mathrm{SNR}_{\text{proj}}$ reached `27,362.3` with $\mathrm{SNR}_{\text{trace}} = 60.4$, and the uncalibrated edit inverted sign (`-3.399`). Always pair $\mathrm{SNR}_{\text{proj}}$ with $\mathrm{SNR}_{\text{trace}}$ and verify the signed shift on held-out prompts (as done in Stage-1 L12 calibration, where `Phi-4` achieves `4.4e-15` shift error).
 
 (sec-paper-live-healing)=
-### 4.4 Live Causal-LM Healing Across Eight Models: Regime A and RMS-Relative Dosing
+### 4.4 Live Causal-LM Healing Across Eight Models Regime A and RMS-Relative Dosing
 
 The two early Regime A runs and six H100 RMS-relative runs all train ProjectThenHealLinear on real causal-LM text. They cover eight models from 0.8B to 14B by model-name size. The **24,000 benchmark rows belong to the six-model RMS-relative study**, across all of its evaluated arms; they are not 24,000 healed-arm rows or an eight-model common benchmark.
 
@@ -476,7 +476,7 @@ The two early Regime A runs and six H100 RMS-relative runs all train ProjectThen
 | Qwen3-8B | H100 RMS-relative | 60 | Relative | 3.75e-17 |
 | Qwen3-14B | H100 RMS-relative | 60 | Relative | 4.80e-17 |
 
-#### 4.4.1 Early Live Runs: Perplexity and Storage Precision
+#### 4.4.1 Early Live Runs Perplexity and Storage Precision
 
 The two early short runs compare a constrained adapter with ordinary LoRA after a weight edit. Perplexity measures prediction quality on held-out text; lower is better. The Qwen run reached its best held-out value at step 20, then both arms overfit the small training batch. The `float64` leakage column recomputes an unrounded projected delta; it is not a claim that the whole model ran in `float64`.
 
@@ -502,7 +502,7 @@ Both arms train on real causal-LM completions after a byte-verified surgical edi
 > **Storage Precision Boundary (`F32`/`F64` vs. `BF16`):** When merged weights are quantized down to 16-bit `BF16` (7 stored fraction bits, 8-bit significand precision, $\mathrm{ulp} \approx 7.8 \times 10^{-3}$, unit roundoff $\approx 3.9 \times 10^{-3}$), rounding error alone introduces $\sim 10^{-4}$ to $10^{-3}$ subspace leakage. `secant heal` therefore stores healed LoRA adapters in `F32` or `F64`.
 
 (sec-paper-rms-dosing)=
-#### 4.4.2 Six-Model H100 Sweep: RMS-Relative Dosing and Live Healing
+#### 4.4.2 Six-Model H100 Sweep RMS-Relative Dosing and Live Healing
 
 A fixed shift such as $\lvert\Delta_{\text{target}}\rvert = 1.0$ means different things in different layers, because writer outputs differ in scale. **RMS-relative dosing** measures that scale first and sizes the shift against it:
 
@@ -576,7 +576,7 @@ What the 6-model sweep shows, and what it does not:
 - **Calibration is exact at the reference inputs only.** On benchmark prompts the composed edit's mean prefill shift along each direction is `0.5%` to `14.8%` of the base output norm, not `1.0x`. The random control's shifts along its own directions agree with these to within `0.01%` of the base norm.
 
 (sec-paper-asan120)=
-### 4.5 H100 ASAN-120: Paired Vulnerability and Patched-Benign Twins, 9 Models × 7 Arms
+### 4.5 H100 ASAN-120 Paired Vulnerability and Patched-Benign Twins, 9 Models by 7 Arms
 
 Vulnerable-only benchmarks such as ASan-30 cannot distinguish a genuine C/C++ vulnerability detector from a rubber-stamping model that labels every snippet `VULNERABLE`. To measure both sensitivity (`TPR`) and patched-twin specificity (`TNR`), we constructed **`ASAN-120`** (archived benchmark artifact `h100-scaleup-20261105/asan120/asan120_paired_benchmark.json`, SHA-256 `4276cbd2...20eb`): 60 vulnerable C/C++ functions paired with 60 minimally patched benign twins across 12 CWE bug classes (5 matched pairs per class: `CWE-122` heap overflow, `CWE-121` stack overflow, `CWE-416` use-after-free including `std::vector` reallocation, `CWE-190` integer overflow, `CWE-195` sign conversion, `CWE-193` off-by-one, `CWE-476` null dereference, `CWE-415` double free, `CWE-908` uninitialized read under MSan, `CWE-617` assert-only check elided under `-DNDEBUG`, `CWE-843` type confusion, and `CWE-674` unbounded recursion). Every pair was compiled and executed across a 4-way compiler matrix (`gcc -O0`, `gcc -O2`, `clang -O0`, `clang -O2` with `ASan+UBSan` and `-DNDEBUG`, plus `clang` `MSan` for `CWE-908`; `validation.json` SHA-256 `adfe3d82...c9ca`, `60/60` PASS): each vulnerable twin is silent on a legitimate driver and triggers the expected sanitizer fault on a crafted driver, while each patched twin is silent on both.
 
@@ -669,7 +669,7 @@ Evaluating four `0.8B`–`4B` checkpoints across `18` arms (`1,080` completions,
 2. **`Qwen3.5-4B` achieves non-zero strict root-cause recall (`RC = 10.0%`) and `43.3%` sink localization on real upstream bugs:** Only the `4B` reasoning model achieves non-zero 3-criterion root-cause attribution (`RC = 10.0%`, `Class Acc = 16.7%`, `Sink Acc = 43.3%`), while neither `calibrated_1p0x` nor `composed_rms_1p0x` significantly outperforms `base` or norm-matched `random` controls (all exact two-sided McNemar `p >= 0.125`), matching the `ASAN-120` null result for small models.
 
 (sec-paper-dose-response)=
-### 4.6 Focused Dose-Response Case Study: Qwen3.5-4B (Regime B)
+### 4.6 Focused Dose-Response Case Study Qwen3.5-4B (Regime B)
 
 Alongside the multi-model sweeps, this single-model case study isolates how changing the loop-edit dose affects completion and attribution. This test gives the same 30 crash traces to each edited model with a 1,536-token limit. “Closed” means the model emitted `</think>` within that limit. The other columns score the final answer's bug class, culprit frame, and root cause separately. A completed answer can still be wrong. The dose changes only `B1` in the `a05` and `a15` arms. Strict scoring requires a committed answer after `</think>`. In the reported copy-the-input control, a whole-output keyword matcher scored the raw prompt `28/30`, while strict scoring gave it `0/30`; merely repeating a function name is not correct attribution.
 
@@ -709,7 +709,7 @@ Alongside the multi-model sweeps, this single-model case study isolates how chan
 
 Sampling the interior `0.60x..0.90x` interval (`a06`, `a07`, `a08`, `a09`) shows that loop closure rises as a monotonic ramp across `[0.50x, 1.50x]` rather than a discontinuous step (`0/30` at `0.50x` -> `2/30` at `0.60x` -> `5/30` at `0.70x` -> `12/30` at `0.80x` -> `14/30` at `0.90x` -> `21/30` at `1.00x` -> `30/30` at `1.50x`), while mean generated tokens fall monotonically (`1,536` -> `1,491` -> `1,430` -> `1,318` -> `1,210` -> `954` -> `789`) and strict attribution tracks closure (`0/30` -> `1/30` -> `3/30` -> `8/30` -> `8/30` [`10/30` class and frame] -> `14/30` -> `19/30`). Exact two-sided McNemar tests against `base`: `a08` loop closure $p = 4.88 \times 10^{-4}$ (12 vs. 0 discordant pairs); `a09` loop closure $p = 1.22 \times 10^{-4}$ (14 vs. 0 discordant pairs); `cal738` loop closure $p = 9.54 \times 10^{-7}$ (21 vs. 0 discordant pairs); `a15` loop closure $p = 1.86 \times 10^{-9}$ (30 vs. 0 discordant pairs). Comparing `a15` vs. `cal738`: loop closure $p = 0.0039$, culprit frame $p = 0.0078$.
 
-#### Direct 4-Arm `MATH-500` Attribution on `Qwen3.5-0.8B`: What the Test Tells Us in Plain Words
+#### Direct 4-Arm `MATH-500` Attribution on `Qwen3.5-0.8B` What the Test Tells Us in Plain Words
 
 To compare template-level `<think>` bypassing (`enable_thinking=False`) against weight-space loop suppression (`secant_b1_edit`) and an orthogonal norm-matched random control (`random_norm_matched`) on the exact `Qwen/Qwen3.5-0.8B` (`revision 2fc06364...`, `sha256 04b1c301...`) and `HuggingFaceH4/MATH-500` (`revision 6e4ed1a2...`) model-dataset pair studied by Takehi et al., we ran a controlled 4-arm evaluation (`n = 100`, `max_new_tokens = 4,096`, `BF16`, greedy decoding, seed `20261108`, `lm_eval 0.4.13` `minerva_math` `math_verify`, receipt `qwen35_08b_thinking_off_vs_edit_receipt.json`, `sha256 bc3c982e...c13b`):
 
@@ -802,7 +802,7 @@ To replace the post-hoc single-layer boundary with a fixed-grid multi-layer and 
 Across all 17 cells (`187` dose points), three conclusions hold:
 1. **Static Stage-2 vocabulary projection tracks $g^* = \sigma_1(W_{\text{base}})/\lVert W_{\text{base}}\rVert_F$ across depths and writer families:** In all 17 cells, the dose $g_{\text{vocab16}}$ at which $\tau^*$ enters the top-16 of $E u_1$ matches $g^*$ within a single grid interval ($\text{median } |g_{\text{vocab16}} - g^*| = 0.87$ percentage points, mean $1.09$ percentage points), including `SmolLM2-1.7B-Instruct` `layers.20.mlp.down_proj` where a low baseline ratio ($\sigma_1/\sigma_{MP} = 1.187$, $g^* = 3.92\%$) moves static detection down to `4.0%` (`stRank = 1`, $|\cos(u_{\text{trojan}}, u_1)| = 0.9449$).
 2. **The automatic scalar flag (`sibling Z > 3.5`) is weak (`13 / 17` cells missed up to `16%`); the human-read Stage-2 vocabulary projection (`E * u_1`) is where the signal is:** While the automatic scalar sibling outlier (`Z > 3.5`) fires at `12.0%` across all four `SmolLM2` `mlp.down_proj` layers, it never crosses `3.5` up to `16.0%` in any of the four `SmolLM2` `self_attn.o_proj` cells or the nine `Qwen3.5-0.8B` cells (`13 / 17` cells blind in scalar $Z$ up to `16%`), whereas the human-read Stage-2 vocabulary projection (`E * u_1`, a ranked top-16 token list that requires a reader inspecting the promoted tokens) places the planted target token in the top 16 in all `17 / 17` cells within one grid step of $g^*$.
-3. **Layer depth governs whether static signals precede forward-pass behavioral hijacking—and in three late-layer cells the edit changed model output below any single-file signal:** In early and middle layers (`L3/L4`, `L10`, `L11/L12`), downstream residual writes across the remaining `11` to `20` blocks dilute the unembedding-aligned perturbation before final `RMSNorm` and `lm_head`, so the top-16 vocabulary projection fires strictly below the behavioral hijack floor ($g_{\text{vocab16}} < g_{\text{behav\_top1}}$: `9.0%` and `8.0%` vs. `12.0%` on `SmolLM2` `L10` and `L12` `mlp.down_proj`, and `7.0%-16.0%` vs. `>16.0%` across all early layers and middle attention writers, with `0.0%` false-trigger rate on held-out clean prompts at every dose up to the hijack threshold, and only `1` of `12` clean prompts, or `8.33%`, on `Qwen3.5-0.8B` `L19.self_attn.o_proj` at the maximum `16.0%` dose). Conversely, at late layers (`L19/L20`, only `3` to `4` blocks before `lm_head`), residual dilution is minimal: on `SmolLM2` `L20.mlp.down_proj` ($g^* = 3.92\%$), the top-16 vocabulary signal (`g_vocab16 = 4.0%`) coincides with top-5 behavioral promotion (`4.0%`) and precedes top-1 greedy flipping (`6.0%`), whereas in the three `Qwen3.5-0.8B` late-layer cells (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), the edit changed model output (`58.3%` to `91.7%` greedy top-1 flips at `4.0%-6.0%`, `delta_logit = +12.69` to `+16.60` nats) at a dose `1.0` to `5.0` percentage points below where any single-file signal appeared ($g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$). Full dose-by-dose tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
+3. **Layer depth governs whether static signals precede forward-pass behavioral hijacking, and in three late-layer cells the edit changed model output below any single-file signal:** In early and middle layers (`L3/L4`, `L10`, `L11/L12`), downstream residual writes across the remaining `11` to `20` blocks dilute the unembedding-aligned perturbation before final `RMSNorm` and `lm_head`, so the top-16 vocabulary projection fires strictly below the behavioral hijack floor ($g_{\text{vocab16}} < g_{\text{behav\_top1}}$: `9.0%` and `8.0%` vs. `12.0%` on `SmolLM2` `L10` and `L12` `mlp.down_proj`, and `7.0%-16.0%` vs. `>16.0%` across all early layers and middle attention writers, with `0.0%` false-trigger rate on held-out clean prompts at every dose up to the hijack threshold, and only `1` of `12` clean prompts, or `8.33%`, on `Qwen3.5-0.8B` `L19.self_attn.o_proj` at the maximum `16.0%` dose). Conversely, at late layers (`L19/L20`, only `3` to `4` blocks before `lm_head`), residual dilution is minimal: on `SmolLM2` `L20.mlp.down_proj` ($g^* = 3.92\%$), the top-16 vocabulary signal (`g_vocab16 = 4.0%`) coincides with top-5 behavioral promotion (`4.0%`) and precedes top-1 greedy flipping (`6.0%`), whereas in the three `Qwen3.5-0.8B` late-layer cells (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), the edit changed model output (`58.3%` to `91.7%` greedy top-1 flips at `4.0%-6.0%`, `delta_logit = +12.69` to `+16.60` nats) at a dose `1.0` to `5.0` percentage points below where any single-file signal appeared ($g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$). Full dose-by-dose tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
 
 ### 5.2 Quantized Scale-Header Sanitization and Why Naive Subnormal Rejection Fails
 
@@ -812,7 +812,7 @@ A naive security filter that rejects any floating-point scale where `fpclassify(
 
 Under `secant sanitize`'s default `Rule B3-2A` policy, legitimate zero (`0x0000`) and FP16 subnormal (`0x0001..0x03FF`) block scales are permitted across all 10 supported GGUF quantized formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`). Only `NaN` (`quant_scale_nan`) and `±Inf` (`quant_scale_inf`) fail the default check. `--clamp-nonfinite` zeroes the complete affected block, while `--flush-subnormal` and `--clamp-extreme` are opt-in stricter policies. Across the receipted 10-checkpoint verification corpus (`summary.json` SHA-256 `399143323a1784f2b0b5f0e3ac99a55df18bb43cb843d20d921d2eaf358a3ccd`, covering `2,194` total tensors, `912` quantized tensors, `186,870,528` quantized blocks, `272,730` subnormal `Q8_0` scales, and `8,992,791` subnormal `Q4_K` header scales), default Rule B3-2A passed all `10 / 10` checkpoints with `0` false positives; an earlier unreceipted dogfood run on `Qwen2.5-1.5B` and `Llama-3.2-3B` `Q4_K_M` and `Q8_0` files similarly reported `2,723/2,723` tensors clean across `16,139` subnormal scales (`4.55e-05`). Files containing unreviewed quantized types (`Q8_K`, `IQ*`, `TQ*`) fail closed with exit `2` (`status: "unknown"`). Details: [payload checks, quantized scale headers](payload-security.md#sec-quant-sanitize-controls).
 
-### 5.3 A Spectral and Vocabulary Atlas Over a 46-File Local Inventory (2,619 Analyzed Weight Matrices: 14 Full Reads and 16 Scoped Variants)
+### 5.3 A Spectral and Vocabulary Atlas Over a 46-File Local Inventory (2,619 Analyzed Weight Matrices 14 Full Reads and 16 Scoped Variants)
 
 `secant read` was run with singular values, column statistics, anomaly detection and vocabulary projection over a 46-file local inventory (`2,619` analyzed weight matrices in total: `2,574` across `14` checkpoints read in full and `45` across `16` edited variants read only where they differ from base, plus `16` vocab-only files that `read` refuses). That gave 429 receipts covering `2,619` tensors, `0` of them non-finite. `323` of `5,101` singular triplets (`6.3%`) hit the iteration cap. The SafeTensors and GGUF copies of `Qwen3.5-4B` agree bit-for-bit on $\sigma_1..\sigma_3$ for all 32 MLP down projections. The unedited layer-12 $\sigma_1$ values in Section 5.1 match this atlas exactly. Separately, the native `secant scan-sinks` port was checked byte-for-byte against its Go oracle across the synthetic fixture (`13` hits) and clean `git archive HEAD` exports of seven pinned external inference and ML codebases (`14,512` pattern hits across `13,675` files in total: `llama.cpp` `ggml/src` `@ 223373742b` `2,498`, `whisper.cpp` `@ 95ea8f9` `2,725`, `vLLM` `csrc` `@ ee0da84ab9e` `692`, `XNNPACK` `@ 0d17d45` `8,070`, `tract` `@ 5b7ef4f8c` `239`, `sentencepiece` `@ bcd4d8c` `15` with `1` file skipped `> 4 MiB` and `incomplete: true`, and `OpenCV` `modules/dnn` `@ 51ba88b` `273`; or `14,734` hits when local working checkouts retain gitignored `build/` directories in `XNNPACK` [`8,171`] and `sentencepiece` [`136`], with both CLIs producing byte-identical masked receipts in both settings). Those hits are untriaged hypotheses for oracle parity, not bugs. See [payload checks, Sections 6 and 7](payload-security.md).
 
@@ -948,15 +948,15 @@ The table below separates primitives established in prior or concurrent work fro
 ---
 
 (sec-paper-addendum-reference-diff)=
-## Appendix A: Dated Addendum (2026-11-09) — Reference-Checkpoint Diffing (`--reference`) Closes the Late-Layer Sub-$g^*$ Visibility Gap
+## Appendix A Reference-Checkpoint Diffing Below the Late-Layer Spectral Crossover
 
 Per the version-stability policy adopted at the close of Horizon 1 (`v0.3.0`), Sections 1 through 6 above remain frozen as the Horizon 1 edition, and subsequent Horizon 2 results are appended here as dated addenda backed by cryptographic manifests under `data/`.
 
-### A.1 Motivation: The Three Sub-$g^*$ Late-Layer Cells from Section 5.1
+### A.1 Three Late-Layer Cells Below the Spectral Crossover
 
 In the 17-cell, 187-point fixed-grid multi-layer Trojan study (Section 5.1, `data/trojan_multilayer_20261109/trojan-multilayer-behavioral-receipt.json`, SHA-256 `c63a024c252d945a4e01f8fc05c01f07b83c205b6db1c4242fd4d463cd8f871f`), single-file Stage-2 vocabulary projection ($E u_1(W)$) surfaced the planted target token in the top 16 in all `17 / 17` cells once the relative Frobenius dose $g = \lVert\Delta W\rVert_F/\lVert W_{\text{base}}\rVert_F$ reached the single-matrix singular-value crossover $g^* = \sigma_1(W_{\text{base}})/\lVert W_{\text{base}}\rVert_F$. While that single-file signal preceded forward-pass behavioral hijacking in all `12 / 12` early and middle cells (`L3/L4`, `L10`, `L11/L12`), **in the three `Qwen3.5-0.8B` late-layer cells (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), forward-pass greedy top-1 behavioral flips occurred at $g = 4.0\%\text{--}6.0\%$ (`1.0` to `5.0` percentage points below $g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$).**
 
-### A.2 Streaming Reference-Checkpoint Diffing ($\Delta W = W - W_{\text{ref}}$)
+### A.2 Streaming Reference-Checkpoint Diffing
 
 To close that sub-$g^*$ visibility gap whenever a trusted base checkpoint $W_{\text{ref}}$ is available (for example, auditing a community fine-tune, adapter merge, or quantized derivative against its upstream release), `secant read --reference <base_model>` and `secant audit-trojan --reference <base_model>` compute the spectrum, row/column anomalies, Marchenko-Pastur bulk ratio, and vocabulary projection directly on the difference matrix:
 
@@ -966,7 +966,7 @@ $$
 
 streamed row-by-row in `float64` across `.safetensors` and `.gguf` containers (requiring identical 2-D shapes while permitting storage-dtype differences and extra unreferenced tensors in a full base checkpoint), with pre/post SHA-256 brackets verified on both `--model` and `--reference` (`input_unchanged == true` and `reference_unchanged == true`). Because the unedited weight matrix $W_{\text{ref}}$ is subtracted prior to power-iteration SVD, the base singular spectrum $\sigma_1(W_{\text{ref}}) \ge \sigma_2(W_{\text{ref}}) \ge \dots$ vanishes from the audit; for a rank-1 implant $\Delta W = \theta\, u_{\text{trojan}} v_{\text{trigger}}^\top$ stored in `BF16`, the leading singular value of $\Delta W$ is $\sigma_1(\Delta W) \approx \lVert\Delta W\rVert_F$ at every non-zero dose down to the `BF16` quantization floor.
 
-### A.3 Acceptance Test on the Three `Qwen3.5-0.8B` Sub-$g^*$ Late-Layer Cells (`9 / 9` Rank #1)
+### A.3 Acceptance Test on Three Qwen3.5-0.8B Late-Layer Cells
 
 We executed the Horizon 2 Priority 1 acceptance test on the three `Qwen3.5-0.8B` late-layer cells (`data/reference_diff_late_layers_20261109/reference_diff_late_layer_receipt.json`, SHA-256 `c162042deb7a3605ddff7f57be9fc62d9531267155435e020f87d329db4e83c3`; `MANIFEST.sha256` verified), regenerating all 12 patched submodels (`1.0%, 2.0%, 4.0%, 6.0%`) from `Qwen3.5-0.8B` (`model.safetensors-00001-of-00001.safetensors`, SHA-256 `04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696`) with **100% byte-for-byte SHA-256 identity** to the Horizon 1 receipt, and running `secant read --reference` across all 9 sub-$g^*$ cells (`1.0%, 2.0%, 4.0%` on `L20.mlp.down_proj` and `L20.linear_attn.out_proj`, and `1.0%, 2.0%, 6.0%` on `L19.self_attn.o_proj`, target token `16657` `" cheese"`):
 
@@ -982,5 +982,5 @@ We executed the Horizon 2 Priority 1 acceptance test on the three `Qwen3.5-0.8B`
 | `layers.20.linear_attn.out_proj.weight` | 9.60% | 9.0% | **4.0%** (91.7%) | **2.0%** | `b080de45...6d03d` | 0.020003 | 0.304953 | 0.304908 | **99.97%** (`0.999708`) | **Rank #1** (`promoted`) |
 | `layers.20.linear_attn.out_proj.weight` | 9.60% | 9.0% | **4.0%** (91.7%) | **4.0%** | `d032d95d...e917f` | 0.040001 | 0.609844 | 0.609821 | **99.993%** (`0.999926`) | **Rank #1** (`promoted`) |
 
-Across all `9 / 9` sub-$g^*$ cells—including at `1.0%` and `2.0%` (`2` to `5` percentage points below the `4.0%..6.0%` behavioral flip floor)—`secant read --reference` recovered `99.87%` to `99.996%` of $\lVert\Delta W\rVert_F^2$ in $\sigma_1^2(\Delta W)$ and ranked the planted token (`16657` `" cheese"`) **#1** out of the full `Qwen3.5-0.8B` vocabulary (`suppressed` rank 1 on `L20.mlp.down_proj` due to the SVD sign convention fixing the largest-magnitude coordinate of $v_1$ positive, and `promoted` rank 1 on `L19.self_attn.o_proj` and `L20.linear_attn.out_proj`). When no reference checkpoint $W_{\text{ref}}$ exists, the single-file $g^*$ crossover documented in Section 5.1 remains the governing detection boundary.
+Across all `9 / 9` sub-$g^*$ cells, including at `1.0%` and `2.0%` (`2` to `5` percentage points below the `4.0%..6.0%` behavioral flip floor), `secant read --reference` recovered `99.87%` to `99.996%` of $\lVert\Delta W\rVert_F^2$ in $\sigma_1^2(\Delta W)$ and ranked the planted token (`16657` `" cheese"`) **#1** out of the full `Qwen3.5-0.8B` vocabulary (`suppressed` rank 1 on `L20.mlp.down_proj` due to the SVD sign convention fixing the largest-magnitude coordinate of $v_1$ positive, and `promoted` rank 1 on `L19.self_attn.o_proj` and `L20.linear_attn.out_proj`). When no reference checkpoint $W_{\text{ref}}$ exists, the single-file $g^*$ crossover documented in Section 5.1 remains the governing detection boundary.
 

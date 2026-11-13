@@ -866,7 +866,7 @@ fn sanitize_control_selectors_and_options() {
             tensor("blk.0.attn_k.weight", "BF16", &[4, 8], &mut rng),
             tensor("blk.0.attn_v.weight", "F16", &[3, 8], &mut rng),
             tensor("blk.0.attn_o.weight", "F64", &[2, 3], &mut rng),
-            bt("blk.0.attn_norm.weight", "F32", &[3, 4], f32_bytes(&vec![1.0; 12])),
+            bt("blk.0.attn_norm.weight", "F32", &[3, 4], f32_bytes(&[1.0; 12])),
             bt("blk.0.tid2eid", "I32", &[2, 3], i32_bytes(&[0, 1, 2, 3, 4, 5])),
             bt("blk.0.expert_id", "I64", &[2, 2], raw_bits("I64", &[0, 7, 7, 0])),
             bt("misc_ints", "I32", &[2], i32_bytes(&[-5, i32::MAX])),
@@ -1482,10 +1482,10 @@ fn extension_partial_flags_refuse_residual_classes_and_publish_nothing() {
             assert_eq!(rep.status, "findings", "{} {}{}{}", fmt, f.cnf as u8, f.ce as u8, f.fs as u8);
             assert!(!rep.output_published && std::fs::symlink_metadata(&out).is_err());
             let after = rep.after.unwrap().counts;
-            assert_eq!(after.get("nan").is_some(), !f.cnf);
-            assert_eq!(after.get("inf").is_some(), !f.cnf);
-            assert_eq!(after.get("subnormal").is_some(), !f.fs);
-            assert_eq!(after.get("extreme_finite").is_some(), !f.ce);
+            assert_eq!(after.contains_key("nan"), !f.cnf);
+            assert_eq!(after.contains_key("inf"), !f.cnf);
+            assert_eq!(after.contains_key("subnormal"), !f.fs);
+            assert_eq!(after.contains_key("extreme_finite"), !f.ce);
         }
         let out = root.path(&format!("po-{}-all", fmt));
         let all = Flags { cnf: true, ce: true, fs: true };

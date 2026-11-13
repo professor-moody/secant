@@ -39,7 +39,7 @@ fn validate(tensors: &[BuildTensor]) -> Result<()> {
         if t.name.is_empty() || !seen.insert(t.name.clone()) {
             return Err(Error::msg(format!("tensor name {:?} is empty or duplicated", t.name)));
         }
-        if t.shape.iter().any(|d| *d == 0) {
+        if t.shape.contains(&0) {
             return Err(Error::msg(format!("tensor {:?}: non-positive dimension in shape {:?}", t.name, t.shape)));
         }
         if let Some((block, bytes)) = quant_block(&t.dtype) {
@@ -251,13 +251,13 @@ pub fn build_gguf(meta: &[(String, MetaValue)], tensors: &[BuildTensor], align: 
         }
         out.extend_from_slice(&ty.to_le_bytes());
         out.extend_from_slice(&offset.to_le_bytes());
-        offset += (t.data.len() as u64 + align - 1) / align * align;
+        offset += (t.data.len() as u64).div_ceil(align) * align;
     }
     if pad_align != 0 {
         let rem = out.len() as u64 % pad_align;
         if rem != 0 {
             let pad = (pad_align - rem).min(1 << 20);
-            out.extend(std::iter::repeat(0u8).take(pad as usize));
+            out.extend(std::iter::repeat_n(0u8, pad as usize));
         }
     }
     let base = out.len();
@@ -265,7 +265,7 @@ pub fn build_gguf(meta: &[(String, MetaValue)], tensors: &[BuildTensor], align: 
     let mut cur = base;
     for t in tensors {
         out[cur..cur + t.data.len()].copy_from_slice(&t.data);
-        cur += (t.data.len() + align as usize - 1) / align as usize * align as usize;
+        cur += t.data.len().div_ceil(align as usize) * align as usize;
     }
     Ok(out)
 }

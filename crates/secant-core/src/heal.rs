@@ -423,7 +423,7 @@ fn strict_layout_checks(bytes: &[u8], l: &Layout) -> Result<()> {
         }
     }
     let mut ranges: Vec<&TensorLocation> = l.tensors.iter().collect();
-    ranges.sort_by(|a, b| (a.offset, a.size).cmp(&(b.offset, b.size)));
+    ranges.sort_by_key(|a| (a.offset, a.size));
     let mut end = l.data_offset;
     for t in ranges {
         if t.offset < end || (l.format == "safetensors" && t.offset != end) {
@@ -642,7 +642,7 @@ fn lora_target_candidates(stem: &str, format: &str) -> Vec<TargetCand> {
 fn is_false(b: &bool) -> bool {
     !*b
 }
-fn s_empty(s: &String) -> bool {
+fn s_empty(s: &str) -> bool {
     s.is_empty()
 }
 
@@ -1052,6 +1052,7 @@ fn open_strict_lora(path: &str, rep: &mut HealReport) -> Result<OpenModel> {
 
 // ---------------------------------------------------------------- merge
 
+#[allow(clippy::too_many_arguments)] // Explicit matrix dimensions preserve the row-streaming interface.
 fn merge_rows(f: &mut File, t: &TensorLocation, b: &[f64], a: &[f64], d: usize, r: usize, d_in: usize, scale: f64) -> Result<()> {
     let w = dtype_size(&t.dtype);
     let row_bytes = d_in as i64 * w;
@@ -1444,9 +1445,9 @@ fn verify_subspace_inner(o: &VerifySubspaceOptions, rep: &mut VerifySubspaceRepo
             if nonfinite {
                 break;
             }
-            for k in 0..ps.k {
-                axpy_nf(&mut acc[k], ps.basis[k][r], &d_row);
-                if acc[k].iter().any(|x| !x.is_finite()) {
+            for (k, row) in acc.iter_mut().enumerate() {
+                axpy_nf(row, ps.basis[k][r], &d_row);
+                if row.iter().any(|x| !x.is_finite()) {
                     nonfinite = true;
                     break;
                 }

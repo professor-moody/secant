@@ -8,6 +8,8 @@ human-readable table of what passed vs. what tripped (and why), and cleans up.
 
 from __future__ import annotations
 
+import argparse
+from contextlib import nullcontext
 import json
 import math
 import os
@@ -182,11 +184,22 @@ def summarize_receipt(receipt_path: pathlib.Path) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--work-dir", type=pathlib.Path, help="retain fixtures and native receipts in a new directory")
+    args = parser.parse_args()
     repo_root = pathlib.Path(__file__).resolve().parents[2]
     secant = find_secant_binary(repo_root)
     results: List[CaseResult] = []
 
-    with tempfile.TemporaryDirectory(prefix="secant-test-drive-") as tmp:
+    if args.work_dir is not None:
+        try:
+            args.work_dir.mkdir()
+        except OSError as exc:
+            parser.error(f"--work-dir must be a new, writable directory: {exc}")
+        workspace = nullcontext(str(args.work_dir.resolve()))
+    else:
+        workspace = tempfile.TemporaryDirectory(prefix="secant-test-drive-")
+    with workspace as tmp:
         workdir = pathlib.Path(tmp)
 
         # 1. Clean F32 SafeTensors + valid companion config.json
@@ -415,11 +428,13 @@ def main() -> int:
         plan_path = workdir / "plan.json"
         plan_path.write_text(json.dumps(plan))
         trojan_path = workdir / "trojan_f32.safetensors"
-        subprocess.run(
-            [secant, "patch", "--base", str(clean_f32), "--plan", str(plan_path), "--out", str(trojan_path)],
+        patch_result = subprocess.run(
+            [secant, "patch", "--base", str(clean_f32), "--plan", str(plan_path), "--out", str(trojan_path), "--json"],
             check=True,
             capture_output=True,
+            text=True,
         )
+        (workdir / "patch-receipt.json").write_text(patch_result.stdout)
         p9_single = subprocess.run(
             [
                 secant,
@@ -458,6 +473,8 @@ def main() -> int:
             text=True,
             check=True,
         )
+        (workdir / "audit-single.json").write_text(p9_single.stdout)
+        (workdir / "audit-reference.json").write_text(p9_ref.stdout)
         single_top = json.loads(p9_single.stdout)["spectral_outliers"][0]
         ref_top = json.loads(p9_ref.stdout)["rank_k_outliers"][0]
         flagged_layer = single_top["tensor"]
@@ -488,9 +505,9 @@ def main() -> int:
             all_ok = False
         print(f"{r.name:<34} | {r.category:<25} | {r.expected_exit:<3} | {r.actual_exit:<3} | {r.status:<8} | {r.summary}")
     print("=" * 118)
-    print(
-        f"RESULT: {sum(1 for r in results if r.actual_exit == r.expected_exit)}/{len(results)} test cases matched expected policy. Temporary directory cleaned up.\n"
-    )
+    passed = sum(1 for r in results if r.actual_exit == r.expected_exit and r.status in ("PASS", "CAUGHT", "FLAGGED"))
+    retention = f"Evidence retained in {workdir}." if args.work_dir is not None else "Temporary directory cleaned up."
+    print(f"RESULT: {passed}/{len(results)} test cases matched expected policy. {retention}\n")
     return 0 if all_ok else 1
 
 

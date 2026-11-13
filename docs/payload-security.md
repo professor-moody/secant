@@ -8,7 +8,7 @@ The **container** is the file structure that names tensors and locates their byt
 2. **Boundary 2, architecture metadata:** tensor dimensions, head ratios, and shape-to-byte invariants checked against `config.json`.
 3. **Boundary 3, numerical domains:** non-finite or extreme floats, quantized scale fields, divisor activation and KV-cache scales, integer routing or permutation tensors, and spectral outliers inside an otherwise valid container.
 
-### What `SafeTensors::deserialize()` proves
+### What SafeTensors Deserialization Proves
 
 In `huggingface/safetensors`, `SafeTensors::deserialize(buffer)` calls `read_metadata()` and then `Metadata::validate()`. That validation proves five structural facts:
 
@@ -379,7 +379,7 @@ What the pre-specified 17-cell multi-layer and behavioral grid shows:
 3. **In early and middle layers (`L3/L4`, `L10`, `L11/L12`), the Stage-2 vocabulary signal precedes forward-pass behavioral hijacking ($g_{\text{vocab16}} < g_{\text{behav\_top1}}$):** Because a direct unembedding spike $u_{\text{trojan}} = e_{\tau^*}/\lVert e_{\tau^*}\rVert_2$ injected at early or middle depth is attenuated by `11` to `20` downstream blocks and final `RMSNorm`, middle `SmolLM2` MLP layers (`L10`, `L12`) surface the planted token in the top 16 at `g_vocab16 = 9.0%` and `8.0%` before greedy top-1 flips occur at `12.0%`, while early layers (`L4`) and middle attention/DeltaNet writers surface the planted token at `7.0%-16.0%` without achieving top-1 flips even at `16.0%`.
 4. **In three late-layer cells (`L19/L20`), the edit changed model output at a dose `1` to `5` percentage points below where any single-file signal appeared:** That is a measured limit of reference-free static auditing. On `SmolLM2` `L20.mlp.down_proj` ($g^* = 3.92\%$), the top-16 vocabulary signal (`4.0%`) coincides with top-5 behavioral promotion (`4.0%`) and precedes top-1 flipping (`6.0%`). On the three `Qwen3.5-0.8B` late layers (`L20.mlp.down_proj`, `L19.self_attn.o_proj`, and `L20.linear_attn.out_proj`, where baseline $g^* = 7.03\%\text{--}9.60\%$), greedy top-1 flips occur on `58.3%-91.7%` of held-out trigger prompts at `g = 4.0%-6.0%` (`delta_logit = +12.69` to `+16.60`), `1.0` to `5.0` percentage points below the single-matrix singular-value crossover $g_{\text{vocab16}} = 6.0\%\text{--}9.0\%$. Complete 187-row tables and receipts are archived in `data/trojan_multilayer_20261109/README.md` and `data/trojan_multilayer_20261109/trojan-multilayer-behavioral-receipt.json`.
 
-### 5.1.2 Reference-Checkpoint Diffing (`--reference`, $\Delta W = W - W_{\text{ref}}$) Closes the Late-Layer Sub-$g^*$ Gap
+### 5.1.2 Reference-Checkpoint Diffing Below the Late-Layer Spectral Crossover
 
 When a known base checkpoint $W_{\text{ref}}$ is available, passing `--reference <base_model>` to `secant read` or `secant audit-trojan` computes the Frobenius norm, singular spectrum, row/column anomalies, Marchenko-Pastur bulk ratio, and `--vocab-tensor` token projection on the streamed difference matrix $\Delta W = W - W_{\text{ref}}$ rather than on $W$ alone, while bracketing both `--model` and `--reference` with pre/post SHA-256 digests (`input_unchanged == true` and `reference_unchanged == true`).
 
@@ -430,7 +430,7 @@ The `692` vLLM parity count above (`@ ee0da84ab9e`) is not the same experiment a
 
 ---
 
-## 7. A Static Atlas of a 46-File Local Inventory (2,619 Analyzed Weight Matrices: 14 Full Reads and 16 Scoped Variants)
+## 7. A Static Atlas of a 46-File Local Inventory (2,619 Analyzed Weight Matrices 14 Full Reads and 16 Scoped Variants)
 
 To see how our local checkpoint inventory behaves under these commands, `secant read --top-k-singular 3 --top-cols 8 --detect-anomalies [--vocab-tensor ...] --json` was run across our 46-file local inventory (`2,619` analyzed weight matrices in total: `2,574` across `14` checkpoints read in full and `45` across `16` scoped edited variants, plus `16` vocab-only files skipped; manifest SHA-256 `0a7194ce33f83dbc93b2ebbd20349a0f88ff0d5d4dcbfd10a8ecd513db240686`). It used the shipped release binary (SHA-256 `0060b2ee47296ddb1e7ec8a0d99b46925829f39eebcca7dd570ddf94e2c3a682`) and is evidence of stored weight values only. Every input was hashed before and after the whole sweep (46 of 46 identical). Every `read` receipt also carries `pre_sha256 == post_sha256`.
 

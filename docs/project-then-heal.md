@@ -1,4 +1,4 @@
-# Project-Then-Heal: Subspace-Locked LoRA
+# Project-Then-Heal Subspace-Locked LoRA
 
 After editing a model, you may want to fine-tune it for fluency or a new task. **LoRA** does this by learning a small adapter while keeping the original weight matrix fixed. An ordinary adapter can add back a component along a direction that the edit removed.
 
@@ -79,7 +79,7 @@ Precision note: Regime C's `leakage_f64` evaluates the F32 working factor in flo
 
 All six H100 runs train a rank-4 adapter for 60 steps on fixed neutral texts after composing four domain edits. The reported float64 relative leakage is 3.18e-17 to 5.07e-17. On Qwen2.5-Math-7B, GSM8K rises from 87/100 to 93/100; on Qwen2.5-Coder-7B, HumanEval rises from 36/100 to 42/100. Neither gain survives Holm correction across the full test family. Direct 60-step `heal-the-base` (`base_lora_1p0x`) and `healed-random` (`random_healed_rms_1p0x`) control arms show that on Qwen2.5-Math-7B both controls also reach 93/100 on GSM8K (`p = 1.000` vs. `composed_healed_rms_1p0x`) and 46/100 on MATH-500, consistent with the 87 to 93 GSM8K lift coming from the 60-step LoRA adaptation pass while `ProjectThenHealLinear` reduces domain-subspace leakage from 4.75% (`base_lora_1p0x`) to 5.08e-17 at zero accuracy cost; on Qwen2.5-Coder-7B HumanEval, `base_lora_1p0x` scores 37/100 (`p = 0.332` vs. 42/100) and `random_healed_rms_1p0x` scores 35/100 (`p = 0.189` vs. 42/100, within sample noise at `n = 100`) while `ProjectThenHealLinear` reduces domain-subspace leakage from 3.69% to 3.34e-17. Full doses, controls, manifest identifiers, and benchmark counts appear in the [paper's RMS-relative sweep](#sec-paper-rms-dosing).
 
-### 2.2 Early Regime A Runs: Perplexity and Leakage
+### 2.2 Early Regime A Runs Perplexity and Leakage
 
 The SmolLM2-1.7B-Instruct run trained for 20 steps on ROCm after a B2 projector edit at L14 and a B3 calibrated edit at L15. Its held-out perplexity was 21.260 with PTH versus 21.255 with unconstrained LoRA. Maximum absolute leakage was 5.21e-18 for the unrounded float64 PTH delta, 1.46e-10 after F32 merge, and 4.64e-03 for unconstrained LoRA. The [paper](#sec-paper-live-healing) records both early edits and their precision boundary.
 
@@ -311,7 +311,7 @@ Top: $\mathrm{lk}_W$ per AdamW step on the orthogonal target at weight decay `0.
 
 **Limits.** This is a single-layer synthetic regression with random protected directions, not a measurement of language-model fine-tuning quality. Regime A (Section 2) tests live text training; Regime C in the [paper](PAPER.md) is a separate synthetic stress test. The learning rate in the table is post-hoc, as stated above. Raw per-seed trajectories, the runner (`adamw3arm.py`) and the mechanism check (`signcheck.py`) are retained with SHA-256 receipts in the lab evidence bank and are not yet published in this repository.
 
-### H100 Stage-1: Repeat the Comparison Across 15 Models
+### H100 Stage-1 Repeat the Comparison Across 15 Models
 
 This sweep uses the same three methods on one writer per model, with one seed each. It tests whether the local constraint holds at different sizes. It does not measure public benchmark quality after healing.
 

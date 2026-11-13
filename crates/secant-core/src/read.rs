@@ -434,10 +434,10 @@ fn top_singular(m: &Dense, k: usize) -> Result<Vec<Triplet>> {
             for a in acc.iter_mut() {
                 *a = 0.0;
             }
-            for r in 0..m.rows {
+            for (r, wr) in w.iter_mut().enumerate() {
                 m.row(r, &mut row_buf)?;
                 let s = dot_nf(&row_buf, &v);
-                w[r] = s;
+                *wr = s;
                 axpy_nf(&mut acc, s, &row_buf);
             }
             let lambda = dot_nf(&w, &w);
@@ -599,7 +599,7 @@ fn reference_incompatibility(t: &TensorLocation, rt: &TensorLocation) -> Option<
             ));
         }
         if let Some(f) = quant::QuantFormat::from_dtype(&rt.dtype) {
-            if rt.logical_in % f.block_elems() != 0 {
+            if !rt.logical_in.is_multiple_of(f.block_elems()) {
                 return Some(format!("reference {} rows of {} columns are not block-aligned", rt.dtype, rt.logical_in));
             }
         }
@@ -739,7 +739,7 @@ fn analyze_tensor(
     let mut buf = vec![0f64; m.cols];
     let mut max_abs = 0f64;
     let mut nonfinite: i64 = 0;
-    for r in 0..m.rows {
+    for (r, row_sum) in row_sq.iter_mut().enumerate() {
         m.row(r, &mut buf)?;
         let mut rs = 0f64;
         for (c, x) in buf.iter().enumerate() {
@@ -754,7 +754,7 @@ fn analyze_tensor(
             rs += sq;
             col_sq[c] += sq;
         }
-        row_sq[r] = rs;
+        *row_sum = rs;
     }
     spec.nonfinite_elements = nonfinite;
     if nonfinite > 0 {
@@ -895,9 +895,9 @@ fn top_k_signed(v: &[f64], n: usize, largest: bool) -> Vec<usize> {
 fn project_vocab_dense(e: &Dense, u: &[f64]) -> Result<VocabProjection> {
     let mut z = vec![0f64; e.rows];
     let mut buf = vec![0f64; e.cols];
-    for r in 0..e.rows {
+    for (r, zr) in z.iter_mut().enumerate() {
         e.row(r, &mut buf)?;
-        z[r] = dot_nf(&buf, u);
+        *zr = dot_nf(&buf, u);
     }
     let n = VOCAB_TOP_N.min(e.rows);
     let mut vp = VocabProjection { status: "ok".into(), vocab_size: e.rows, note: SIGN_CONVENTION.into(), ..Default::default() };

@@ -357,6 +357,7 @@ fn selection_by_snr(banked: &str) -> LayerSelectionRule {
 const FFN_DOWN: &str = "blk.%d.ffn_down.weight";
 const FFN_DOWN_ST: &str = "model.language_model.layers.%d.mlp.down_proj.weight";
 
+#[allow(clippy::too_many_arguments)] // Named profile fields map directly to the serialized slot.
 fn dir_slot(
     id: &str,
     role: &str,

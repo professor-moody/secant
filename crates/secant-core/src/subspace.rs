@@ -292,6 +292,7 @@ pub fn gram_schmidt(named: &BTreeMap<String, Vec<f64>>, order: &[String]) -> Res
         let mut u = named[name].clone();
         let input_norm = l2_norm(&u);
         // Scaling prevents projection overflow without changing ordinary inputs.
+        #[allow(clippy::manual_range_contains)] // Preserve NaN comparison semantics in the scaling decision.
         let scaled = input_norm > 1e150 || input_norm < 1e-150;
         if scaled {
             for x in &mut u {
@@ -783,11 +784,11 @@ pub fn compose(mut opts: ComposeOptions) -> Result<Plan> {
                 }
             }
         }
-        for i in 0..dirs.len() {
+        for (i, dir) in dirs.iter().enumerate() {
             if plan.edits[i].op != "rank1-columns" {
                 continue;
             }
-            let original = &vs.as_ref().unwrap().by_name[&dirs[i].stem];
+            let original = &vs.as_ref().unwrap().by_name[&dir.stem];
             let norm = l2_norm(original);
             let unit: Vec<_> = original.iter().map(|x| x / norm).collect();
             let target = plan.edits[i].achieved_shift;

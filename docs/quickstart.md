@@ -1,4 +1,4 @@
-# Quickstart: Inspect, Edit, and Verify Weights
+# Quickstart Inspect, Edit, and Verify Weights
 
 This guide covers five workflows: inspect weights, prepare an edit, patch a checkpoint, constrain an adapter, and check a small test file. The examples use the standalone Rust `secant` CLI and the Python package.
 
@@ -47,7 +47,7 @@ pytest python/tests
 
 ---
 
-## 2. Workflow 1: Inspect a Checkpoint and Read Its Weights
+## 2. Workflow 1 Inspect a Checkpoint and Read Its Weights
 
 `inspect` lists the tensors in a checkpoint. `read` measures matrix structure and can score vocabulary tokens against its leading directions. Neither command runs inference. Treat the vocabulary scores as clues about static weights, not predictions of what the model will say. A memory map lets the program access file bytes without first loading the whole checkpoint into a framework.
 
@@ -75,7 +75,7 @@ secant read \
 
 ---
 
-## 3. Workflow 2: Capture Directions and Prepare an Edit
+## 3. Workflow 2 Capture Directions and Prepare an Edit
 
 A contrastive direction is the difference between the average activations of two prompt groups. The snippet below assumes you have already collected those activations at the final prompt token. Check that a direction separates held-out examples before using it in an edit:
 
@@ -127,11 +127,11 @@ secant compose \
 
 ---
 
-## 4. Workflow 3: Write and Verify a Patched Copy
+## 4. Workflow 3 Write and Verify a Patched Copy
 
 Use the model revision and tensor layout for which you prepared the plan. Set the shell variable `CHANGED_TENSORS` to the exact comma-separated checkpoint tensor names allowed to change in that plan. The verifier does not infer this list, and allowing a change does not prove that the intended numerical edit happened.
 
-### Option A: Floating-Point Weights
+### Option A Floating-Point Weights
 
 Use `secant patch` for supported floating-point tensors. Keep the base file for verification.
 
@@ -149,7 +149,7 @@ secant verify-patch \
   --json
 ```
 
-### Option B: Compressed `Q8_0` Weights
+### Option B Compressed `Q8_0` Weights
 
 A `Q8_0` block stores 32 weights in 34 bytes. The patcher decodes and re-encodes blocks that intersect the edit, while retaining untouched block bytes. You need a plan and vectors prepared for this same model and layout. The example writes a new file; `--in-place` is a separate choice that mutates the input.
 
@@ -179,7 +179,7 @@ secant verify-patch \
 
 ---
 
-## 5. Workflow 4: Constrain a LoRA Adapter
+## 5. Workflow 4 Constrain a LoRA Adapter
 
 LoRA learns an adapter while the original weights stay fixed. Ordinary LoRA can add a component along a direction you removed earlier. Projecting only the gradient may not prevent this because AdamW rescales the gradient's coordinates.
 
@@ -234,7 +234,7 @@ secant verify-subspace \
 ---
 
 (local-self-test)=
-## 6. Workflow 5: Try a Small Local Self-Test
+## 6. Workflow 5 Try a Small Local Self-Test
 
 This small example needs no model download or GPU. It creates a test file with non-finite values, writes a repaired copy, and checks the changed tensor boundaries. Run it in a fresh scratch directory because these commands refuse existing outputs. The hashes below are retained expected values, not timing guarantees. This checks the file tools, not inference-runtime safety.
 
@@ -266,7 +266,7 @@ secant verify-patch --base fixtures/class3-nan-sort-arrays.safetensors --patched
 > **Takeaway:** If your hashes match the ones above, your build reproduces the reference outputs byte for byte.
 
 (watch-it-run)=
-## 7. Watch It Run: Real Terminal Recordings
+## 7. Watch It Run Real Terminal Recordings
 
 The six terminal captures below show the compiled `secant` release binary running each step of an edit on [`HuggingFaceTB/SmolLM2-1.7B-Instruct`](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct) (`3.4 GB` `BF16` `.safetensors`, SHA-256 `f55217be...a0e8`), producing the patched file (`4d036572...4f0b`) from the paper's live-healing experiment (Regime A).
 

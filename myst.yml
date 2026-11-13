@@ -22,7 +22,9 @@ project:
     '\dF': '\|\cdot\|_F'
   toc:
     - file: docs/index.md
-      title: Overview & Architecture
+      title: Start Here
+    - file: docs/RECIPES.md
+      title: Practical Recipes
     - file: docs/OFFENSIVE-RESEARCHERS-GUIDE.md
       title: "Offensive Researcher's Guide"
     - file: docs/PYTORCH-10-LINE-HEALING-GUIDE.md

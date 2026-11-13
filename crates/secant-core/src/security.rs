@@ -178,6 +178,7 @@ pub(crate) mod gojson {
 
     /// `encoding/json` float64 encoding: `f` format, switching to `e` format
     /// below 1e-6 or from 1e21, with `e-07` cleaned to `e-7`.
+    #[allow(clippy::manual_range_contains)] // Preserve ordered comparisons for non-finite inputs.
     pub fn go_float(f: f64) -> String {
         let a = f.abs();
         if a != 0.0 && (a < 1e-6 || a >= 1e21) {
@@ -209,7 +210,7 @@ pub(crate) mod gojson {
             return if f.is_sign_negative() { "-0".into() } else { "0".into() };
         }
         let (d, e) = digits_exp(f);
-        if e < -4 || e >= 6 {
+        if !(-4..6).contains(&e) {
             return fmt_e(f < 0.0, &d, e);
         }
         format!("{}", f)
@@ -293,10 +294,8 @@ pub(crate) mod gopath {
                 }
                 b'[' => inrange = true,
                 b']' => inrange = false,
-                b'*' => {
-                    if !inrange {
-                        return (star, &pattern[..i], &pattern[i..]);
-                    }
+                b'*' if !inrange => {
+                    return (star, &pattern[..i], &pattern[i..]);
                 }
                 _ => {}
             }
@@ -397,6 +396,7 @@ pub(crate) mod gopath {
     }
 
     /// Go `path.Match`; `Err(())` is `path.ErrBadPattern`.
+    #[allow(clippy::result_unit_err)] // Keep the public Go-compatible malformed-pattern contract.
     pub fn path_match(pattern: &str, name: &str) -> Result<bool, ()> {
         let mut pattern = pattern.as_bytes();
         let mut name = name.as_bytes();
@@ -488,10 +488,7 @@ pub(crate) mod gopath {
     pub fn dir(path: &str) -> String {
         match path.rfind('/') {
             None => ".".into(),
-            Some(i) => {
-                let d = clean(&path[..=i]);
-                d
-            }
+            Some(i) => clean(&path[..=i]),
         }
     }
 
@@ -1032,14 +1029,15 @@ pub mod sanitize {
             || o.min_norm <= 0.0
             || o.min_norm.is_nan()
             || o.min_norm.is_infinite()
-            || !(o.divisor_floor > 0.0)
+            || o.divisor_floor <= 0.0
+            || o.divisor_floor.is_nan()
             || o.divisor_floor.is_infinite()
             || f32_floor <= 0.0
             || f32_floor.is_infinite()
         {
             return Err(Error::msg("invalid sanitizer policy limits"));
         }
-        if (o.clamp_nonfinite || o.dedup_routing_rows || o.repair || o.clamp_extreme || o.flush_subnormal) != (!o.output.is_empty()) {
+        if (o.clamp_nonfinite || o.dedup_routing_rows || o.repair || o.clamp_extreme || o.flush_subnormal) == o.output.is_empty() {
             return Err(Error::msg("remediation flags and a separate --out must be supplied together"));
         }
         for p in o.routing_tensor.iter().chain(o.norm_tensor.iter()).chain(o.divisor_scale_tensor.iter()).chain(o.index_tensor.iter()) {
@@ -2040,7 +2038,7 @@ pub mod sanitize {
 
             // Also verify 0-element [0, 4] MoE placeholder tensor (Granite-4.0 pattern) scans clean
             let mut hdr = br#"{"model.embed_tokens.weight":{"dtype":"F32","shape":[4,2],"data_offsets":[0,32]},"model.layers.0.block_sparse_moe.router.layer.weight":{"dtype":"F32","shape":[0,4],"data_offsets":[32,32]}}"#.to_vec();
-            while hdr.len() % 8 != 0 {
+            while !hdr.len().is_multiple_of(8) {
                 hdr.push(b' ');
             }
             let mut zero_moe_st = (hdr.len() as u64).to_le_bytes().to_vec();
@@ -2557,7 +2555,7 @@ pub mod sanitize {
         };
         let mut lo = 0u64;
         while lo < hi {
-            let mid = lo + (hi - lo + 1) / 2;
+            let mid = lo + (hi - lo).div_ceil(2);
             let (v, _) = classify(mid, dtype);
             if v <= bound {
                 lo = mid;
@@ -2747,7 +2745,7 @@ pub mod sanitize {
         vocab_size: i64,
         zero_vocab_sentinel: bool,
     ) {
-        let is_oob = |id: i64| id < 0 || (vocab_size > 0 && id >= vocab_size) || (zero_vocab_sentinel && id >= 0);
+        let is_oob = |id: i64| id < 0 || zero_vocab_sentinel || (vocab_size > 0 && id >= vocab_size);
         for key in COMPANION_TOKEN_KEYS {
             let Some(val) = m.get(key) else {
                 continue;
@@ -2780,7 +2778,7 @@ pub mod sanitize {
         let Some(raw) = m.get("added_tokens_decoder") else {
             return;
         };
-        let is_oob = |id: i64| id < 0 || (vocab_size > 0 && id >= vocab_size) || (zero_vocab_sentinel && id >= 0);
+        let is_oob = |id: i64| id < 0 || zero_vocab_sentinel || (vocab_size > 0 && id >= vocab_size);
         let loc = format!("{}:added_tokens_decoder", file);
         match raw {
             serde_json::Value::Object(dec) => {
@@ -3111,8 +3109,7 @@ pub mod sanitize {
                             seen.insert(v);
                             used.insert(v);
                         }
-                        if let (Some(d), true) = (dst, (o.dedup_routing_rows || o.repair) && (valid || o.repair) && width <= o.num_experts)
-                        {
+                        if let (Some(d), true) = (dst, (o.repair || (o.dedup_routing_rows && valid)) && width <= o.num_experts) {
                             let mut changed = false;
                             if o.repair && !valid {
                                 used = HashSet::new();
@@ -4014,7 +4011,7 @@ pub mod probe {
                 let _ = std::fs::remove_file(p);
             }
             if dir_made {
-                let _ = std::fs::remove_dir(&rep.options.as_ref().map(|x| x.out_dir.clone()).unwrap_or_else(|| o.out_dir.clone()));
+                let _ = std::fs::remove_dir(rep.options.as_ref().map(|x| x.out_dir.clone()).unwrap_or_else(|| o.out_dir.clone()));
             }
         }
         rep.finished_utc = rfc3339_nano_now();
@@ -4463,7 +4460,7 @@ pub mod probe {
             let mut g32 = grid("I32", 9, 4);
             apply_routing(&mut g32, 8);
             // 2^32 does not fit an I32 table and is skipped, not clamped
-            assert_eq!(g32.skipped, 0 + 0); // the i64-only rows are not attempted for I32
+            assert_eq!(g32.skipped, 0); // the i64-only rows are not attempted for I32
             assert_eq!(g32.buf.get(3 * 4), 8.0);
             assert_eq!(g32.buf.get(2 * 4), i32::MIN as f64);
             assert_eq!(g32.kind_list(), vec!["routing_duplicate", "routing_negative", "routing_oob"]);

@@ -121,7 +121,7 @@ fn check_finite(x: &[f32]) -> Result<()> {
 
 /// Quantize `x` (len multiple of 32) into `out` (34 bytes per block).
 pub fn quantize_row_q8_0(x: &[f32], out: &mut [u8]) -> Result<()> {
-    if x.len() % QK8_0 != 0 {
+    if !x.len().is_multiple_of(QK8_0) {
         return Err(Error::msg(format!("Q8_0 quantize: {} elements is not a multiple of {}", x.len(), QK8_0)));
     }
     let nb = x.len() / QK8_0;
@@ -157,7 +157,7 @@ pub fn quantize_row_q8_0(x: &[f32], out: &mut [u8]) -> Result<()> {
 }
 
 pub fn dequantize_row_q8_0(b: &[u8], out: &mut [f32]) -> Result<()> {
-    if b.len() % Q8_0_BLOCK_BYTES != 0 || out.len() != b.len() / Q8_0_BLOCK_BYTES * QK8_0 {
+    if !b.len().is_multiple_of(Q8_0_BLOCK_BYTES) || out.len() != b.len() / Q8_0_BLOCK_BYTES * QK8_0 {
         return Err(Error::msg("Q8_0 dequantize: byte/element count mismatch"));
     }
     for i in 0..b.len() / Q8_0_BLOCK_BYTES {
@@ -289,7 +289,7 @@ fn make_qkx2_quants(
 
 /// Quantize `x` (len multiple of 256) into `out` (144 bytes per superblock).
 pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
-    if x.len() % QK_K != 0 {
+    if !x.len().is_multiple_of(QK_K) {
         return Err(Error::msg(format!("Q4_K quantize: {} elements is not a multiple of {}", x.len(), QK_K)));
     }
     let nb = x.len() / QK_K;
@@ -394,7 +394,7 @@ pub fn quantize_row_q4_k(x: &[f32], out: &mut [u8]) -> Result<()> {
 }
 
 pub fn dequantize_row_q4_k(b: &[u8], out: &mut [f32]) -> Result<()> {
-    if b.len() % Q4_K_BLOCK_BYTES != 0 || out.len() != b.len() / Q4_K_BLOCK_BYTES * QK_K {
+    if !b.len().is_multiple_of(Q4_K_BLOCK_BYTES) || out.len() != b.len() / Q4_K_BLOCK_BYTES * QK_K {
         return Err(Error::msg("Q4_K dequantize: byte/element count mismatch"));
     }
     for i in 0..b.len() / Q4_K_BLOCK_BYTES {
@@ -447,7 +447,7 @@ pub fn dequantize_row(fmt: QuantFormat, b: &[u8], out: &mut [f32]) -> Result<()>
 pub fn dequant_row_f64(dtype: &str, data: &[u8], row: usize, cols: usize, dst: &mut [f64]) -> Result<()> {
     let fmt = QuantFormat::from_dtype(dtype).ok_or_else(|| Error::msg(format!("no dequantizer for dtype {}", dtype)))?;
     let be = fmt.block_elems();
-    if cols % be != 0 {
+    if !cols.is_multiple_of(be) {
         return Err(Error::msg(format!("{} rows of {} columns are not block-aligned ({} per block)", dtype, cols, be)));
     }
     let row_bytes = cols / be * fmt.block_bytes();
@@ -485,7 +485,7 @@ fn dt_e_stats(dirs: &[Vec<f64>], e: &[f64], d_out: usize, d_in: usize) -> (f64, 
 /// (blocks along `d_in`).
 pub fn roundtrip_matrix(fmt: QuantFormat, w: &[f32], d_out: usize, d_in: usize) -> Result<(Vec<u8>, Vec<f32>)> {
     let be = fmt.block_elems();
-    if d_in % be != 0 {
+    if !d_in.is_multiple_of(be) {
         return Err(Error::msg(format!("{} needs d_in a multiple of {}, got {}", fmt.name(), be, d_in)));
     }
     if w.len() != d_out * d_in {
@@ -615,7 +615,7 @@ pub fn panel_equivariance(fmt: QuantFormat, w: &[f32], d_out: usize, d_in: usize
     let mut aligned = true;
     for blk in 0..d_in / be {
         let s0 = perm[blk * be];
-        if s0 % be != 0 || (0..be).any(|i| perm[blk * be + i] != s0 + i) {
+        if !s0.is_multiple_of(be) || (0..be).any(|i| perm[blk * be + i] != s0 + i) {
             aligned = false;
             break;
         }

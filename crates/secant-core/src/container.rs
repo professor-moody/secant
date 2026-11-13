@@ -264,7 +264,7 @@ fn tensor_data_size(n: u64, t: u32) -> Result<u64> {
     if n > u64::MAX - info.block + 1 {
         return Err(Error::msg(format!("element count overflow: {}", n)));
     }
-    let blocks = (n + info.block - 1) / info.block;
+    let blocks = n.div_ceil(info.block);
     if info.size > 0 && blocks > u64::MAX / info.size {
         return Err(Error::msg(format!("tensor data size overflow: {} blocks * {} bytes", blocks, info.size)));
     }
@@ -422,7 +422,7 @@ pub fn scan_gguf_layout(b: &[u8]) -> Result<Layout> {
         if off % alignment != 0 {
             return Err(Error::msg(format!("gguf: tensor {:?} offset {} is not aligned to {}", name, off, alignment)));
         }
-        if info.block > 1 && (dims.is_empty() || dims[0] as u64 % info.block != 0) {
+        if info.block > 1 && (dims.is_empty() || !(dims[0] as u64).is_multiple_of(info.block)) {
             return Err(Error::msg(format!("gguf: tensor {:?} contiguous dimension must be a multiple of {}", name, info.block)));
         }
         let size = tensor_data_size(elements, typ).map_err(|e| Error::msg(format!("gguf: tensor {:?}: {}", name, e)))?;
@@ -526,7 +526,7 @@ pub fn scan_safetensors_layout(b: &[u8]) -> Result<Layout> {
         return Err(Error::msg("safetensors: reading header length: unexpected EOF"));
     }
     let header_len = le_u64(&b[..8]);
-    if header_len < 2 || header_len > 1 << 27 {
+    if !(2..=1 << 27).contains(&header_len) {
         return Err(Error::msg(format!("safetensors: implausible header length {}", header_len)));
     }
     if (b.len() as u64) < 8 + header_len {
@@ -775,7 +775,7 @@ impl SsmOutLayout {
         if self.head_v_dim == 0 {
             return Err(Error::msg(format!("qwen3.5 ssm_out: head_v_dim {} must be positive", self.head_v_dim)));
         }
-        if self.num_v_heads % self.num_k_heads != 0 {
+        if !self.num_v_heads.is_multiple_of(self.num_k_heads) {
             return Err(Error::msg(format!(
                 "qwen3.5 ssm_out: num_v_heads {} is not a multiple of num_k_heads {}, so the ratio r = num_v_heads/num_k_heads is not an integer",
                 self.num_v_heads, self.num_k_heads
@@ -1583,11 +1583,11 @@ fn apply_edit(map: &mut [u8], layout: &Layout, edit: &Edit) -> Result<TensorPatc
                 }
                 *gi = s;
             }
-            for inn in 0..t.logical_in {
+            for (inn, &gi) in g.iter().enumerate() {
                 for o in 0..t.logical_out {
                     let idx = t.weight_unchecked(o, inn);
                     let coef = -edit.gamma * edit.direction[o];
-                    buf.set_float(idx, fma_add(buf.get(idx), coef, g[inn]));
+                    buf.set_float(idx, fma_add(buf.get(idx), coef, gi));
                 }
             }
         }
@@ -1715,12 +1715,11 @@ impl PatchImage {
     pub fn open(base: &str, out: &str, mode: PatchMode) -> Result<Self> {
         let mut input = open_regular_file(base)?;
         let identity = input.metadata()?;
-        if mode == PatchMode::CopyOnWrite {
-            if Path::new(base).canonicalize().ok() == Path::new(out).canonicalize().ok()
-                || std::fs::metadata(out).map(|m| same_file(&identity, &m)).unwrap_or(false)
-            {
-                return Err(Error::msg("copy-mode base and output must name different files"));
-            }
+        if mode == PatchMode::CopyOnWrite
+            && (Path::new(base).canonicalize().ok() == Path::new(out).canonicalize().ok()
+                || std::fs::metadata(out).map(|m| same_file(&identity, &m)).unwrap_or(false))
+        {
+            return Err(Error::msg("copy-mode base and output must name different files"));
         }
         let mut original = Vec::new();
         input.read_to_end(&mut original)?;

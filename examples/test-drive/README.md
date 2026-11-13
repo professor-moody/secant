@@ -1,6 +1,6 @@
 # Secant 60-Second Hands-On Test Drive
 
-This directory contains a self-contained test drive that builds and runs `secant` against 9 synthetic checkpoints in a temporary directory, prints a human-readable summary table of what passed vs. what tripped (and why), and removes all temporary files automatically.
+This directory contains a self-contained test drive that builds and runs `secant` through 9 checks on synthetic checkpoints in a temporary directory, prints a human-readable summary table of what passed vs. what tripped (and why), and removes all temporary files automatically.
 
 ## Requirements
 
@@ -15,11 +15,13 @@ From the repository root:
 python3 examples/test-drive/test_drive.py
 ```
 
-Or via the shell wrapper:
+To retain the generated files and native JSON receipts for review, choose a new directory:
 
-```bash
-bash examples/test-drive/run_60s_demo.sh
+```sh
+python3 examples/test-drive/test_drive.py --work-dir /tmp/secant-test-drive-evidence
 ```
+
+An existing directory is refused. Without `--work-dir`, temporary files are removed automatically. Set `SECANT_BIN` to select a specific executable; otherwise the script prefers the repository's release binary, then debug, then the binary on `PATH`.
 
 ## What It Tests
 
@@ -33,7 +35,7 @@ bash examples/test-drive/run_60s_demo.sh
 | **6** | Remediated `Q4_K` checkpoint (`--clamp-nonfinite`) rescan | `.gguf` | `secant sanitize --clamp-nonfinite --out ...` | **PASS** (`exit 0`, poisoned block zeroed and verified clean on rescan) |
 | **7** | Subnormal FP32 divisor scale (`k_scale = 1.4e-45 < 1e-12`) | `.safetensors` | `secant sanitize` (`Rule B3-2B`) | **CAUGHT** (`exit 1`, `divisor_scale_below_floor=1`) |
 | **8** | Companion `config.json` with `eos_token_id == vocab_size` | `.safetensors` + `config.json` | `secant sanitize` (`Rule S-0`) | **CAUGHT** (`exit 1`, `s0_companion_token_id_oob=1`) |
-| **9** | Surgical rank-1 weight trojan planted in layer 1 MLP | `.safetensors` | `secant patch` + `secant audit-trojan` | **FLAGGED** (`exit 0`, `model.layers.1.mlp.down_proj.weight` ranked `#1` with `sibling_z > 150` and reference `E_1 = 1.0000`) |
+| **9** | Synthetic rank-one matrix change in layer 1 MLP | `.safetensors` | `secant patch` + `secant audit-trojan` | **FLAGGED** (`exit 0`, `model.layers.1.mlp.down_proj.weight` ranked `#1` with `sibling_z > 150` and reference `E_1 = 1.0000`) |
 
 ## Sample Output
 
@@ -56,7 +58,11 @@ TEST CASE                          | CATEGORY                  | EXP | ACT | VER
 RESULT: 9/9 test cases matched expected policy. Temporary directory cleaned up.
 ```
 
+The spectral check is a numerical demonstration, not a behavioral backdoor test. A completed audit exits `0` even when its report contains outliers. First-time compilation is outside the short test-drive runtime.
+
 ## Next Steps
 
+- [Practical recipes](../../docs/RECIPES.md) cover scanning, repair, fine-tuning, and quantized-export verification.
+
 - **[Offensive Researcher's Guide](../../docs/OFFENSIVE-RESEARCHERS-GUIDE.md)**: Step-by-step CLI recipes for crafting synthetic weight-space and quantization-skew test cases.
-- **[PyTorch 10-Line Healing Guide](../../docs/PYTORCH-10-LINE-HEALING-GUIDE.md)**: Keep safety alignment and surgical weight edits locked during PyTorch LoRA fine-tuning with `ProjectThenHealLinear`.
+- **[PyTorch 10-Line Healing Guide](../../docs/PYTORCH-10-LINE-HEALING-GUIDE.md)**: Constrain supplied output directions during PyTorch LoRA fine-tuning with `ProjectThenHealLinear`.
