@@ -2,8 +2,15 @@
 
 Attempt `att-2eeb8901796a6d60`. Candidate changes on
 `feat/v0.3.0-release-hygiene`, based on
-`7d546d51712a674425dcf33add84512cd66a9ab4`. Human Gates 1 and 2 remain locked;
-these sources and reports have not been committed or published.
+`7d546d51712a674425dcf33add84512cd66a9ab4`, measured before they were committed.
+That branch was rewritten before publication to remove private host names and
+paths (see `data/REDACTIONS.md`), so the recorded base commit is not in the
+public history; its published counterpart is
+`1efff6c` ("chore: prepare v0.3.0 release packaging"). The
+published `scripts/bench_benign_fpr.py` records a generic platform label instead
+of the machine name, and one test comment in `crates/secant-core/src/security.rs`
+lost a dash, so recomputing `source_content_sha256` on the published tree gives
+a different digest from the one recorded here. The redaction changed no scanner code.
 
 The observed default-policy FPR is **0 / 105 = 0.0% on each host**: 100 synthetic
 configurations and five locally retained benign configurations. The five retained
