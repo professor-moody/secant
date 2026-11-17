@@ -38,11 +38,18 @@ runs:
         echo "$RUNNER_TEMP/secant-action/bin" >> "$GITHUB_PATH"
     - name: Sanitize model
       shell: bash
+      # Inputs reach the script only as environment variables, never as
+      # interpolated shell source, so their values are always data.
+      env:
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_RECEIPT: ${{ inputs.receipt }}
+        INPUT_ATTEMPT_ID: ${{ inputs.attempt-id }}
+        INPUT_NUM_EXPERTS: ${{ inputs.num-experts }}
       run: |
         secant sanitize \
-          --model "${{ inputs.model }}" \
-          --receipt "${{ inputs.receipt }}" \
-          --attempt-id "${{ inputs.attempt-id }}" \
-          --num-experts "${{ inputs.num-experts }}" \
+          --model="$INPUT_MODEL" \
+          --receipt="$INPUT_RECEIPT" \
+          --attempt-id="$INPUT_ATTEMPT_ID" \
+          --num-experts="$INPUT_NUM_EXPERTS" \
           --dry-run \
           --json
