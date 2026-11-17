@@ -1,40 +1,44 @@
-# Secant Direct Weight-Space Surgery, Payload Auditing, and Subspace-Locked LoRA
+# Secant Scan, Diff, and Patch Model Files on Disk
 
-Check a model file before loading it, or constrain a LoRA adapter during fine-tuning. Start with the [practical recipes](RECIPES.md) and the [small local test drive](../examples/test-drive/README.md); neither scanner path needs a GPU or a large model download. The sections below explain the architecture and retained experiments.
+Secant is a single Rust CLI to scan, diff against a base model, and patch `.safetensors` and `.gguf` files directly on disk, with no Python and no GPU required. It reads the file format itself, so no model is loaded into PyTorch, llama.cpp, or vLLM. An optional Python package adds a LoRA layer that keeps chosen directions fixed during fine-tuning.
 
+## Four Things You Can Do
 
-**Secant** is a Rust and PyTorch toolkit for inspecting, editing, and auditing language-model weights directly on disk. Its Rust CLI and C-ABI library operate on `.safetensors` and `.gguf` checkpoints via memory-mapped I/O without loading full models into GPU RAM, while its Python package (`secant.nn`, `secant.capture`) captures contrastive activation subspaces and constrains PyTorch LoRA fine-tuning.
+**Diff a downloaded checkpoint against its base model.** Compare a community fine-tune, merge, or quant with the official base and list every tensor that changed, including embeddings, routers, and the output head. `audit-trojan --reference` ranks the changes and shows which vocabulary tokens the largest change promotes.
 
-## Start Here (5-Minute Guides & 60s Test Drive)
-
-- **[60-Second Hands-On Test Drive (`examples/test-drive/`)](../examples/test-drive/README.md)**: Run `python3 examples/test-drive/test_drive.py` to run nine checks on clean and altered SafeTensors/GGUF fixtures in a temporary directory, scan them and demonstrate a supported repair with `secant`, and print a pass/fail table.
-- **[Offensive Researcher's Guide (`OFFENSIVE-RESEARCHERS-GUIDE.md`)](OFFENSIVE-RESEARCHERS-GUIDE.md)**: Understand numerical scanner policies, benign controls, and the limits of static results; follow the linked recipes to evaluate a model-ingestion scanner.
-- **[PyTorch 10-Line Healing Guide (`PYTORCH-10-LINE-HEALING-GUIDE.md`)](PYTORCH-10-LINE-HEALING-GUIDE.md)**: Add `secant.nn.ProjectThenHealLinear` to constrain chosen output directions during fine-tuning, measure leakage, and export an ordinary `nn.Linear`. The complete example checks float32 and float64; behavioral preservation needs separate evaluation.
-
-Standard model adaptation and safety pipelines leave three practical gaps:
-1. **Editing weights without re-quantizing whole checkpoints:** Modifying a single behavior in a multi-gigabyte checkpoint typically requires loading full `BF16` weights into memory, applying an update, and re-quantizing the entire file. Secant calibrates sparse rank-1 updates against a layer's reference activation and patches only the intersecting 34-byte `Q8_0` blocks or floating-point columns in place, leaving every untouched block bit-for-bit identical (`0.20%` of bytes modified in the `Qwen3.5-4B` test) and verified by pre/post SHA-256 receipts.
-2. **Preventing post-edit LoRA fine-tuning from erasing surgical edits:** When a patched model is fine-tuned with LoRA under AdamW, AdamW's coordinate-wise second-moment scaling (`sqrt(v_hat_t) + eps`) can rotate even orthogonalized gradients back into the edited subspace. **`ProjectThenHealLinear`** enforces a twice-applied `float64` orthogonal projection (`B_locked = P_perp(P_perp(B_tilde))`) inside the forward pass, keeping adapter updates in the left nullspace of the protected directions down to the working-dtype precision floor (`5e-18` to `1e-17` max-absolute in `float64`, `~1e-10` in `float32`).
-3. **Auditing numerical payload invariants ("Boundary 3") before native kernels execute:** Structural container validators verify header offsets and byte lengths without inspecting payload values. `secant sanitize` checks numerical values, `secant probe` generates scanner fixtures, and `secant audit-trojan` reports spectral structure. Together these tools cover weight matrices, quantized block scales (`Rule B3-2A` permitting legitimate `Q8_0`/`Q4_K` FP16 subnormals while catching `NaN`/`Inf` headers), divisor scales (`Rule B3-2B`), integer routing tables (`Rule B3-3`), and spectral rank-1 anomalies without a GPU.
-
-```{figure} assets/secant-pipeline.svg
-:name: fig-secant-pipeline
-:alt: Four-stage Secant diagram. Stage 1 shows control and target activation distributions and the per-layer SNR curve of SmolLM2-1.7B with its Borda winner L12. Stage 2 shows two-pass Gram-Schmidt orthogonalization and the sparse top-64 input-column support. Stage 3 shows Q8_0 32-weight blocks fitting 128-column panels exactly while a 256-weight Q4_K superblock is split. Stage 4 shows the ProjectThenHealLinear update staying in the plane orthogonal to D while an AdamW step drifts out of it.
-:width: 100%
-
-The four stages and the geometry behind each one. **1. Capture and rank:** the target prompts' projections separate from the control prompts' by `m / σ = 40.48` at `L12`, and `secant analyze` picks that layer by Borda rank over four activation streams. **2. Orthogonalize and size:** two `float64` Gram-Schmidt passes take the two directions from cosine `0.1236` to `1.12e-17`, and the `B3` edit touches only the 64 input columns where the reference activation is largest. **3. Patch stored blocks:** a 128-column panel holds exactly four `Q8_0` blocks, but cuts a `Q4_K` superblock in half. **4. Lock later training:** `ProjectThenHealLinear` keeps the adapter update in the plane perpendicular to `D`. AdamW's per-coordinate scaling tilts a gradient-masked update back out of that plane. Panels marked DATA are drawn from real files; panels marked SCHEMATIC are sketches whose labels quote measured values.
+```sh
+secant read --model finetune.safetensors --reference base.safetensors --top-k-singular 1 --top-cols 1
+secant audit-trojan --model finetune.safetensors --reference base.safetensors --vocab-tensor lm_head.weight
 ```
 
-## What You Can Do
+**Scan for broken or poisoned values before loading.** `sanitize` checks for `NaN` and `Inf` weights, bad GGUF block scales, zero divisor scales, out-of-range MoE expert indices, and token IDs in `config.json` that point past the vocabulary. Add `--clamp-nonfinite --out` to write a repaired copy that is published only after a clean rescan.
 
-- **Inspect weights without running the model.** `secant inspect` lists tensors and their storage layout. `secant read` measures matrix structure and can map leading directions to vocabulary scores. These scores describe static weights, not generated answers.
-- **Choose and size an edit.** Capture differences between prompt groups, rank candidate layers with `secant analyze`, and create a plan with `secant compose`. Target-Shift Calibration sizes an edit for one reference activation; held-out prompts test whether it changes behavior as intended.
-- **Edit a checkpoint and check its bytes.** `secant patch` handles supported floating-point weights. `secant quant patch` handles `Q8_0`, a compressed format that stores 32 weights per block. Both write a copy by default. `secant verify-patch` checks that the header and tensors outside your change list stayed identical.
-- **Constrain later fine-tuning.** `secant.nn.ProjectThenHealLinear` removes the protected components from the adapter on every forward pass. `secant heal` applies that projection once to an existing adapter. Verify again after merging or changing storage precision.
-- **Check unusual weight values.** `secant sanitize` scans supported payloads for non-finite values and other configured findings. A clean scan is limited to those checks; it is not a runtime safety certificate.
+```sh
+secant sanitize --model model.gguf --receipt scan.json --attempt-id pre-load
+```
+
+**Patch weights in place on disk.** Describe the edit in a JSON plan; `patch` writes only those tensors, checks that every other byte matches the original, and records SHA-256 before and after. `quant patch` does the same for `Q8_0` blocks.
+
+```sh
+secant patch --base model.safetensors --plan plan.json --in-place --json > patch-receipt.json
+```
+
+**Keep chosen directions fixed during LoRA fine-tuning.** `secant.nn.ProjectThenHealLinear` wraps an `nn.Linear` so the adapter cannot write into directions you choose, and merges back into a plain layer for inference.
+
+## Start Here
+
+- **[Quickstart](quickstart.md#try-the-four-jobs-on-demo-files)**: run all four jobs on tiny generated files in a few minutes, with no model download.
+- **[Practical recipes](RECIPES.md)**: copy-paste commands for diffing, scanning, repairing, patching, and verifying real checkpoints.
+- **[PyTorch guide](PYTORCH-10-LINE-HEALING-GUIDE.md)**: a runnable `ProjectThenHealLinear` example with leakage checks in float32 and float64.
+- **[Offensive researcher's guide](OFFENSIVE-RESEARCHERS-GUIDE.md)**: the scanner's rules, benign controls, and how to evaluate a model-file scanner.
+
+## Scope
+
+A clean scan means the listed checks passed; it cannot see a behavioral backdoor in normal-looking weights. Diffing needs a trusted base with the same tensor names. Patching supports float tensors and `Q8_0` blocks; `Q4_K` can be read, scanned, and verified but not patched, and the patcher holds the file in memory. The LoRA lock covers the wrapped layers, so measure leakage again after merging or quantizing.
 
 ## See It Run
 
-This is a real terminal recording, not a drawing: `secant patch` edits two tensors in a copy of the 3.4 GB `SmolLM2-1.7B-Instruct` checkpoint, and the output hash matches the one recorded when the original experiment ran. The roughly 30 s of disk I/O spent copying and hashing is cut from the recording so there is no blank pause. The [quickstart](quickstart.md) shows all six steps, from `inspect` to `verify-patch`, with their tapes and text transcripts.
+This is a real terminal recording. `secant patch` edits two tensors in a copy of the 3.4 GB `SmolLM2-1.7B-Instruct` checkpoint, and the output hash matches the one recorded when the original experiment ran. The roughly 30 s of disk I/O spent copying and hashing is cut from the recording so there is no blank pause. The [quickstart](quickstart.md) shows all six steps, from `inspect` to `verify-patch`, with their tapes and text transcripts.
 
 ```{figure} assets/secant-patch.gif
 :name: fig-index-vhs-patch
@@ -42,6 +46,22 @@ This is a real terminal recording, not a drawing: `secant patch` edits two tenso
 :width: 100%
 
 `secant patch` on a real checkpoint: 104,755 of 16,777,216 entries change in the `L15` MLP writer, and every tensor outside the plan stays byte-identical.
+```
+
+## How the Editing Pipeline Works
+
+The research side of Secant builds calibrated edits from captured activations and then protects them during later training. Three measured properties carry it:
+
+- **Edits touch few bytes.** A calibrated rank-one edit changes only the input columns where the reference activation is largest. On `Q8_0`, only the 34-byte blocks those columns intersect are re-encoded; in the `Qwen3.5-4B` test that was `0.20%` of the file's bytes, with every other block bit-for-bit identical.
+- **Later fine-tuning cannot undo them.** Masking the gradient is not enough under AdamW, whose per-coordinate scaling rotates updates back into the edited directions. `ProjectThenHealLinear` projects the adapter in `float64` on every forward pass, holding leakage at `5e-18` to `1e-17` in `float64` and about `1e-10` in `float32`.
+- **Value checks run before native kernels.** Container validators check offsets and lengths; `sanitize` checks the values themselves, separating multiplicative block scales (rule `B3-2A`, which allows legitimate `Q8_0`/`Q4_K` subnormals), divisor scales (`B3-2B`), and integer routing tables (`B3-3`).
+
+```{figure} assets/secant-pipeline.svg
+:name: fig-secant-pipeline
+:alt: Four-stage Secant diagram. Stage 1 shows control and target activation distributions and the per-layer SNR curve of SmolLM2-1.7B with its Borda winner L12. Stage 2 shows two-pass Gram-Schmidt orthogonalization and the sparse top-64 input-column support. Stage 3 shows Q8_0 32-weight blocks fitting 128-column panels exactly while a 256-weight Q4_K superblock is split. Stage 4 shows the ProjectThenHealLinear update staying in the plane orthogonal to D while an AdamW step drifts out of it.
+:width: 100%
+
+The four stages and the geometry behind each one. **1. Capture and rank:** the target prompts' projections separate from the control prompts' by `m / σ = 40.48` at `L12`, and `secant analyze` picks that layer by Borda rank over four activation streams. **2. Orthogonalize and size:** two `float64` Gram-Schmidt passes take the two directions from cosine `0.1236` to `1.12e-17`, and the `B3` edit touches only the 64 input columns where the reference activation is largest. **3. Patch stored blocks:** a 128-column panel holds exactly four `Q8_0` blocks, but cuts a `Q4_K` superblock in half. **4. Lock later training:** `ProjectThenHealLinear` keeps the adapter update in the plane perpendicular to `D`. AdamW's per-coordinate scaling tilts a gradient-masked update back out of that plane. Panels marked DATA are drawn from real files; panels marked SCHEMATIC are sketches whose labels quote measured values.
 ```
 
 ## What the Reported Experiments Show
@@ -101,9 +121,8 @@ Paired `ASAN-120` evaluation across 9 models (`60` vulnerable C/C++ snippets pai
 The audit side of the same tools. A rank-1 edit planted in one layer showed no signal at the pre-specified `0.10%` to `4.00%` doses. The tested post-hoc doses bracket the nominal crossover $g^* = \sigma_1(W)/\|W\|_F$ (`6.57%` Qwen, `8.65%` SmolLM2): $\sigma_2$ moved at `6%`, the trigger token reached rank 1 or 2 in the vocabulary projection at `8%`, and the automatic sibling test flagged the layer at `12%`. Method and tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
 ```
 
-## Where to Start
+## Go Deeper
 
-- [Quickstart](quickstart.md): build the tools, try a small local example, and watch the retained terminal recordings.
 - [Theory and calibration](theory-and-calibration.md): understand direction selection, non-overlapping edits, and reference-based edit sizing before the equations.
 - [Editing quantized weights](quantized-surgery.md): understand which compressed blocks can change and why `Q4_K` patching is refused.
 - [Project-Then-Heal](project-then-heal.md): understand the training constraint, its numerical limits, and the measured results.

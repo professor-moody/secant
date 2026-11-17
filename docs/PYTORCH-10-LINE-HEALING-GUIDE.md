@@ -10,7 +10,7 @@ Supply a vector of length `out_features` or a matrix of shape `[k, out_features]
 
 ## The Ten-Line Integration
 
-[Recipe 4](RECIPES.md#recipe-4-fine-tune-and-export-in-ten-lines) contains the ten-line training and plain-layer export. This complete CPU example supplies all inputs, trains for 25 steps, and checks both float32 and float64:
+[Recipe 5](RECIPES.md#recipe-5-fine-tune-and-export-in-ten-lines) contains the ten-line training and plain-layer export. This complete CPU example supplies all inputs, trains for 25 steps, and checks both float32 and float64:
 
 ```sh
 python3 -m pip install -e './python[torch]'
@@ -69,7 +69,7 @@ secant verify-subspace --base model.safetensors --healed model-healed.safetensor
   --vectors protected.npy --tensors model.layers.15.mlp.down_proj.weight --tol 1e-5 --json
 ```
 
-Use `2.0` only when it matches your exported scale, such as the example's `alpha=16`, `rank=8`. `verify-subspace` defaults to `1e-5` and measures the maximum absolute projection of the stored weight difference. It accepts Q8_0 and Q4_K exports as described in [recipe 5](RECIPES.md#recipe-5-verify-a-quantized-export). Retain hash brackets for the tool, directions, base, and healed files. A passing selected-layer check still requires held-out behavioral evaluation.
+Use `2.0` only when it matches your exported scale, such as the example's `alpha=16`, `rank=8`. `verify-subspace` defaults to `1e-5` and measures the maximum absolute projection of the stored weight difference. It accepts Q8_0 and Q4_K exports as described in [recipe 6](RECIPES.md#recipe-6-verify-a-quantized-export). Retain hash brackets for the tool, directions, base, and healed files. A passing selected-layer check still requires held-out behavioral evaluation.
 
 ## 4. Technical Details & Precision Guardrails (Collapsible Reference)
 

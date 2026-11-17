@@ -4,7 +4,7 @@
 
 # Secant
 
-**Check model files before loading them. Keep chosen directions fixed during fine-tuning.**
+**Scan, diff, and patch `.safetensors` and `.gguf` model files on disk.**
 
 [![Documentation](https://img.shields.io/badge/Docs-professor--moody.github.io%2Fsecant-0A66C2?style=flat-square)](https://professor-moody.github.io/secant/)
 [![Technical Paper](https://img.shields.io/badge/Paper-MyST_%2F_Quarto-8A2BE2?style=flat-square)](https://professor-moody.github.io/secant/paper)
@@ -13,77 +13,157 @@
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange?style=flat-square)](https://www.rust-lang.org/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square)](https://www.python.org/)
 
-[Recipes](docs/RECIPES.md) · [Test drive](examples/test-drive/README.md) · [PyTorch guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md) · [Technical paper](docs/PAPER.md)
+[Recipes](docs/RECIPES.md) · [Quickstart](docs/quickstart.md) · [Test drive](examples/test-drive/README.md) · [PyTorch guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md) · [Technical paper](docs/PAPER.md)
 
 </div>
 
-## What Secant Does and Why It Matters
+Secant is a single Rust CLI to scan, diff against a base model, and patch `.safetensors` and `.gguf` files directly on disk. It needs no Python and no GPU. It reads the file format itself, so nothing gets loaded into PyTorch, llama.cpp, or vLLM.
 
-A model file can load successfully and still contain harmful weights. SafeTensors avoids pickle-style code execution during deserialization; GGUF describes tensors and metadata. Neither format proves that the weights behave as intended. Non-finite weights or corrupted scales can spoil outputs, and invalid routing indices can reach unsafe operations in runtimes that do not validate them. Finite weights can also carry a behavioral backdoor. Separately, legitimate fine-tuning can change behavior you meant to preserve.
+```sh
+cargo install --path crates/secant-cli
+```
 
-Secant offers two practical tools:
+## Four things you can do with it
 
-- **Check a downloaded model before loading it.** `secant inspect` lists tensors and storage formats. `secant sanitize` checks supported `.safetensors` and `.gguf` payloads and companion configuration files, without a GPU or inference. It can write a repaired copy for supported numerical defects. A clean scan means those checks passed; it does not rule out behavioral backdoors.
-- **Constrain a PyTorch LoRA adapter.** `ProjectThenHealLinear` keeps its update out of output directions you supply. You can merge it into an ordinary `nn.Linear`, with zero additional adapter operations at inference. The lock is local to the selected layers and directions; evaluate model behavior and check leakage again after export.
+### 1. Diff a downloaded checkpoint against its base model
 
-The retained scanner benchmark observed **0.0% false positives on 105 default configurations per platform**, comprising 100 synthetic configurations and five retained configurations. This is a measured corpus result, not a guarantee for every production model. The [benchmark report](docs/benchmarks/benign-fpr-v0.3.0.md) separates controls, formats, and historical coverage; its [JSON receipt](docs/benchmarks/benign-fpr-v0.3.0.json) has SHA-256 `63ac1125e6a1f87f65acd5c3163e7fdf3ad2c479a1dee8968c8dd0bf80a64fac`.
+Got a community fine-tune, merge, or re-quantized file? Compare it with the official base and see exactly which tensors changed.
 
-## Try It in 30 Seconds
+```sh
+secant read --model finetune.safetensors --reference base.safetensors \
+  --top-k-singular 1 --top-cols 1 --json \
+  | jq -r '.tensors[] | select(.status != "ok" or .frobenius != 0) | [.name, .status, .frobenius] | @tsv'
+```
 
-From a checkout, run:
+Each tensor is compared with the same-named tensor in the base. The number printed is the size of the change, and tensors that match the base are filtered out. Tensors the base does not have are listed as skipped.
+
+To rank the changes and see which vocabulary tokens the biggest change pushes toward:
+
+```sh
+secant audit-trojan --model finetune.safetensors --reference base.safetensors \
+  --vocab-tensor lm_head.weight
+```
+
+```text
+  TENSOR (DELTA W)                     ||DW||/||W_REF||  SIGMA_1     SIGMA_1^2/||DW||^2  PROMOTED TOKENS OF DW u_1
+  model.layers.1.mlp.down_proj.weight  7.8112e-1         1.414214e0  1.0000              22(5.373e-2) 45(5.217e-2) ...
+  model.layers.0.mlp.down_proj.weight  0.0000e0          identical   n/a
+  model.layers.2.mlp.down_proj.weight  0.0000e0          identical   n/a
+```
+
+That output is from the [test drive](examples/test-drive/README.md): a rank-one edit planted in layer 1 shows up as the only changed layer, and all of its change sits in one direction (`1.0000`). Use the tensor names your file actually has; `secant inspect` lists them.
+
+### 2. Scan for broken or poisoned values before loading
+
+```sh
+secant sanitize --model model.gguf --receipt scan.json --attempt-id pre-load
+```
+
+On CPU, with no inference, `sanitize` checks for:
+
+- `NaN` and `Inf` weights
+- bad scale headers in ten GGUF block formats (Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, and Q2_K to Q6_K)
+- zero or tiny divisor scales such as `k_scale` and `*scale_inv`
+- MoE expert indices outside the expert count (pass `--num-experts N`)
+- token IDs in `config.json`, `generation_config.json`, and `tokenizer_config.json` that point past the vocabulary
+
+Exit `0` is clean, `1` means findings, `2` means the scan could not finish. The JSON receipt lists every finding with counts and examples.
+
+To write a repaired copy, add a repair flag and an output path. The copy is published only if it passes a rescan:
+
+```sh
+secant sanitize --model model.gguf --clamp-nonfinite --out model-fixed.gguf \
+  --receipt fix.json --attempt-id repair
+```
+
+### 3. Patch weights in place on disk
+
+Describe the edit in a small JSON plan, then apply it. This one zeroes the embedding row for token 7:
+
+```json
+{
+  "schema": "secant.wsp.plan.v1",
+  "profile": "manual",
+  "calibration": {"mode": "manual"},
+  "edits": [
+    {"id": "zero_token_7", "op": "set-value",
+     "tensor": "model.embed_tokens.weight",
+     "token_rows": [7], "semantics": ["zero"]}
+  ]
+}
+```
+
+```sh
+secant patch --base model.safetensors --plan zero-row.json --in-place --json > patch-receipt.json
+```
+
+Only the bytes of the named tensors change. Before the file is replaced, Secant checks that the header and every other tensor are byte-identical to the original. The receipt records the SHA-256 before (`base_sha256`) and after (`out_sha256`). Drop `--in-place` and pass `--out new.safetensors` to write a copy instead.
+
+`secant patch` handles F32, F16, BF16, and F64 weights (and I32/I64 tables) in both formats. Plans can also add a rank-one update to chosen columns (`rank1-columns`). For `Q8_0` GGUF files, `secant quant patch` applies `rank1-columns` edits and re-encodes only the 34-byte blocks the edit touches. [Recipe 4](docs/RECIPES.md#recipe-4-patch-weights-on-disk) covers both.
+
+### 4. Keep chosen directions fixed during LoRA fine-tuning
+
+This part is an optional Python layer. `ProjectThenHealLinear` wraps an `nn.Linear` so a LoRA adapter cannot write into output directions you choose, even under AdamW. After training it merges into a plain `nn.Linear` with no extra cost at inference.
+
+```python
+from secant.nn import ProjectThenHealLinear
+locked = ProjectThenHealLinear.from_linear(linear_layer, rank=4, directions=protected_dirs)
+optimizer = torch.optim.AdamW([p for p in locked.parameters() if p.requires_grad], lr=1e-3)
+# ... train as usual ...
+assert max(locked.leakage(), locked.merged_leakage()) < 1e-6
+```
+
+Install with `python3 -m pip install -e './python[torch]'`. The [PyTorch guide](docs/PYTORCH-10-LINE-HEALING-GUIDE.md) has a complete runnable example.
+
+## Try it in 30 seconds
 
 ```sh
 python3 examples/test-drive/test_drive.py
 ```
 
-No GPU, Python packages, or model download is needed. The script creates tiny synthetic SafeTensors and GGUF files, runs nine checks covering clean controls, numerical defects, repair, and a rank-one spectral change, then deletes its temporary files. Success ends with `RESULT: 9/9`. The first run builds the CLI if necessary and requires Rust; that build can take longer than 30 seconds. The nine checks are a small demonstration, not a general detection-rate benchmark.
+This builds tiny SafeTensors and GGUF files, runs nine checks (clean files, broken values, a repair, and a planted rank-one edit found with `--reference`), and prints `RESULT: 9/9`. No model download, GPU, or Python packages are needed. The first run builds the CLI, which needs Rust and can take a few minutes. Add `--work-dir demo` to keep the files, then follow the [quickstart](docs/quickstart.md#try-the-four-jobs-on-demo-files) to run each job on them.
 
-## Practical Recipes and How-Tos
+## Recipes
 
-| You want to | Start here |
+| You want to | Recipe |
 | --- | --- |
-| Scan a downloaded Hugging Face model before vLLM or llama.cpp loads it | [1. Scan a downloaded model](docs/RECIPES.md#recipe-1-scan-a-downloaded-model) |
-| Test your scanner with clean controls and numerical fixtures | [2. Test a scanner with synthetic fixtures](docs/RECIPES.md#recipe-2-test-a-scanner-with-synthetic-fixtures) |
-| Repair supported corrupted scales into a separate, hash-verified copy | [3. Repair a copy and verify its hashes](docs/RECIPES.md#recipe-3-repair-a-copy-and-verify-its-hashes) |
-| Add a protected LoRA layer and export a plain PyTorch layer | [4. Fine-tune and export in ten lines](docs/RECIPES.md#recipe-4-fine-tune-and-export-in-ten-lines) |
-| Check whether a Q8_0 or Q4_K export preserved the chosen directions | [5. Verify a quantized export](docs/RECIPES.md#recipe-5-verify-a-quantized-export) |
+| See which tensors a fine-tune, merge, or quant changed | [1. Diff against a base model](docs/RECIPES.md#recipe-1-diff-against-a-base-model) |
+| Scan a Hugging Face download before vLLM or llama.cpp loads it | [2. Scan a downloaded model](docs/RECIPES.md#recipe-2-scan-a-downloaded-model) |
+| Repair broken scales or values into a hash-checked copy | [3. Repair a copy](docs/RECIPES.md#recipe-3-repair-a-copy-and-verify-its-hashes) |
+| Edit a few weights without re-exporting the model | [4. Patch weights on disk](docs/RECIPES.md#recipe-4-patch-weights-on-disk) |
+| Train a LoRA that cannot touch protected directions | [5. Fine-tune and export in ten lines](docs/RECIPES.md#recipe-5-fine-tune-and-export-in-ten-lines) |
+| Check a Q8_0 or Q4_K export kept those directions | [6. Verify a quantized export](docs/RECIPES.md#recipe-6-verify-a-quantized-export) |
+| Test a model-file scanner with known-bad fixtures | [7. Test a scanner](docs/RECIPES.md#recipe-7-test-a-scanner-with-synthetic-fixtures) |
 
-For more context, read the [scanner evaluation guide](docs/OFFENSIVE-RESEARCHERS-GUIDE.md) or the [PyTorch walkthrough](docs/PYTORCH-10-LINE-HEALING-GUIDE.md).
+## Exit codes
 
-## Install and Interpret Results
-
-```sh
-cargo install --path crates/secant-cli
-# Optional Python package for fine-tuning
-python3 -m pip install -e './python[torch]'
-```
-
-`inspect` describes a file; it does not scan its weight values. For `sanitize` and `verify-subspace`, use the exit code as well as the JSON report:
-
-| Exit | Meaning | Next step |
+| Exit | `sanitize`, `verify-patch`, `verify-subspace`, `patch` | Next step |
 | --- | --- | --- |
-| `0` | The requested check passed, or sanitization published a copy that passed its rescan | Retain the receipt and continue your validation |
-| `1` | Numerical findings remain, or a verification tolerance failed | Review the findings before loading the file |
-| `2` | Usage, I/O, unsupported input, or an incomplete check | Resolve the error and rerun; treat the result as unknown |
+| `0` | Passed, or a repaired copy passed its rescan | Keep the receipt |
+| `1` | Findings remain, or a verification failed | Read the findings before loading the file |
+| `2` | Bad usage, I/O error, unsupported input, or an incomplete check | Treat the result as unknown and rerun |
 
-A completed `audit-trojan` report can exit `0` while containing outliers. Read its findings; this command does not share `sanitize`'s finding gate. New receipt and output paths must not already exist. See the [CLI and Python reference](docs/cli-and-python-reference.md) for command-specific contracts.
+`read` and `audit-trojan` are reports. They exit `0` whenever they finish, so read their output. Receipt and output paths must be new files.
 
-## How It Works Under the Hood and Formal Guarantees
+## Scope
 
-The [paper](docs/PAPER.md) retains the derivations, formal guarantees, commutation bounds, control arms, and benchmark tables. Its studies have different scopes: the completed response-benchmark cohort spans 17 model identities from 0.8B to 32.8B, while the separate 17-checkpoint Project-Then-Heal study reaches 72.7B using single shards for the largest checkpoints. The paper accounts for 59,440 retained H100 evaluation rows, including 300 partial Gemma-2-27B baseline rows. Those counts describe retained experiments, not fresh results from this test drive.
+- **A clean scan covers the listed checks.** It will not find a behavioral backdoor hidden in normal-looking weights. On 105 benign test configurations (100 synthetic, 5 retained) the scanner raised no false positives on either test host ([benchmark](docs/benchmarks/benign-fpr-v0.3.0.md)).
+- **Diffing needs a trusted base with the same tensor names and shapes.** Without one, `audit-trojan` can only flag edits large enough to stand out from the layer's own structure; the [paper](docs/PAPER.md) measures that threshold. A quantized file compared with a full-precision base shows small rounding changes everywhere, so look for tensors that changed much more than their neighbors.
+- **Patching supports float tensors and `Q8_0` blocks.** `Q4_K` files can be read, diffed, scanned, and verified, but not patched. The other GGUF block formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q2_K`, `Q3_K`, `Q5_K`, `Q6_K`) are checked by `sanitize` only. The patcher holds the file in memory (about twice its size), so patch sharded checkpoints one shard at a time. `--in-place` writes a verified temporary file in the same folder and renames it over the original, so it needs free disk space equal to the file.
+- **The LoRA lock covers the wrapped layers and the directions you pass in.** Measure leakage again after merging or quantizing.
 
-- **Static numerical checks.** The [payload reference](docs/payload-security.md) defines finite-value, divisor-scale, routing-index, and companion-config rules. Supported SafeTensors floating types include F64, F32, F16, BF16, F8_E4M3, and F8_E5M2. The scanner checks scale headers in ten GGUF block formats; unsupported types fail closed.
-- **Spectral and reference comparison.** `audit-trojan` and `read --reference` expose unusual matrix structure or differences from a trusted checkpoint. Spectral outliers are review signals, not proof of malicious intent. The paper retains the measured detection limits and reference-diff studies.
-- **Calibrated edits.** [Theory and calibration](docs/theory-and-calibration.md) derives the edit size for a supplied reference activation. That local equality does not guarantee a response on unseen prompts.
-- **Quantized storage.** [Quantized surgery](docs/quantized-surgery.md) explains Q8_0 block edits, rounding error, commutation bounds, and why the Rust patcher refuses Q4_K surgery. Reading, sanitizing, and verifying Q4_K remain supported.
-- **Constrained adapters.** [Project-Then-Heal](docs/project-then-heal.md) derives the double projection and documents finite-precision and downstream-layer limits. The adapter check and the stored merged-weight check measure different quantities.
+## More
+
+- [Quickstart](docs/quickstart.md): install, the four jobs on demo files, and the full edit workflow on a 1.7B checkpoint with terminal recordings.
+- [CLI, Python, and C reference](docs/cli-and-python-reference.md): every command, flag, exit code, and receipt field.
+- [Payload checks](docs/payload-security.md): the exact rules `sanitize` applies.
+- [Quantized surgery](docs/quantized-surgery.md): how Q8_0 block edits work and why Q4_K patching is refused.
+- [Paper](docs/PAPER.md): derivations, experiments on checkpoints from 0.8B to 72.7B parameters, and their limits.
 
 <p align="center">
   <img src="docs/assets/secant-patch.gif" alt="secant patch terminal recording" width="49%" />
   <img src="docs/assets/secant-probe.gif" alt="secant probe terminal recording" width="49%" />
 </p>
-
-The [documentation home](docs/index.md), [technical quickstart](docs/quickstart.md), and [blog series](https://m00dy.sh/notes/sparks-to-secant-weight-space-programming-series) provide further examples. The [paper's experimental sections](docs/PAPER.md) provide receipt identities, controls, and adjusted statistics for benchmark claims.
 
 ## Citation
 

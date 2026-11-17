@@ -1,8 +1,71 @@
 # Quickstart Inspect, Edit, and Verify Weights
 
-This guide covers five workflows: inspect weights, prepare an edit, patch a checkpoint, constrain an adapter, and check a small test file. The examples use the standalone Rust `secant` CLI and the Python package.
+Secant is a single Rust CLI to scan, diff against a base model, and patch `.safetensors` and `.gguf` files directly on disk, with no Python and no GPU required. An optional Python layer keeps chosen directions fixed during LoRA fine-tuning.
 
-Start with [the small local self-test](#local-self-test) if you do not have a model ready, or [watch the real terminal recordings](#watch-it-run) of a full edit on a 1.7B checkpoint first. Workflows 1 to 4 are templates: supply your own checkpoint, captured activations, profile, and tensor names. They are not a single runnable experiment or a reproduction of the paper's benchmarks.
+Start with [the four jobs on demo files](#try-the-four-jobs-on-demo-files): it takes a few minutes and needs no model download. The numbered workflows after it are the full research path: capture directions, compose a calibrated edit, patch a real checkpoint, and lock later training. They are templates for your own checkpoint, activations, and tensor names. You can also [watch the terminal recordings](#watch-it-run) of a full edit on a 1.7B checkpoint first.
+
+---
+
+(try-the-four-jobs-on-demo-files)=
+## Try the Four Jobs on Demo Files
+
+From the repository root, build the CLI and generate a folder of tiny SafeTensors and GGUF files. The generator is a standard-library Python script; Secant itself does not use Python. It writes a clean model, a copy with a planted rank-one edit, and files with broken values.
+
+```bash
+cargo build --release -p secant-cli
+export PATH="$PWD/target/release:$PATH"
+python3 examples/test-drive/test_drive.py --work-dir secant-demo
+cd secant-demo
+```
+
+**1. Diff against the base.** Which tensors differ from the clean model, and by how much?
+
+```bash
+secant read --model trojan_f32.safetensors --reference clean_f32/model.safetensors \
+  --tensor 'model.layers.*.mlp.down_proj.weight' --top-k-singular 1 --top-cols 1
+
+secant audit-trojan --model trojan_f32.safetensors --reference clean_f32/model.safetensors \
+  --tensor 'model.layers.*.mlp.down_proj.weight' --vocab-tensor model.embed_tokens.weight
+```
+
+`read` lists a difference of `1.414214e0` for `model.layers.1.mlp.down_proj.weight` and `0.000000e0` for layers 0, 2, and 3. `audit-trojan` marks layers 0, 2, and 3 `identical` and shows layer 1 with all of its change in one direction (`1.0000`), plus the vocabulary tokens that direction promotes. Both exit `0`.
+
+**2. Scan, then repair a copy.**
+
+```bash
+secant sanitize --model bad_q4k_nan.gguf --receipt scan.json --attempt-id demo
+secant sanitize --model bad_q4k_nan.gguf --clamp-nonfinite --out fixed.gguf \
+  --receipt fix.json --attempt-id demo-fix
+```
+
+The scan exits `1` with one `quant_scale_nan` finding: a `Q4_K` block whose scale header is `NaN`. The repair zeroes that block, rescans the result, publishes `fixed.gguf`, and exits `0` with status `remediated`.
+
+**3. Patch in place.** Zero the embedding row for token 7 in a copy of the clean model, then check that nothing else moved:
+
+```bash
+cp clean_f32/model.safetensors edit-me.safetensors
+cat > zero-row.json <<'EOF'
+{
+  "schema": "secant.wsp.plan.v1",
+  "profile": "manual",
+  "calibration": {"mode": "manual"},
+  "edits": [
+    {"id": "zero_token_7", "op": "set-value",
+     "tensor": "model.embed_tokens.weight",
+     "token_rows": [7], "semantics": ["zero"]}
+  ]
+}
+EOF
+secant patch --base edit-me.safetensors --plan zero-row.json --in-place
+secant verify-patch --base clean_f32/model.safetensors --patched edit-me.safetensors \
+  --expect-changed model.embed_tokens.weight
+```
+
+`patch` reports `64 / 8192` entries changed, a passing verification gate, and the new SHA-256. `verify-patch` reports an identical header, 8 of 9 tensors byte-identical, and exits `0`. Run `secant read --model edit-me.safetensors --reference clean_f32/model.safetensors --top-k-singular 1 --top-cols 1` and only `model.embed_tokens.weight` shows a nonzero difference.
+
+**4. Lock directions during fine-tuning.** This one needs PyTorch: `pip install -e "./python[torch]"`, then run the example in the [PyTorch guide](PYTORCH-10-LINE-HEALING-GUIDE.md).
+
+Reference hashes from our runs (macOS arm64, Secant `2e582e8`): `clean_f32/model.safetensors` `64e30a91f547a7ac28e7e84852e1e30e8675294d172a6144d2de812d3b6b8567`, `trojan_f32.safetensors` `fe07e95eba8c2f0d8b52082df919a92e8eb67b3456658e0d2bf3469977542ee7`, patched `edit-me.safetensors` `f84e2a02c52324d0b2d935545efcf150ea9f166a91ceb5d2391eb3fbab9fd108`.
 
 ---
 
@@ -32,14 +95,15 @@ pytest python/tests
 | :--- | :--- | :--- |
 | **01 · Audit & Read** | secant profiles | Lists research profiles, such as think-loop-fix and security-auditor-b1b2b3, and their edit slots. |
 | | secant inspect | Lists tensor names, shapes, storage types, and byte offsets. |
-| | secant read | Measures matrix size, leading directions, and optional vocabulary scores. |
+| | secant read | Measures matrix size, leading directions, and optional vocabulary scores. With --reference, reports how each tensor differs from a base checkpoint. |
+| | secant audit-trojan | Ranks matrices by unusual spectral structure; with --reference, ranks the changes against a base checkpoint and lists the tokens they promote. |
 | | secant sanitize | Static weight-value scanner and optional repair for NaN, Inf, divisor scales, and routing IDs. Q8\_0 and Q4\_K zero or FP16 subnormal block scales pass by default; --flush-subnormal is opt-in. |
 | | secant probe | Deterministic generator for boundary-value test fixtures (class1..class4). |
 | **02 · Analyze & Compose** | secant analyze | Combines layer rankings from captured signal-to-noise measurements. |
 | | secant compose | Makes supplied directions perpendicular, selects layers from --analysis, and sizes edits from reference activations. |
-| **03 · Patch** | secant patch | Edits supported BF16, F16, and F32 weights, writing a copy by default. |
+| **03 · Patch** | secant patch | Edits F32, F16, BF16, F64, I32, and I64 tensors, writing a copy by default or the same file with --in-place. |
 | | secant verify-patch | Checks header identity and byte identity outside the supplied tensor allowlist. |
-| | secant quant patch | Edits selected Q8\_0 blocks, writing a new checkpoint by default. |
+| | secant quant patch | Edits selected Q8\_0 blocks, writing a new checkpoint by default or the same file with --in-place. |
 | | secant quant witness (verify) | Measures quantization error and optional reordering of 128-column panels. |
 | | secant quant roundtrip | Encodes and decodes a matrix to measure compression error. |
 | **04 · Lock & Heal** | secant heal | Removes protected output components from an existing adapter and optionally merges it. |
