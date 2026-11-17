@@ -1998,7 +1998,7 @@
       "target_alpha": 1.0
     }
   },
-  "banked_reference_dir": "/srv/lab/crucible-runs/w61j-rms-lora-controls/banked/qwen25_math_7b",
+  "banked_reference_dir": "<lab-runs>/w61j-rms-lora-controls/banked/qwen25_math_7b",
   "runner_sha256_pre": "89d52d744d708f4664d1c8dbc7e97022c795630d0aa8b200c0cfe9d7e1beceb7",
   "runner_sha256_post": "89d52d744d708f4664d1c8dbc7e97022c795630d0aa8b200c0cfe9d7e1beceb7",
   "baseline_module_sha256_pre": "e42070520ee204a5fc5f03466ec19ca56210c9f5dd4fb93bd3d3d671a8464a95",

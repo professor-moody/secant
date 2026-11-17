@@ -35,8 +35,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ASAN120_DIR = HERE.parent
 KIT_DIR = ASAN120_DIR / "kit"
-PACKETS_ROOT = Path("/Users/keys/projects/crucible/reports/submissions/patch-rewards-packets")
-SECANT_OUT_DIR = Path("/Users/keys/projects/secant/data/asan_realworld_60")
+PACKETS_ROOT = Path(os.environ.get("SECANT_PACKETS_ROOT", "patch-rewards-packets"))
+SECANT_OUT_DIR = HERE
 
 sys.path.insert(0, str(KIT_DIR))
 import asan120_lib as L  # noqa: E402

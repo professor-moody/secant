@@ -2,7 +2,7 @@
 
 This directory contains the execution receipts for Horizon 1, Item 2:
 
-1. **`qwen35_4b_dose_and_rand3_receipt.json`** (`sha256: eae628d0611e382b5dd21f0719cf28deddc53dda6dbff92564aa9e2e88eaa5ca`):
+1. **`qwen35_4b_dose_and_rand3_receipt.json`** (`sha256: f977078a1c0a16e0c7d14cc5e92fb8e91272e87a1d7bacd7a0491b3cc03fe3d5`):
    - **Target**: `Qwen3.5-4B` (`Q8_0` GGUF, `1,536`-token decoding budget, `30`-item `ASAN-30` evaluation suite).
    - **3-Seed Norm-Matched Random Control Ensemble (`1.00x`)**:
      - `cal738rand1` (seed `20261105`, GGUF `sha256: 6226fb5bc5554f4488f50a69d5139d0d650576bf36514b06441566fc4ed965d4`): `0 / 30` (`0.0%`) `</think>` closed, `0 / 30` strict bug class, `0 / 30` culprit frame, `0 / 30` strict root cause, `1,536.0` mean tokens.
@@ -18,7 +18,7 @@ This directory contains the execution receipts for Horizon 1, Item 2:
      - `cal738` (`1.00x`): `21 / 30` (`70.0%`) closed, `18 / 30` class, `17 / 30` frame, `15 / 30` strict root cause, `1,004.7` mean tokens.
      - `a15` (`1.50x`): `30 / 30` (`100.0%`) closed, `22 / 30` class, `19 / 30` frame, `16 / 30` strict root cause, `467.8` mean tokens.
 
-2. **`qwen35_08b_multiseed_receipt.json`** (`sha256: f7da83186596c764f4711e4d2293772751dbcdaf75eac754faa45d90713e6dc2`):
+2. **`qwen35_08b_multiseed_receipt.json`** (`sha256: be4aa480356cc6fca76c5f268acb43cfdcac0f83148fd615c39e1f9531dfa20e`):
    - **Target**: `Qwen3.5-0.8B` (`BF16`, `MATH-500` `N = 500`, `max_gen_toks = 2,048`).
    - **6-Arm Comparison**:
      - `base_thinking_on`: `164 / 500` (`32.80%`), `29.2%` closed, `1,659.7` mean tokens.

@@ -1,7 +1,7 @@
 {
   "schema": "crucible.reference-diff-late-layer-receipt.v1",
   "attempt_id": "att-850cfe4357dcc110",
-  "host": "strix-ts",
+  "host": "linux-x86_64-host",
   "started_at": "2026-11-09T19:24:48Z",
   "completed_at": "2026-11-09T19:26:08Z",
   "execution": {
@@ -13,18 +13,18 @@
     "gpu_usage": "zero: no NVIDIA device nodes were exposed and CUDA_VISIBLE_DEVICES was present-empty"
   },
   "secant": {
-    "path": "/srv/lab/crucible-runs/w61k-daybreak-cold-review-ref-diff-and-wrap-commit/src/secant-rs/target/release/secant",
+    "path": "<lab-runs>/w61k-daybreak-cold-review-ref-diff-and-wrap-commit/src/secant-rs/target/release/secant",
     "sha256": "a6a357450abc9f984e992dface84a468c84647051c7815e6edd7671fa522e587",
-    "source_hashes_match_reviewed_nimbus_tree": true
+    "source_hashes_match_reviewed_darwin_arm64_host_tree": true
   },
   "reference": {
-    "path": "/srv/lab/crucible-runs/alphadev-wsp-track2/models/Qwen3.5-0.8B/model.safetensors-00001-of-00001.safetensors",
+    "path": "<lab-runs>/alphadev-wsp-track2/models/Qwen3.5-0.8B/model.safetensors-00001-of-00001.safetensors",
     "sha256": "04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696",
     "file_bytes": 1746942600,
     "all_pre_post_brackets_matched": true
   },
   "trigger_vector_reproduction": {
-    "retained_source": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral/run_w61j_master.py",
+    "retained_source": "<lab-runs>/w61j-trojan-multilayer-behavioral/run_w61j_master.py",
     "source_pre_sha256": "9298b5ba182502622508f449d5838726c1c5c82115df8b3692d3e434980af806",
     "source_post_sha256": "9298b5ba182502622508f449d5838726c1c5c82115df8b3692d3e434980af806",
     "method": "reused evaluate_model_arm with the original prompts, top-24 clean subspace projection, K=128 sparsification, target token 16657, and CPU model path; retained normally deleted per-dose scratch",

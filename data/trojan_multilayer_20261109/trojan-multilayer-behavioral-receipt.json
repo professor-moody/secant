@@ -1,13 +1,13 @@
 {
   "schema": "secant.trojan.multilayer-behavioral-curve.v1",
-  "preregistration_spec_path": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral/preregistration_spec.json",
+  "preregistration_spec_path": "<lab-runs>/w61j-trojan-multilayer-behavioral/preregistration_spec.json",
   "preregistration_sha256": "f979471c41a4ec88933d7951ef4edd4aa052fd0f9efa6245be2c382d44f55b70",
   "preregistration_created_at_utc": "2026-11-09T17:11:22Z",
   "execution_started_at_utc": "2026-11-09T17:17:35Z",
   "created_at": "2026-11-09T17:34:17Z",
-  "host": "strix-ts",
-  "work_dir": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral",
-  "secant_binary": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral/src/secant-rs/target/release/secant",
+  "host": "linux-x86_64-host",
+  "work_dir": "<lab-runs>/w61j-trojan-multilayer-behavioral",
+  "secant_binary": "<lab-runs>/w61j-trojan-multilayer-behavioral/src/secant-rs/target/release/secant",
   "secant_binary_sha256": "18e3fa9b12d7e7ba9f79156f1936ceb543daded9dce32fd3a4d1712d11671a4c",
   "preregistered_doses": [
     0.0,
@@ -74,8 +74,8 @@
   "models": {
     "SmolLM2-1.7B-Instruct": {
       "model": "SmolLM2-1.7B-Instruct",
-      "model_dir": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral/models/SmolLM2-1.7B-Instruct",
-      "safetensors_path": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral/models/SmolLM2-1.7B-Instruct/model.safetensors",
+      "model_dir": "<lab-runs>/w61j-trojan-multilayer-behavioral/models/SmolLM2-1.7B-Instruct",
+      "safetensors_path": "<lab-runs>/w61j-trojan-multilayer-behavioral/models/SmolLM2-1.7B-Instruct/model.safetensors",
       "safetensors_sha256": "f55217be716b6a997b97b9d8d7eb6fad02e00858f5010ec24f64603c3a98a0e8",
       "vocab_tensor": "model.embed_tokens.weight",
       "target_token_id": 41401,
@@ -5151,8 +5151,8 @@
     },
     "Qwen3.5-0.8B": {
       "model": "Qwen3.5-0.8B",
-      "model_dir": "/srv/lab/crucible-runs/alphadev-wsp-track2/models/Qwen3.5-0.8B",
-      "safetensors_path": "/srv/lab/crucible-runs/alphadev-wsp-track2/models/Qwen3.5-0.8B/model.safetensors-00001-of-00001.safetensors",
+      "model_dir": "<lab-runs>/alphadev-wsp-track2/models/Qwen3.5-0.8B",
+      "safetensors_path": "<lab-runs>/alphadev-wsp-track2/models/Qwen3.5-0.8B/model.safetensors-00001-of-00001.safetensors",
       "safetensors_sha256": "04b1c301231dd422b8860db31311ab2721511346a32cb1e079c4c4e5f1fe4696",
       "vocab_tensor": "model.language_model.embed_tokens.weight",
       "target_token_id": 16657,

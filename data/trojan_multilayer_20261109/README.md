@@ -4,7 +4,7 @@
 
 - **Experiment ID**: `w61j-trojan-multilayer-behavioral-20261109` (Horizon 1, Item 3)
 - **Specification Status**: **FIXED-GRID SPECIFICATION WRITTEN PRIOR TO CELL EXECUTION**. Unlike the initial 12-dose single-layer (`layers.12.mlp.down_proj.weight`) observation in `w61e-trojan-curve` (`2026-11-06`), which added fine transition doses (`6%, 8%, 10%, 12%, 16%`) post-hoc after observing no signal at `0%..4%`, the complete 11-dose grid, 17 `(model, layer, placement)` cells, calibration/evaluation prompt splits, and static/behavioral endpoints in this study were written to `preregistration_spec.json` inside the campaign directory (`2026-11-09T17:11:22Z`) prior to executing the first model/layer/dose cell (`2026-11-09T17:17:35Z`). Because `preregistration_spec.json` was written inside the campaign workspace prior to cell execution rather than committed to git before campaign launch, we report this as a fixed-grid study rather than an externally pre-committed preregistration.
-- **`preregistration_spec.json` SHA-256**: `f979471c41a4ec88933d7951ef4edd4aa052fd0f9efa6245be2c382d44f55b70`
+- **`preregistration_spec.json` SHA-256**: `d65b9f1dfe3c9b158291deb6de4a463194c2b1acedd423131217df34aa87f508` (host/path-redacted copy, see `data/REDACTIONS.md`; the pre-redaction spec written before cell execution and bound by the receipt's `preregistration_sha256` is `f979471c41a4ec88933d7951ef4edd4aa052fd0f9efa6245be2c382d44f55b70`, retained at commit `f0ece91`)
 - **`preregistration_created_at_utc`**: `2026-11-09T17:11:22Z`
 - **`execution_started_at_utc`**: `2026-11-09T17:17:35Z`
 - **`execution_completed_at_utc`**: `2026-11-09T17:34:17Z` (`1001.48s` wall-clock on local Linux worker)

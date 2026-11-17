@@ -3,8 +3,8 @@
   "preregistration_created_at_utc": "2026-11-09T17:11:22Z",
   "experiment_id": "w61j-trojan-multilayer-behavioral-20261109",
   "description": "Pre-specified multi-layer, multi-placement spectral Trojan dose grid with static Marchenko-Pastur + vocabulary-projection audit and forward-pass behavioral verification.",
-  "host": "strix-ts",
-  "work_dir": "/srv/lab/crucible-runs/w61j-trojan-multilayer-behavioral",
+  "host": "linux-x86_64-host",
+  "work_dir": "<lab-runs>/w61j-trojan-multilayer-behavioral",
   "secant_binary_sha256": "18e3fa9b12d7e7ba9f79156f1936ceb543daded9dce32fd3a4d1712d11671a4c",
   "preregistered_doses": [
     0.0,

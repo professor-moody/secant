@@ -24,7 +24,7 @@
       "mean_tokens_predicted": 1536.0,
       "latency_ms_p50": 67288.2,
       "latency_ms_p95": 67947.8,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/wsp4b/results/bench_base.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/wsp4b/results/bench_base.raw.jsonl",
       "raw_jsonl_sha256": "267f39876526c083cb846b9c30b984c1166bceef56a8d7f835f252b3d70aaa07",
       "gguf_sha256": "6bc66ab9ac4c1d90922c59b42f372d59403fa32da89d1def6e3953299721b95c",
       "edits": [],
@@ -49,7 +49,7 @@
       "mean_tokens_predicted": 1536.0,
       "latency_ms_p50": 67332.0,
       "latency_ms_p95": 72706.2,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61d-calib/results/cal738rand1_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61d-calib/results/cal738rand1_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "88707f387c409fa52820782ba1b43b738a79b058cb11ae8a2265afac53b78273",
       "gguf_sha256": "ebce2659be23fb6371a1845f66ff34be6ca90928048d10537c80f31ece2ee97b",
       "edits": [
@@ -115,7 +115,7 @@
       "mean_tokens_predicted": 1536.0,
       "latency_ms_p50": 130915.7,
       "latency_ms_p95": 134282.2,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61d-calib/results/cal738rand2_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61d-calib/results/cal738rand2_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "2642e1d52ab197ab028b00e5f8c8eaf740ce0c2b4b2afead0721aa86eb076081",
       "gguf_sha256": "e776efba38bb073b7c04f37a70302d39cd9ee6c487d08eb98f395e156be3eb44",
       "edits": [
@@ -181,7 +181,7 @@
       "mean_tokens_predicted": 1536.0,
       "latency_ms_p50": 67269.9,
       "latency_ms_p95": 67949.8,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61j-dose-and-rand3/results/cal738rand3_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61j-dose-and-rand3/results/cal738rand3_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "86f308b197a391cdbbadcece86ae79d3757122f1d8cd5e44ef4f3520bd85404e",
       "gguf_sha256": "706b8cc899951d4690f26c347500e2f0415e537c69102d0e363179fa42e76cf2",
       "edits": [
@@ -247,7 +247,7 @@
       "mean_tokens_predicted": 1536.0,
       "latency_ms_p50": 127310.4,
       "latency_ms_p95": 170237.6,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/alpha-att-ebb300f97a49b08c/results/a05_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/alpha-att-ebb300f97a49b08c/results/a05_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "469c11a105b6878964eeca5b907feb5d1e32fc11c18752fc7ba921468b41f3f9",
       "gguf_sha256": "98341b1b4cd3f68e26b6abce189c1e8f22d6d33385352cdd6b999389a4dbcf80",
       "edits": [
@@ -313,7 +313,7 @@
       "mean_tokens_predicted": 1491.1333333333334,
       "latency_ms_p50": 84583.8,
       "latency_ms_p95": 92176.9,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61j-dose-and-rand3/results/a06_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61j-dose-and-rand3/results/a06_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "ac9fb9211e8745031dd2f3ed74fde2c87770a388534a854fe166242317a85c66",
       "gguf_sha256": "804aa4c7b2e9c5b64b8f99f08bacfe62b3b8c602b261853e335d45ff226230ab",
       "edits": [
@@ -379,7 +379,7 @@
       "mean_tokens_predicted": 1429.5333333333333,
       "latency_ms_p50": 67226.8,
       "latency_ms_p95": 67993.3,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61j-dose-and-rand3/results/a07_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61j-dose-and-rand3/results/a07_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "9114e9fa22b29e0aa05eb954573b758c475f2b49a2c1744342029f3997d0dd60",
       "gguf_sha256": "8b7ff7d6dc7cec774ff6187c404bcaca63e537d5192dfe6cf3628cba65b3098e",
       "edits": [
@@ -445,7 +445,7 @@
       "mean_tokens_predicted": 1317.5,
       "latency_ms_p50": 66882.6,
       "latency_ms_p95": 67956.6,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61j-dose-and-rand3/results/a08_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61j-dose-and-rand3/results/a08_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "7fcf703ab95f5a63c4504772236273cddb0cf5f08af4abb41008488c95437e09",
       "gguf_sha256": "9f4a90d0fdc3938cb2cc78ca20f7bd63bd4e716b8a35bfc243de209a236ff20a",
       "edits": [
@@ -511,7 +511,7 @@
       "mean_tokens_predicted": 1210.4,
       "latency_ms_p50": 66523.0,
       "latency_ms_p95": 68013.1,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61j-dose-and-rand3/results/a09_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61j-dose-and-rand3/results/a09_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "77253e2c3e75311a5154412e94ef599104de1a541c4c61118d4d21e0abc15db2",
       "gguf_sha256": "315d9a9381409575dc2349feb83483e8e4650cd5dcae3fb904039eda7f6382ad",
       "edits": [
@@ -577,7 +577,7 @@
       "mean_tokens_predicted": 954.4,
       "latency_ms_p50": 36719.9,
       "latency_ms_p95": 67906.9,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/w61d-calib/results/cal738_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/w61d-calib/results/cal738_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "da1864e4cb83659d52b6b7294619907cb6e237770a7488983dd5fe14d7cde6af",
       "gguf_sha256": "21107f368acbb86c3d46e126189cdb3fb85d93111dbe44a5c8b8fa724559bc70",
       "edits": [
@@ -643,7 +643,7 @@
       "mean_tokens_predicted": 789.4333333333333,
       "latency_ms_p50": 59629.6,
       "latency_ms_p95": 145123.2,
-      "raw_jsonl_path": "/home/keys/crucible-runs/wsp-z2mini-lab/alpha-att-ebb300f97a49b08c/results/a15_n1536.bench.raw.jsonl",
+      "raw_jsonl_path": "<lab-runs>/wsp-lab/alpha-att-ebb300f97a49b08c/results/a15_n1536.bench.raw.jsonl",
       "raw_jsonl_sha256": "49a66593b125e784375183de15e8ede8251b79a1bcd6ae3fd9281902e1104930",
       "gguf_sha256": "0101be28d0537f7075515345f3b98b0a4b661e796f9a9ae19e8544a684a6a389",
       "edits": [

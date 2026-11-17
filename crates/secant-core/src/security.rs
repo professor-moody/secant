@@ -1935,7 +1935,7 @@ pub mod sanitize {
             let _ = std::fs::remove_dir_all(&dir);
 
             // 2. Hostile F8_E4M3 (0x7F / 0xFF -> nan, never inf) + Hostile F8_E5M2 (0x7C / 0xFC -> inf, 0x7D / 0xFF -> nan, 0x7B = 57344.0 -> extreme_finite)
-            let e4m3_bad = vec![0x38, 0x7F, 0x7E, 0xFF]; // [1.0, NaN, 448.0, -NaN] — note: odd tail exercises w=1 get_bits without OOB!
+            let e4m3_bad = vec![0x38, 0x7F, 0x7E, 0xFF]; // [1.0, NaN, 448.0, -NaN]; note: odd tail exercises w=1 get_bits without OOB!
             let e5m2_bad = vec![0x3C, 0x7C, 0xFC, 0x7D, 0xFF, 0x7B]; // [1.0, +Inf, -Inf, NaN, -NaN, 57344.0]
             let hostile_bytes = build_safetensors(
                 &[

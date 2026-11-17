@@ -44,12 +44,12 @@
         "post": "2026-11-08T23:51:07Z"
       },
       "raw_predictions": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_on/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/samples_math500_thinking_on_2026-11-08T17-50-59.874475.jsonl",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_on/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/samples_math500_thinking_on_2026-11-08T17-50-59.874475.jsonl",
         "sha256": "97ccc7ad2aa9e650a106f68039bb842fcbc6bd64307f2b6b3479d6a386cf96da",
         "rows_including_filters": 200
       },
       "native_results": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_on/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/results_2026-11-08T17-50-59.874475.json",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_on/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/results_2026-11-08T17-50-59.874475.json",
         "sha256": "901bfd610552fad08ee1c8465abee7792b8df540c0610ec7c8294ad615ae4f71"
       }
     },
@@ -93,12 +93,12 @@
         "post": "2026-11-09T00:14:43Z"
       },
       "raw_predictions": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_off/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/samples_math500_thinking_off_2026-11-08T18-14-34.122985.jsonl",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_off/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/samples_math500_thinking_off_2026-11-08T18-14-34.122985.jsonl",
         "sha256": "e30852a61cc7735338507603c98764405c19677fad97903e59801d8fdec38db2",
         "rows_including_filters": 100
       },
       "native_results": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_off/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/results_2026-11-08T18-14-34.122985.json",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/base_thinking_off/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__base/results_2026-11-08T18-14-34.122985.json",
         "sha256": "d302cca7a5c66cdf87fc7b5824c062d96e7c53848cb2d4f23ce520d6648fec28"
       }
     },
@@ -142,12 +142,12 @@
         "post": "2026-11-09T00:38:08Z"
       },
       "raw_predictions": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/secant_b1_edit/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__secant_b1_edit/samples_math500_thinking_on_2026-11-08T18-38-00.062658.jsonl",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/secant_b1_edit/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__secant_b1_edit/samples_math500_thinking_on_2026-11-08T18-38-00.062658.jsonl",
         "sha256": "38a83784135df3be5a130abe2306fc97129fdb142a01b3dba6215332f18ccf0c",
         "rows_including_filters": 200
       },
       "native_results": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/secant_b1_edit/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__secant_b1_edit/results_2026-11-08T18-38-00.062658.json",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/secant_b1_edit/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__secant_b1_edit/results_2026-11-08T18-38-00.062658.json",
         "sha256": "e7223ab8888a115530fe3ded7ba49d41f998001027b1c221a2282db46dd97716"
       }
     },
@@ -191,12 +191,12 @@
         "post": "2026-11-09T01:01:31Z"
       },
       "raw_predictions": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/random_norm_matched/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__random_norm_matched/samples_math500_thinking_on_2026-11-08T19-01-23.473583.jsonl",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/random_norm_matched/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__random_norm_matched/samples_math500_thinking_on_2026-11-08T19-01-23.473583.jsonl",
         "sha256": "82dd2ddb43688960161e176be67feb3391b5595697d133c1fda39e96df850b44",
         "rows_including_filters": 200
       },
       "native_results": {
-        "path": "/home/keys/crucible-runs/w61h-thinking-att-6f5bd370b1d48a11/runs/random_norm_matched/__home__keys__crucible-runs__w61h-thinking-att-6f5bd370b1d48a11__models__random_norm_matched/results_2026-11-08T19-01-23.473583.json",
+        "path": "<lab-runs>/w61h-thinking-att-6f5bd370b1d48a11/runs/random_norm_matched/__lab-runs__w61h-thinking-att-6f5bd370b1d48a11__models__random_norm_matched/results_2026-11-08T19-01-23.473583.json",
         "sha256": "43a0bfb00ffcd1ae39f668b332b6679b75716105c4331b0de648df71be4c9435"
       }
     },
@@ -240,12 +240,12 @@
         "post": "2026-11-09T15:32:05Z"
       },
       "raw_predictions": {
-        "path": "/home/keys/crucible-runs/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed2/__home__keys__crucible-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed2/samples_math500_thinking_on_2026-11-09T09-31-56.900196.jsonl",
+        "path": "<lab-runs>/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed2/__lab-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed2/samples_math500_thinking_on_2026-11-09T09-31-56.900196.jsonl",
         "sha256": "9d6523e6f3a7e1ac0be616c83d69768069e56139c25455e5d30960d87c0a1f0e",
         "rows_including_filters": 200
       },
       "native_results": {
-        "path": "/home/keys/crucible-runs/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed2/__home__keys__crucible-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed2/results_2026-11-09T09-31-56.900196.json",
+        "path": "<lab-runs>/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed2/__lab-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed2/results_2026-11-09T09-31-56.900196.json",
         "sha256": "2e6db7afd6b23bd11fc3dd2f632cc766f7d5cd04ce1af7e949f06727878f2436"
       }
     },
@@ -289,12 +289,12 @@
         "post": "2026-11-09T16:00:22Z"
       },
       "raw_predictions": {
-        "path": "/home/keys/crucible-runs/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed3/__home__keys__crucible-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed3/samples_math500_thinking_on_2026-11-09T10-00-13.010118.jsonl",
+        "path": "<lab-runs>/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed3/__lab-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed3/samples_math500_thinking_on_2026-11-09T10-00-13.010118.jsonl",
         "sha256": "c71763380a51043b0e581972292c1eacf507adef1f501aa16e66548e34e665e1",
         "rows_including_filters": 200
       },
       "native_results": {
-        "path": "/home/keys/crucible-runs/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed3/__home__keys__crucible-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed3/results_2026-11-09T10-00-13.010118.json",
+        "path": "<lab-runs>/w61j-qwen35-08b-multiseed/runs/random_norm_matched_seed3/__lab-runs__w61j-qwen35-08b-multiseed__models__random_norm_matched_seed3/results_2026-11-09T10-00-13.010118.json",
         "sha256": "8da32b1f57c74afb1058b7970ea8d35abab6b7753fa8eddcab3837a2c5186e0e"
       }
     }
