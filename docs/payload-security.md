@@ -96,7 +96,7 @@ The zero-false-positive check is therefore exactly the FP16 exponent test. Value
 
 For these findings `index` is the block index, `row` is the GGUF row (`ne[0]` elements), `file_offset` points at the FP16 field, `bits` is its encoding, and `field` identifies `d`, `dmin`, or `m`. A quantized tensor matched by a norm glob is `unknown` (exit `2`), because norm-row checks are implemented for unquantized floats only. A GGUF file containing an unreviewed quantized type (`Q8_K`, `IQ*`) is refused rather than partially certified.
 
-(sec-quant-sanitize-controls)=
+(measured-on-10-real-safetensors-and-mixed-gguf-checkpoints-with-planted-controls)=
 #### Measured on 10 real SafeTensors and mixed GGUF checkpoints, with planted controls
 
 Across our 10-checkpoint production GGUF and SafeTensors verification corpus (`Qwen3.5-4B` `Q8_0` and `Q4_K`, `Qwen2.5-7B-Instruct-Q4_K_M` shards 1 and 2 mixing `Q4_K` and `Q6_K`, `TinyLlama-1.1B-Q2_K` mixing `Q2_K`/`Q3_K`/`Q6_K`, `stories15M-Q4_0`, `SmolLM2-1.7B-Instruct`, `Qwen2.5-1.5B-Instruct`, `tiny-t5`, and `adapter-lm2`), `secant sanitize --dry-run` scanned **`2,194` total tensors** (`186,870,528` quantized blocks across `912` quantized tensors and `3,258,570,112` float elements across the 10 files, comprising `3,256,191,200` float elements in the 4 SafeTensors files and `2,378,912` unquantized float elements in the 6 GGUF files; receipt SHA-256 `399143323a1784f2b0b5f0e3ac99a55df18bb43cb843d20d921d2eaf358a3ccd`). The diagnostic sweep counted `272,730` subnormal scale fields in `135,168,000` `Q8_0` blocks and `8,992,791` of `33,792,000` header scale fields (`d`, `dmin`) across `16,896,000` `Q4_K` super-blocks (`~0.53` per super-block), while reporting **`0` observed false positives across the 10 tested production GGUF and SafeTensors checkpoints (`10 / 10` `status: "clean"`, `input_unchanged: true`; GPTQ/AWQ/FP8 divisor-scale and routing-index rules `B3-2B`/`B3-3` are validated at rule level on synthetic fixtures)**.
@@ -196,7 +196,7 @@ secant audit-trojan --model edited.gguf --tensor 'blk.*.ffn_down.weight' --vocab
 secant read --model edited.gguf --marchenko-pastur --mp-threshold 2.0 --json
 ```
 
-(sec-trojan-dose-curve)=
+(51-how-large-must-a-planted-edit-be-before-the-audit-sees-it)=
 ### 5.1 How Large Must a Planted Edit Be Before the Audit Sees It?
 
 This experiment planted a rank-1 edit of known size in two real checkpoints, then ran `secant audit-trojan` on every edited copy. It measures the edit size at which each signal appears. Edit: `rank1-columns` on the layer-12 MLP down projection. The direction is the unit-normalized embedding row of a trigger token T. The edit touches 16 evenly spaced input columns with equal coefficients. The **dose** is $g = \lVert\Delta W\rVert_F / \lVert W\rVert_F$, measured from the patch receipt after `BF16` rounding.
@@ -446,4 +446,4 @@ The sweep produced 429 non-empty `read` receipts. Across them it analyzed `2,619
 - **Watch the sign of singular vectors when comparing token lists.** For two edited variants of `blk.16.ffn_down.weight`, the promoted and suppressed lists swap places relative to the base (Jaccard `0` each, `1` when crossed). That comes from the sign convention of $v_1$ (largest component positive), not from a change in which tokens the direction touches. Compare the union of promoted and suppressed tokens.
 - **Anomalies are stored-weight facts, not verdicts.** Examples: the `Qwen3.5-4B` vision tower has collapsed rows in `model.visual.blocks.{0..3}.mlp.linear_fc1.weight` (2, 2, 26 and 18). The dequantized `token_embd.weight` of `Qwen2.5-7B` `Q4_K_M` has `2,358` zero rows; whether those zeros come from the source weights or from the quantizer is `UNKNOWN`, because no BF16 copy was available.
 
-The planted-trojan curve in [Section 5.1](#sec-trojan-dose-curve) uses two of these models. Its unedited layer-12 $\sigma_1$ values (`39.69683998584097` for SmolLM2, `2.731132194906345` for Qwen) are bit-identical to this atlas, even though the two runs used different `secant` builds.
+The planted-trojan curve in [Section 5.1](#51-how-large-must-a-planted-edit-be-before-the-audit-sees-it) uses two of these models. Its unedited layer-12 $\sigma_1$ values (`39.69683998584097` for SmolLM2, `2.731132194906345` for Qwen) are bit-identical to this atlas, even though the two runs used different `secant` builds.

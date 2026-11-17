@@ -22,6 +22,8 @@ Secant uses three exit-code classes. A completed read or audit can exit `0` whil
 | **1** | **GATE FAILED**: A deterministic check ran to completion and found a violation. | verify-subspace measured leakage above --tol; sanitize finished its scan and findings remain. |
 | **2** | **USAGE / IO / UNDETERMINABLE**: Invalid arguments, missing file, malformed container, or a verdict that cannot be computed. | Missing --model, an unknown subcommand, a truncated GGUF header, or a verify-subspace tensor holding NaN/Inf (verdict unknown, never pass). |
 
+`patch` is the exception: any failure to apply the plan, including a missing or unreadable `--base`, exits `1`, and nothing is published. Bad usage, or a plan that cannot be read or parsed, exits `2`. `quant patch` follows the general table above.
+
 The C ABI uses a separate five-value return code (Section 4).
 
 ---

@@ -86,7 +86,7 @@ Different experiments answer different questions. The paper reports results acro
 :alt: Small multiples of paired change from base for 14 models on GSM8K, MATH-500, MMLU-Pro, HumanEval and ASan-30, comparing calibrated edits with norm-matched random edits
 :width: 100%
 
-What a calibrated `B2 + B3` edit does to public benchmarks on 14 models. Each dot is a paired change from the same model's unedited score on the same items. Blue is the calibrated edit; orange is a random direction with the same columns and the same Frobenius norm. Almost every dot sits near zero, and blue and orange overlap. Pooled over all 14 models, each benchmark moves by about 2 points or less. The full method and every number are in the [paper, Section 4.2](#sec-paper-public-benchmarks).
+What a calibrated `B2 + B3` edit does to public benchmarks on 14 models. Each dot is a paired change from the same model's unedited score on the same items. Blue is the calibrated edit; orange is a random direction with the same columns and the same Frobenius norm. Almost every dot sits near zero, and blue and orange overlap. Pooled over all 14 models, each benchmark moves by about 2 points or less. The full method and every number are in the [paper, Section 4.2](PAPER.md#42-h100-stage-2-public-benchmarks-across-14-models).
 ```
 
 ```{figure} assets/h100-15model-leakage-log10.svg
@@ -110,7 +110,7 @@ On this 30-prompt test, the calibrated edit completed 21 answers at the standard
 :alt: ASAN-120 paired vulnerability and benign control benchmark across 9 models and 7 steering arms
 :width: 100%
 
-Paired `ASAN-120` evaluation across 9 models (`60` vulnerable C/C++ snippets paired with `60` patched benign twins, `7,560` completions). Non-reasoning models (`0.8B` to `8B`) collapse to trivial one-sided predictors (`BA ≈ 0.50`, `RC <= 0.067`), whereas on the 4 `<think>` reasoning models `composed_rms_1p0x` beats `random_rms_1p0x` `4/4` on balanced accuracy (`6W / 1L / 2T` overall) and lifts strict root-cause recall (`RC`) from `0.183` to `0.250` on `R1-Llama-8B` and from `0.450` to `0.550` on `Qwen3-14B`. Method and tables: [paper, Section 4.5](#sec-paper-asan120).
+Paired `ASAN-120` evaluation across 9 models (`60` vulnerable C/C++ snippets paired with `60` patched benign twins, `7,560` completions). Non-reasoning models (`0.8B` to `8B`) collapse to trivial one-sided predictors (`BA ≈ 0.50`, `RC <= 0.067`), whereas on the 4 `<think>` reasoning models `composed_rms_1p0x` beats `random_rms_1p0x` `4/4` on balanced accuracy (`6W / 1L / 2T` overall) and lifts strict root-cause recall (`RC`) from `0.183` to `0.250` on `R1-Llama-8B` and from `0.450` to `0.550` on `Qwen3-14B`. Method and tables: [paper, Section 4.5](PAPER.md#45-h100-asan-120-paired-vulnerability-and-patched-benign-twins-9-models-by-7-arms).
 ```
 
 ```{figure} assets/trojan-detection-phase-transition.svg
@@ -118,7 +118,7 @@ Paired `ASAN-120` evaluation across 9 models (`60` vulnerable C/C++ snippets pai
 :alt: Planted rank-1 trojan detection against relative Frobenius dose on SmolLM2-1.7B and Qwen3.5-4B
 :width: 100%
 
-The audit side of the same tools. A rank-1 edit planted in one layer showed no signal at the pre-specified `0.10%` to `4.00%` doses. The tested post-hoc doses bracket the nominal crossover $g^* = \sigma_1(W)/\|W\|_F$ (`6.57%` Qwen, `8.65%` SmolLM2): $\sigma_2$ moved at `6%`, the trigger token reached rank 1 or 2 in the vocabulary projection at `8%`, and the automatic sibling test flagged the layer at `12%`. Method and tables: [payload checks, Section 5.1](#sec-trojan-dose-curve).
+The audit side of the same tools. A rank-1 edit planted in one layer showed no signal at the pre-specified `0.10%` to `4.00%` doses. The tested post-hoc doses bracket the nominal crossover $g^* = \sigma_1(W)/\|W\|_F$ (`6.57%` Qwen, `8.65%` SmolLM2): $\sigma_2$ moved at `6%`, the trigger token reached rank 1 or 2 in the vocabulary projection at `8%`, and the automatic sibling test flagged the layer at `12%`. Method and tables: [payload checks, Section 5.1](payload-security.md#51-how-large-must-a-planted-edit-be-before-the-audit-sees-it).
 ```
 
 ## Go Deeper

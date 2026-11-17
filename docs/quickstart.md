@@ -2,7 +2,7 @@
 
 Secant is a single Rust CLI to scan, diff against a base model, and patch `.safetensors` and `.gguf` files directly on disk, with no Python and no GPU required. An optional Python layer keeps chosen directions fixed during LoRA fine-tuning.
 
-Start with [the four jobs on demo files](#try-the-four-jobs-on-demo-files): it takes a few minutes and needs no model download. The numbered workflows after it are the full research path: capture directions, compose a calibrated edit, patch a real checkpoint, and lock later training. They are templates for your own checkpoint, activations, and tensor names. You can also [watch the terminal recordings](#watch-it-run) of a full edit on a 1.7B checkpoint first.
+Start with [the four jobs on demo files](#try-the-four-jobs-on-demo-files): it takes a few minutes and needs no model download. The numbered workflows after it are the full research path: capture directions, compose a calibrated edit, patch a real checkpoint, and lock later training. They are templates for your own checkpoint, activations, and tensor names. You can also [watch the terminal recordings](#7-watch-it-run-real-terminal-recordings) of a full edit on a 1.7B checkpoint first.
 
 ---
 
@@ -63,9 +63,16 @@ secant verify-patch --base clean_f32/model.safetensors --patched edit-me.safeten
 
 `patch` reports `64 / 8192` entries changed, a passing verification gate, and the new SHA-256. `verify-patch` reports an identical header, 8 of 9 tensors byte-identical, and exits `0`. Run `secant read --model edit-me.safetensors --reference clean_f32/model.safetensors --top-k-singular 1 --top-cols 1` and only `model.embed_tokens.weight` shows a nonzero difference.
 
-**4. Lock directions during fine-tuning.** This one needs PyTorch: `pip install -e "./python[torch]"`, then run the example in the [PyTorch guide](PYTORCH-10-LINE-HEALING-GUIDE.md).
+**4. Lock directions during fine-tuning.** This one needs PyTorch. Go back to the repository root, where the `python/` package lives, and install it:
 
-Reference hashes from our runs (macOS arm64, Secant `2e582e8`): `clean_f32/model.safetensors` `64e30a91f547a7ac28e7e84852e1e30e8675294d172a6144d2de812d3b6b8567`, `trojan_f32.safetensors` `fe07e95eba8c2f0d8b52082df919a92e8eb67b3456658e0d2bf3469977542ee7`, patched `edit-me.safetensors` `f84e2a02c52324d0b2d935545efcf150ea9f166a91ceb5d2391eb3fbab9fd108`.
+```bash
+cd ..
+pip install -e "./python[torch]"
+```
+
+Then run the example in the [PyTorch guide](PYTORCH-10-LINE-HEALING-GUIDE.md).
+
+Reference hashes from our runs (the same bytes on macOS arm64 and Linux x86_64): `clean_f32/model.safetensors` `64e30a91f547a7ac28e7e84852e1e30e8675294d172a6144d2de812d3b6b8567`, `trojan_f32.safetensors` `fe07e95eba8c2f0d8b52082df919a92e8eb67b3456658e0d2bf3469977542ee7`, patched `edit-me.safetensors` `f84e2a02c52324d0b2d935545efcf150ea9f166a91ceb5d2391eb3fbab9fd108`.
 
 ---
 
@@ -239,7 +246,7 @@ secant verify-patch \
 
 > **Format limit:** Four `Q8_0` blocks fit in a 128-column panel. A `Q4_K` superblock spans two such panels and shares encoding parameters across them. `secant quant patch` therefore refuses `Q4_K`. Block alignment does not guarantee that a behavioral edit will succeed; the guide's numerical results are measurements from specific experiments.
 
-> **Takeaway:** Patch a copy, then let `verify-patch` prove that only the tensors you named changed. Steps 4 and 5 of the [recordings](#watch-it-run) show this on a real checkpoint.
+> **Takeaway:** Patch a copy, then let `verify-patch` prove that only the tensors you named changed. Steps 4 and 5 of the [recordings](#7-watch-it-run-real-terminal-recordings) show this on a real checkpoint.
 
 ---
 
@@ -329,7 +336,7 @@ secant verify-patch --base fixtures/class3-nan-sort-arrays.safetensors --patched
 
 > **Takeaway:** If your hashes match the ones above, your build reproduces the reference outputs byte for byte.
 
-(watch-it-run)=
+(7-watch-it-run-real-terminal-recordings)=
 ## 7. Watch It Run Real Terminal Recordings
 
 The six terminal captures below show the compiled `secant` release binary running each step of an edit on [`HuggingFaceTB/SmolLM2-1.7B-Instruct`](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct) (`3.4 GB` `BF16` `.safetensors`, SHA-256 `f55217be...a0e8`), producing the patched file (`4d036572...4f0b`) from the paper's live-healing experiment (Regime A).

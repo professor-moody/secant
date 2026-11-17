@@ -137,11 +137,19 @@ This builds tiny SafeTensors and GGUF files, runs nine checks (clean files, brok
 
 ## Exit codes
 
-| Exit | `sanitize`, `verify-patch`, `verify-subspace`, `patch` | Next step |
+| Exit | `sanitize`, `verify-patch`, `verify-subspace`, `quant patch` | Next step |
 | --- | --- | --- |
 | `0` | Passed, or a repaired copy passed its rescan | Keep the receipt |
 | `1` | Findings remain, or a verification failed | Read the findings before loading the file |
 | `2` | Bad usage, I/O error, unsupported input, or an incomplete check | Treat the result as unknown and rerun |
+
+`patch` uses a different split, because it treats every failure to apply the plan as a failed check:
+
+| Exit | `patch` | Next step |
+| --- | --- | --- |
+| `0` | The edited file was written and passed its byte-identity check | Keep the receipt |
+| `1` | The plan could not be applied, including a missing or unreadable base file or a failed identity check; nothing was published | Fix the input and rerun |
+| `2` | Bad usage, or the plan file could not be read or parsed | Fix the command or the plan |
 
 `read` and `audit-trojan` are reports. They exit `0` whenever they finish, so read their output. Receipt and output paths must be new files.
 
