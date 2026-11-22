@@ -10,10 +10,11 @@
 //! never repaired by CLI `--clamp-nonfinite`: findings remain.
 //! Exit 0: clean or remediated under this policy. Exit 1: findings remain.
 //! Exit 2: usage, I/O, unsupported input, or incomplete scan. A clean receipt
-//! does not prove runtime inference safety. Output and receipts never overwrite.
+//! does not prove runtime inference safety. Output and receipts never overwrite;
+//! optional `--sarif` atomically replaces its target path.
 use crate::util::{badge, bytes, fail, field, section, table, usage};
 use clap::Args as ClapArgs;
-use secant_core::sarif::{build_sanitize_sarif, write_sarif_atomic};
+use secant_core::sarif::{build_sanitize_sarif, validate_sarif_output_path, write_sarif_atomic};
 use secant_core::security::{go_abs, sanitize_file_report, write_sanitize_receipt, SanitizeOptions};
 use secant_core::Error;
 
@@ -132,6 +133,11 @@ pub fn run(a: &Args) -> i32 {
     }
     if !secant_core::security::internals::lstat_not_exist(&a.receipt) {
         return usage("receipt must be a new path");
+    }
+    if let Some(ref sarif_path) = a.sarif {
+        if let Err(e) = validate_sarif_output_path(sarif_path) {
+            return fail(&Error::msg(format!("sarif publication: {}", e.message())));
+        }
     }
     let opts = SanitizeOptions {
         attempt_id: a.attempt_id.clone(),

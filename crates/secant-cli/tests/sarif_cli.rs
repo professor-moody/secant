@@ -198,7 +198,7 @@ fn quantized_gguf_findings_and_remediation_update_sarif_cleanly() {
     assert_eq!(results[0]["properties"]["firstFileOffset"], bad_off as i64);
     assert!(results[0]["message"]["text"].as_str().unwrap().contains("block index 2"));
 
-    // Remediating clears findings -> exit 0 and empty SARIF results.
+    // Full remediation publishes --out -> exit 0 and empty SARIF results bound to the published --out artifact.
     let fixed = dir.path("fixed-q8.gguf");
     let fix_receipt = dir.path("fix.receipt.json");
     let fix_sarif = dir.path("fix.sarif");
@@ -212,16 +212,102 @@ fn quantized_gguf_findings_and_remediation_update_sarif_cleanly() {
         "--receipt",
         &fix_receipt,
         "--attempt-id",
-        "gguf-fix",
+        "gguf/fix/run1",
         "--sarif",
         &fix_sarif,
         "--json",
     ]);
     assert_eq!(code_fix, 0, "{} {}", rep_fix, err_fix);
     assert_eq!(rep_fix["status"], "remediated");
+    assert_eq!(rep_fix["output_published"], true);
     let sarif_fixed: Value = serde_json::from_slice(&std::fs::read(&fix_sarif).unwrap()).unwrap();
-    assert_sarif_envelope(&sarif_fixed, "gguf-fix");
+    // Slashes in --attempt-id are sanitized to '_' so GitHub Code Scanning category does not split.
+    assert_sarif_envelope(&sarif_fixed, "gguf_fix_run1");
     assert_eq!(sarif_fixed["runs"][0]["results"].as_array().unwrap().len(), 0);
+    assert_eq!(sarif_fixed["runs"][0]["artifacts"][0]["location"]["uri"], "fixed-q8.gguf");
+    assert_eq!(sarif_fixed["runs"][0]["artifacts"][0]["hashes"]["sha-256"], rep_fix["output_sha256"]);
+    assert_eq!(sarif_fixed["runs"][0]["properties"]["artifactUri"], "fixed-q8.gguf");
+    assert_eq!(sarif_fixed["runs"][0]["properties"]["evaluatedArtifact"], "remediated_output");
+    assert_eq!(sarif_fixed["runs"][0]["properties"]["outputPublished"], true);
+
+    // Dry-run rescan of the untouched dirty input still reports its original finding against bad-q8.gguf.
+    let rescan_receipt = dir.path("rescan-input.receipt.json");
+    let rescan_sarif = dir.path("rescan-input.sarif");
+    let (code_in, _, err_in) = secant(&[
+        "sanitize",
+        "--model",
+        &model,
+        "--dry-run",
+        "--receipt",
+        &rescan_receipt,
+        "--attempt-id",
+        "gguf-input-check",
+        "--sarif",
+        &rescan_sarif,
+        "--json",
+    ]);
+    assert_eq!(code_in, 1, "{}", err_in);
+    let sarif_in: Value = serde_json::from_slice(&std::fs::read(&rescan_sarif).unwrap()).unwrap();
+    assert_sarif_envelope(&sarif_in, "gguf-input-check");
+    assert_eq!(sarif_in["runs"][0]["artifacts"][0]["location"]["uri"], "bad-q8.gguf");
+    assert_eq!(sarif_in["runs"][0]["properties"]["evaluatedArtifact"], "input");
+    assert_eq!(sarif_in["runs"][0]["results"].as_array().unwrap().len(), 1);
+    assert_eq!(sarif_in["runs"][0]["results"][0]["ruleId"], "SECANT-B3-2A-QUANT-SCALE-NAN");
+}
+
+#[test]
+fn partial_remediation_reports_all_input_findings_when_output_not_published() {
+    let dir = Scratch::new("sarif-partial-remediation");
+    let model = dir.path("partial-input.safetensors");
+    let out_model = dir.path("partial-out.safetensors");
+    let receipt = dir.path("partial.receipt.json");
+    let sarif_path = dir.path("partial.sarif");
+
+    // Fixture has BOTH NaN (repaired by --clamp-nonfinite) and extreme_finite (not repaired without --clamp-extreme).
+    let weights = vec![0.25f64, f64::NAN, f64::NAN, 1.0e20, -2.0e20, 0.5];
+    let bytes = build_safetensors(
+        &[BuildTensor { name: "blk.0.scale.weight".into(), dtype: "F32".into(), shape: vec![6], data: f32_bytes(&weights) }],
+        &BTreeMap::new(),
+    )
+    .unwrap();
+    write(&model, &bytes);
+
+    let (code, rep, err) = secant(&[
+        "sanitize",
+        "--model",
+        &model,
+        "--clamp-nonfinite",
+        "--out",
+        &out_model,
+        "--receipt",
+        &receipt,
+        "--attempt-id",
+        "partial-ci",
+        "--sarif",
+        &sarif_path,
+        "--json",
+    ]);
+    assert_eq!(code, 1, "partial remediation must exit 1: {} {}", rep, err);
+    assert_eq!(rep["status"], "findings");
+    assert_eq!(rep["output_published"], false);
+    assert!(!std::path::Path::new(&out_model).exists(), "partial remediation must not publish --out");
+
+    let sarif: Value = serde_json::from_slice(&std::fs::read(&sarif_path).expect("sarif written")).unwrap();
+    assert_sarif_envelope(&sarif, "partial-ci");
+    assert_eq!(sarif["runs"][0]["artifacts"][0]["location"]["uri"], "partial-input.safetensors");
+    assert_eq!(sarif["runs"][0]["artifacts"][0]["hashes"]["sha-256"], rep["pre_sha256"]);
+    assert_eq!(sarif["runs"][0]["properties"]["artifactUri"], "partial-input.safetensors");
+    assert_eq!(sarif["runs"][0]["properties"]["evaluatedArtifact"], "input");
+    assert_eq!(sarif["runs"][0]["properties"]["outputPublished"], false);
+
+    let results = sarif["runs"][0]["results"].as_array().unwrap();
+    assert_eq!(results.len(), 2, "must keep BOTH nan and extreme_finite still in input: {}", sarif);
+    let rule_ids: HashSet<&str> = results.iter().map(|r| r["ruleId"].as_str().unwrap()).collect();
+    assert!(rule_ids.contains("SECANT-F-NAN"), "nan still in untouched input must not be dropped");
+    assert!(rule_ids.contains("SECANT-F-EXTREME-FINITE"), "extreme_finite must be reported");
+    for res in results {
+        assert_eq!(res["locations"][0]["physicalLocation"]["artifactLocation"]["uri"], "partial-input.safetensors");
+    }
 }
 
 #[test]
@@ -235,13 +321,14 @@ fn unwritable_or_invalid_sarif_path_fails_closed_with_exit_two() {
     .unwrap();
     write(&model, &bytes);
 
-    // 1. Missing parent directory -> exit 2.
+    // 1. Missing parent directory -> exit 2 before writing receipt.
     let receipt1 = dir.path("r1.json");
     let bad_sarif = dir.path("no-such-dir/out.sarif");
     let (code1, _, err1) =
         secant(&["sanitize", "--model", &model, "--receipt", &receipt1, "--attempt-id", "fail-1", "--sarif", &bad_sarif]);
     assert_eq!(code1, 2, "missing sarif parent must exit 2: {}", err1);
     assert!(err1.contains("sarif publication"), "stderr should explain sarif failure: {}", err1);
+    assert!(!std::path::Path::new(&receipt1).exists(), "pre-scan sarif validation must fail before writing receipt");
 
     // 2. Existing directory as --sarif target -> exit 2.
     let receipt2 = dir.path("r2.json");
@@ -276,7 +363,7 @@ fn unwritable_or_invalid_sarif_path_fails_closed_with_exit_two() {
     assert_eq!(code5, 2);
     assert!(!std::path::Path::new(&sarif5).exists(), "errored scan must not publish a SARIF file");
 
-    // 6. Violating model + unwritable --sarif parent -> fail closed with exit 2 (not 1).
+    // 6. Remediable violating model + unwritable --sarif parent -> fail fast with exit 2 BEFORE publishing --out or receipt.
     let bad_model = dir.path("nan.safetensors");
     let bad_bytes = build_safetensors(
         &[BuildTensor { name: "w".into(), dtype: "F32".into(), shape: vec![2], data: f32_bytes(&[f64::NAN, 1.0]) }],
@@ -285,7 +372,22 @@ fn unwritable_or_invalid_sarif_path_fails_closed_with_exit_two() {
     .unwrap();
     write(&bad_model, &bad_bytes);
     let receipt6 = dir.path("r6.json");
-    let (code6, _, err6) =
-        secant(&["sanitize", "--model", &bad_model, "--receipt", &receipt6, "--attempt-id", "fail-6", "--sarif", &bad_sarif]);
+    let out6 = dir.path("should-not-publish.safetensors");
+    let (code6, _, err6) = secant(&[
+        "sanitize",
+        "--model",
+        &bad_model,
+        "--clamp-nonfinite",
+        "--out",
+        &out6,
+        "--receipt",
+        &receipt6,
+        "--attempt-id",
+        "fail-6",
+        "--sarif",
+        &bad_sarif,
+    ]);
     assert_eq!(code6, 2, "unwritable sarif on violating model must fail closed with exit 2: {}", err6);
+    assert!(!std::path::Path::new(&out6).exists(), "unwritable sarif must fail before publishing --out");
+    assert!(!std::path::Path::new(&receipt6).exists(), "unwritable sarif must fail before writing receipt");
 }

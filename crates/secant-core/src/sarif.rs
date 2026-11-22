@@ -34,9 +34,18 @@ pub struct SarifRun {
     pub tool: SarifTool,
     #[serde(rename = "automationDetails")]
     pub automation_details: SarifAutomationDetails,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<SarifArtifact>,
     pub results: Vec<SarifResult>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub properties: Option<SarifRunProperties>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SarifArtifact {
+    pub location: SarifArtifactLocation,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub hashes: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,8 +178,16 @@ pub struct SarifRunProperties {
     pub status: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub format: String,
+    #[serde(rename = "artifactUri")]
+    pub artifact_uri: String,
+    #[serde(rename = "evaluatedArtifact")]
+    pub evaluated_artifact: String,
+    #[serde(rename = "artifactSha256", default, skip_serializing_if = "String::is_empty")]
+    pub artifact_sha256: String,
     #[serde(rename = "preSha256", default, skip_serializing_if = "String::is_empty")]
     pub pre_sha256: String,
+    #[serde(rename = "outputPublished")]
+    pub output_published: bool,
     #[serde(rename = "inputUnchanged")]
     pub input_unchanged: bool,
     #[serde(rename = "totalFindings")]
@@ -696,8 +713,24 @@ fn build_result_message(
     }
 }
 
+fn sanitize_attempt_id_segment(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "default".to_string();
+    }
+    trimmed.replace(['/', '\\'], "_")
+}
+
 /// Convert a `SanitizeReceipt` into a GitHub Code Scanning compliant SARIF 2.1.0
 /// log, resolving workspace-relative artifact URIs against the current directory.
+///
+/// Artifact binding: when remediation published a clean `--out` copy
+/// (`output_published == true` with a non-empty `options.output` and `after`
+/// rescan), the SARIF log reflects `after` against the published `--out`
+/// artifact URI. Otherwise (scan-only, `--dry-run`, or failed/partial
+/// remediation where nothing was published), the SARIF log reflects `before`
+/// against the unchanged input artifact URI so no findings still present in
+/// the input file are omitted.
 pub fn build_sanitize_sarif(receipt: &SanitizeReceipt) -> SarifLog {
     let cwd = std::env::current_dir().ok();
     build_sanitize_sarif_with_base_dir(receipt, cwd.as_deref())
@@ -712,10 +745,17 @@ pub fn build_sanitize_sarif_with_base_dir(receipt: &SanitizeReceipt, base_dir: O
         rules_map.insert(rule.id.clone(), rule);
     }
 
-    let attempt_id = if receipt.attempt_id.trim().is_empty() { "default" } else { receipt.attempt_id.trim() };
-    let automation_id = format!("secant/sanitize/{}", attempt_id);
-    let model_uri = normalize_artifact_uri(&receipt.input, base_dir);
-    let effective_scan = receipt.after.as_ref().or(receipt.before.as_ref());
+    let automation_id = format!("secant/sanitize/{}", sanitize_attempt_id_segment(&receipt.attempt_id));
+    let published_out =
+        if receipt.output_published { receipt.options.as_ref().map(|o| o.output.as_str()).filter(|s| !s.is_empty()) } else { None };
+    let (effective_scan, target_path, target_sha256, evaluated_artifact) = match (published_out, receipt.after.as_ref()) {
+        (Some(out_path), Some(after_scan)) => {
+            let sha = if receipt.output_sha256.is_empty() { receipt.pre_sha256.as_str() } else { receipt.output_sha256.as_str() };
+            (Some(after_scan), out_path, sha, "remediated_output")
+        }
+        _ => (receipt.before.as_ref(), receipt.input.as_str(), receipt.pre_sha256.as_str(), "input"),
+    };
+    let model_uri = normalize_artifact_uri(target_path, base_dir);
     let max_examples = receipt.options.as_ref().map(|o| o.max_examples).filter(|&n| n > 0).unwrap_or(128);
 
     let mut groups: BTreeMap<(String, String), FindingGroup> = BTreeMap::new();
@@ -853,6 +893,12 @@ pub fn build_sanitize_sarif_with_base_dir(receipt: &SanitizeReceipt, base_dir: O
         a.rule_id.cmp(&b.rule_id).then_with(|| uri_a.cmp(uri_b)).then_with(|| fp_a.cmp(fp_b))
     });
 
+    let mut primary_hashes = BTreeMap::new();
+    if !target_sha256.is_empty() {
+        primary_hashes.insert("sha-256".to_string(), target_sha256.to_string());
+    }
+    let artifacts = vec![SarifArtifact { location: SarifArtifactLocation { uri: model_uri.clone() }, hashes: primary_hashes }];
+
     SarifLog {
         schema: SARIF_SCHEMA.to_string(),
         version: SARIF_VERSION.to_string(),
@@ -866,12 +912,17 @@ pub fn build_sanitize_sarif_with_base_dir(receipt: &SanitizeReceipt, base_dir: O
                 },
             },
             automation_details: SarifAutomationDetails { id: automation_id },
+            artifacts,
             results,
             properties: Some(SarifRunProperties {
                 policy_version: receipt.policy_version.clone(),
                 status: receipt.status.clone(),
                 format: receipt.format.clone(),
+                artifact_uri: model_uri,
+                evaluated_artifact: evaluated_artifact.to_string(),
+                artifact_sha256: target_sha256.to_string(),
                 pre_sha256: receipt.pre_sha256.clone(),
+                output_published: receipt.output_published,
                 input_unchanged: receipt.input_unchanged,
                 total_findings,
             }),
@@ -900,10 +951,7 @@ impl Drop for RenameTempGuard {
     }
 }
 
-/// Atomically publish a SARIF 2.1.0 JSON file using `temp file in same dir +
-/// fsync + rename`. Fails closed with an error if the parent directory is
-/// missing/unwritable or if the destination is an existing directory.
-pub fn write_sarif_atomic(dst: &str, log: &SarifLog) -> Result<()> {
+fn sarif_parent_dir(dst: &str) -> Result<PathBuf> {
     if dst.trim().is_empty() {
         return Err(Error::msg("sarif output path must not be empty"));
     }
@@ -912,40 +960,58 @@ pub fn write_sarif_atomic(dst: &str, log: &SarifLog) -> Result<()> {
         return Err(Error::msg(format!("sarif output path {} is a directory", dst)));
     }
     let parent = match dst_path.parent() {
-        Some(p) if !p.as_os_str().is_empty() => p,
-        _ => Path::new("."),
+        Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
+        _ => PathBuf::from("."),
     };
-    let mut payload = serde_json::to_string_pretty(log).map_err(|e| Error::msg(format!("serialize sarif: {}", e)))?;
-    payload.push('\n');
+    let meta = std::fs::metadata(&parent).map_err(|e| Error::msg(format!("sarif parent directory {}: {}", parent.display(), e)))?;
+    if !meta.is_dir() {
+        return Err(Error::msg(format!("sarif parent {} is not a directory", parent.display())));
+    }
+    Ok(parent)
+}
 
-    let mut tmp_file = None;
-    let mut tmp_path = None;
+fn create_temp_sarif(parent: &Path, prefix: &str) -> Result<(std::fs::File, PathBuf, RenameTempGuard)> {
     let mut last_err = None;
     for attempt in 0..64u32 {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-        let candidate = parent.join(format!(".secant-sarif-{}-{}-{}", std::process::id(), nanos, attempt));
+        let candidate = parent.join(format!("{}-{}-{}-{}", prefix, std::process::id(), nanos, attempt));
         match OpenOptions::new().read(true).write(true).create_new(true).open(&candidate) {
             Ok(f) => {
-                tmp_file = Some(f);
-                tmp_path = Some(candidate);
-                break;
+                let guard = RenameTempGuard::new(candidate.clone());
+                return Ok((f, candidate, guard));
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => last_err = Some(e),
             Err(e) => return Err(Error::msg(format!("create temp sarif in {}: {}", parent.display(), e))),
         }
     }
-    let (mut f, path) = match (tmp_file, tmp_path) {
-        (Some(f), Some(p)) => (f, p),
-        _ => {
-            return Err(Error::msg(format!(
-                "create temp sarif in {}: {}",
-                parent.display(),
-                last_err.map(|e| e.to_string()).unwrap_or_else(|| "exhausted retries".to_string())
-            )));
-        }
-    };
+    Err(Error::msg(format!(
+        "create temp sarif in {}: {}",
+        parent.display(),
+        last_err.map(|e| e.to_string()).unwrap_or_else(|| "exhausted retries".to_string())
+    )))
+}
 
-    let mut guard = RenameTempGuard::new(path.clone());
+/// Fail-fast preflight check that `dst` is not a directory and its parent
+/// directory exists and permits temporary file creation before scanning or
+/// publishing `--out` / `--receipt`.
+pub fn validate_sarif_output_path(dst: &str) -> Result<()> {
+    let parent = sarif_parent_dir(dst)?;
+    let (probe_file, _, probe_guard) = create_temp_sarif(&parent, ".secant-sarif-probe")?;
+    drop(probe_file);
+    drop(probe_guard);
+    Ok(())
+}
+
+/// Atomically publish a SARIF 2.1.0 JSON file using `temp file in same dir +
+/// fsync + rename`. Fails closed with an error if the parent directory is
+/// missing/unwritable or if the destination is an existing directory.
+pub fn write_sarif_atomic(dst: &str, log: &SarifLog) -> Result<()> {
+    let parent = sarif_parent_dir(dst)?;
+    let dst_path = Path::new(dst);
+    let mut payload = serde_json::to_string_pretty(log).map_err(|e| Error::msg(format!("serialize sarif: {}", e)))?;
+    payload.push('\n');
+
+    let (mut f, path, mut guard) = create_temp_sarif(&parent, ".secant-sarif")?;
     f.write_all(payload.as_bytes()).map_err(|e| Error::msg(format!("write sarif {}: {}", path.display(), e)))?;
     f.sync_all().map_err(|e| Error::msg(format!("fsync sarif {}: {}", path.display(), e)))?;
     drop(f);
@@ -1145,6 +1211,124 @@ mod tests {
         // Existing directory fails closed.
         assert!(write_sarif_atomic(dir.to_str().unwrap(), &log).is_err());
 
+        // Pre-scan validator accepts writable parent (leaving no probe files) and rejects invalid paths.
+        validate_sarif_output_path(out.to_str().unwrap()).unwrap();
+        let entries_after: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(entries_after.len(), 1);
+        assert!(validate_sarif_output_path(bad.to_str().unwrap()).is_err());
+        assert!(validate_sarif_output_path(dir.to_str().unwrap()).is_err());
+
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn remediation_binds_published_output_and_partial_repair_reports_input_before() {
+        let mut before_counts = BTreeMap::new();
+        before_counts.insert("nan".to_string(), 1);
+        before_counts.insert("extreme_finite".to_string(), 1);
+        let before_scan = SanitizeScan {
+            tensors: 1,
+            float_elements: 16,
+            total_findings: 2,
+            counts: before_counts,
+            examples: vec![
+                SanitizeFinding {
+                    kind: "nan".to_string(),
+                    tensor: "w".to_string(),
+                    dtype: "F32".to_string(),
+                    index: 0,
+                    row: 0,
+                    file_offset: 64,
+                    bits: "0x7fc00000".to_string(),
+                    field: String::new(),
+                },
+                SanitizeFinding {
+                    kind: "extreme_finite".to_string(),
+                    tensor: "w".to_string(),
+                    dtype: "F32".to_string(),
+                    index: 1,
+                    row: 0,
+                    file_offset: 68,
+                    bits: "0x7f7fffff".to_string(),
+                    field: String::new(),
+                },
+            ],
+            ..Default::default()
+        };
+
+        // 1. Full remediation (output_published == true): SARIF targets --out with after scan (0 findings).
+        let mut full = sample_receipt("models/dirty.gguf", "remediated", before_scan.clone());
+        full.options = Some(SanitizeOptions {
+            attempt_id: "ci/nightly/run-1".to_string(),
+            output: "models/fixed.gguf".to_string(),
+            clamp_nonfinite: true,
+            clamp_extreme: true,
+            max_examples: 128,
+            ..Default::default()
+        });
+        full.attempt_id = "ci/nightly/run-1".to_string();
+        full.after = Some(SanitizeScan { tensors: 1, float_elements: 16, ..Default::default() });
+        full.output_published = true;
+        full.output_sha256 = "b".repeat(64);
+
+        let full_log = build_sanitize_sarif_with_base_dir(&full, Some(Path::new("/workspace/repo")));
+        let full_run = &full_log.runs[0];
+        assert_eq!(full_run.automation_details.id, "secant/sanitize/ci_nightly_run-1");
+        assert!(full_run.results.is_empty());
+        assert_eq!(full_run.artifacts.len(), 1);
+        assert_eq!(full_run.artifacts[0].location.uri, "models/fixed.gguf");
+        assert_eq!(full_run.artifacts[0].hashes.get("sha-256").map(String::as_str), Some(full.output_sha256.as_str()));
+        let full_props = full_run.properties.as_ref().unwrap();
+        assert_eq!(full_props.artifact_uri, "models/fixed.gguf");
+        assert_eq!(full_props.evaluated_artifact, "remediated_output");
+        assert_eq!(full_props.artifact_sha256, full.output_sha256);
+        assert!(full_props.output_published);
+
+        // 2. Partial remediation (output_published == false): SARIF targets untouched input with before scan (both findings).
+        let mut partial = sample_receipt("models/dirty.gguf", "findings", before_scan);
+        partial.options = Some(SanitizeOptions {
+            attempt_id: "ci-partial".to_string(),
+            output: "models/not-published.gguf".to_string(),
+            clamp_nonfinite: true,
+            max_examples: 128,
+            ..Default::default()
+        });
+        let mut after_counts = BTreeMap::new();
+        after_counts.insert("extreme_finite".to_string(), 1);
+        partial.after = Some(SanitizeScan {
+            tensors: 1,
+            float_elements: 16,
+            total_findings: 1,
+            counts: after_counts,
+            examples: vec![SanitizeFinding {
+                kind: "extreme_finite".to_string(),
+                tensor: "w".to_string(),
+                dtype: "F32".to_string(),
+                index: 1,
+                row: 0,
+                file_offset: 68,
+                bits: "0x7f7fffff".to_string(),
+                field: String::new(),
+            }],
+            ..Default::default()
+        });
+        partial.output_published = false;
+
+        let partial_log = build_sanitize_sarif_with_base_dir(&partial, Some(Path::new("/workspace/repo")));
+        let partial_run = &partial_log.runs[0];
+        assert_eq!(partial_run.artifacts[0].location.uri, "models/dirty.gguf");
+        assert_eq!(partial_run.artifacts[0].hashes.get("sha-256").map(String::as_str), Some(partial.pre_sha256.as_str()));
+        let partial_props = partial_run.properties.as_ref().unwrap();
+        assert_eq!(partial_props.artifact_uri, "models/dirty.gguf");
+        assert_eq!(partial_props.evaluated_artifact, "input");
+        assert!(!partial_props.output_published);
+        assert_eq!(partial_props.total_findings, 2);
+        assert_eq!(partial_run.results.len(), 2, "must report both nan and extreme_finite still present in input");
+        let rule_ids: Vec<&str> = partial_run.results.iter().map(|r| r.rule_id.as_str()).collect();
+        assert!(rule_ids.contains(&"SECANT-F-NAN"));
+        assert!(rule_ids.contains(&"SECANT-F-EXTREME-FINITE"));
+        for res in &partial_run.results {
+            assert_eq!(res.locations[0].physical_location.artifact_location.uri, "models/dirty.gguf");
+        }
     }
 }

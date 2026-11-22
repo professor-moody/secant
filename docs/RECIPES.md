@@ -62,7 +62,7 @@ printf 'sanitize exit = %s; receipt directory = %s\n' "$scan_exit" "$scan_dir"
 
 Exit `0` means the checks passed, `1` means findings, `2` means unsupported or invalid input. In the receipt, read `status`, `before.counts`, and `before.examples`.
 
-To upload findings to GitHub Code Scanning, pass `--sarif "$scan_dir/scan.sarif"` (written atomically before exiting `0` or `1`, or exiting `2` if unwritable). In GitHub Actions, set the `sarif-out` input on this repository's action and pass the file to `github/codeql-action/upload-sarif@v3` with `if: always()`.
+To upload findings to GitHub Code Scanning, pass `--sarif "$scan_dir/scan.sarif"` (validated before scanning, written atomically before exiting `0` or `1`, or exiting `2` if unwritable). When remediation publishes a clean `--out` copy, the SARIF log reflects the post-repair rescan against `--out`; in scan-only runs or partial remediations where `--out` is not published, it reports all findings still present in the untouched input file. In GitHub Actions, set the `sarif-out` input on this repository's action and pass the file to `github/codeql-action/upload-sarif@v3` with `if: always()`.
 
 For MoE routing tables, pass the real expert count with `--num-experts N`. If an index bound cannot be inferred from sibling tensors, pass a verified `--index-bound N`. Use the real values; a guessed bound can hide a finding. Common divisor-scale names (`input_scale`, `k_scale`, `v_scale`, `q_scale`, `y_scale`, `prob_scale`, `*scale_inv`) are checked by default. Add others with `--divisor-scale-tensor GLOB` only when the runtime divides by them.
 
