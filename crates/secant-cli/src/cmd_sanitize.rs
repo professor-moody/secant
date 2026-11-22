@@ -13,6 +13,7 @@
 //! does not prove runtime inference safety. Output and receipts never overwrite.
 use crate::util::{badge, bytes, fail, field, section, table, usage};
 use clap::Args as ClapArgs;
+use secant_core::sarif::{build_sanitize_sarif, write_sarif_atomic};
 use secant_core::security::{go_abs, sanitize_file_report, write_sanitize_receipt, SanitizeOptions};
 use secant_core::Error;
 
@@ -86,6 +87,9 @@ pub struct Args {
     /// Explicit report-only mode (default when no remediation flag or --out is passed)
     #[arg(long)]
     pub dry_run: bool,
+    /// Optional SARIF 2.1.0 report output path (atomically written for GitHub Code Scanning)
+    #[arg(long)]
+    pub sarif: Option<String>,
     /// Also emit the receipt to stdout
     #[arg(long)]
     pub json: bool,
@@ -102,12 +106,26 @@ pub fn run(a: &Args) -> i32 {
         Ok(p) => p,
         Err(e) => return fail(&Error::msg(e.to_string())),
     };
+    let abs_sarif = match &a.sarif {
+        Some(s) if s.trim().is_empty() => return usage("--sarif path must not be empty"),
+        Some(s) => match go_abs(s) {
+            Ok(p) => {
+                if p == abs_receipt {
+                    return usage("--sarif must be distinct from receipt");
+                }
+                Some(p)
+            }
+            Err(e) => return fail(&Error::msg(e.to_string())),
+        },
+        None => None,
+    };
     for p in [a.model.as_str(), a.out.as_str()] {
         if p.is_empty() {
             continue;
         }
         match go_abs(p) {
             Ok(abs) if abs == abs_receipt => return usage("receipt must be distinct from model and output"),
+            Ok(abs) if abs_sarif.as_deref() == Some(abs.as_str()) => return usage("--sarif must be distinct from model and output"),
             Ok(_) => {}
             Err(e) => return fail(&Error::msg(e.to_string())),
         }
@@ -140,6 +158,14 @@ pub fn run(a: &Args) -> i32 {
     if let Err(e) = write_sanitize_receipt(&a.receipt, &rep) {
         return fail(&Error::msg(format!("receipt publication: {}", e.message())));
     }
+    if scan_err.is_ok() {
+        if let Some(ref sarif_path) = a.sarif {
+            let sarif_doc = build_sanitize_sarif(&rep);
+            if let Err(e) = write_sarif_atomic(sarif_path, &sarif_doc) {
+                return fail(&Error::msg(format!("sarif publication: {}", e.message())));
+            }
+        }
+    }
     if a.json {
         println!("{}", rep.to_json_compact());
     } else {
@@ -163,6 +189,11 @@ pub fn run(a: &Args) -> i32 {
                 &["FINDING KIND", "COUNT"],
                 &scan.counts.iter().map(|(kind, count)| vec![kind.clone(), count.to_string()]).collect::<Vec<_>>(),
             );
+        }
+        if let Some(ref sarif_path) = a.sarif {
+            if scan_err.is_ok() {
+                field("SARIF report", sarif_path);
+            }
         }
         println!(
             "sanitize: {}; receipt {}; input unchanged={}; output published={}",

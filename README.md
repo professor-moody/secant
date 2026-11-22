@@ -67,7 +67,7 @@ On CPU, with no inference, `sanitize` checks for:
 - MoE expert indices outside the expert count (pass `--num-experts N`)
 - token IDs in `config.json`, `generation_config.json`, and `tokenizer_config.json` that point past the vocabulary
 
-Exit `0` is clean, `1` means findings, `2` means the scan could not finish. The JSON receipt lists every finding with counts and examples.
+Exit `0` is clean, `1` means findings, `2` means the scan could not finish. The JSON receipt lists every finding with counts and examples. Pass `--sarif scan.sarif` (or `sarif-out` in `action.yml`) to also write a SARIF 2.1.0 report for GitHub Code Scanning (`github/codeql-action/upload-sarif@v3`).
 
 To write a repaired copy, add a repair flag and an output path. The copy is published only if it passes a rescan:
 

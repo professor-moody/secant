@@ -136,7 +136,7 @@ secant verify-subspace \
 ```
 
 ### `secant sanitize`, `secant probe` & `secant read --detect-anomalies`
-`sanitize` scans static weight values across SafeTensors (`F64`, `F32`, `BF16`, `F16`, `F8_E4M3`, `F8_E5M2`) and GGUF, validates sibling companion JSON (`config.json`, `generation_config.json`, `tokenizer_config.json`, `tokenizer.json` under `Rule S-0`, failing closed with exit `2` on unreadable or malformed JSON), skips benign non-index masks/counters (`BOOL`, `U8` causal masks/`*.bias`, scalar `I64`/`I32` `*.num_batches_tracked`), and can publish a repaired copy. Its checks cover non-finite and extreme values, tiny-norm vectors, divisor scales, and invalid or duplicate routing and index ids. For `Q8_0` and `Q4_K`, Rule B3-2A permits zero and FP16 subnormal multiplicative block scales by default; `--flush-subnormal` opts into stricter subnormal diagnostics and repair. `--receipt` and `--attempt-id` are required. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`.
+`sanitize` scans static weight values across SafeTensors (`F64`, `F32`, `BF16`, `F16`, `F8_E4M3`, `F8_E5M2`) and GGUF, validates sibling companion JSON (`config.json`, `generation_config.json`, `tokenizer_config.json`, `tokenizer.json` under `Rule S-0`, failing closed with exit `2` on unreadable or malformed JSON), skips benign non-index masks/counters (`BOOL`, `U8` causal masks/`*.bias`, scalar `I64`/`I32` `*.num_batches_tracked`), and can publish a repaired copy. Its checks cover non-finite and extreme values, tiny-norm vectors, divisor scales, and invalid or duplicate routing and index ids. For `Q8_0` and `Q4_K`, Rule B3-2A permits zero and FP16 subnormal multiplicative block scales by default; `--flush-subnormal` opts into stricter subnormal diagnostics and repair. `--receipt` and `--attempt-id` are required. Optional `--sarif <path.sarif>` atomically writes a GitHub Code Scanning compliant SARIF 2.1.0 report (`automationDetails.id`, sorted `tool.driver.rules`, normalized relative `artifactLocation.uri`, positive 1-based `region`, and deterministic SHA-256 `partialFingerprints.primaryLocationLineHash`) before returning exit `0` or `1`, failing closed with exit `2` if the SARIF path cannot be written. `--out` must be supplied together with at least one remediation flag (`--clamp-nonfinite`, `--dedup-routing-rows`, `--clamp-extreme`, `--flush-subnormal`); otherwise it fails with `remediation flags and a separate --out must be supplied together`.
 
 `probe` generates header-valid boundary-value fixtures and requires `--out-dir`, `--receipt` and `--attempt-id`; it does not scan a model.
 
@@ -149,7 +149,7 @@ secant sanitize --model <in_path> --receipt <new.json> --attempt-id <id> \
   [--max-abs <default 10000>] [--min-norm <default 1e-12>] [--divisor-floor <default 1e-12>] \
   [--max-examples <1..10000>] [--strict-subnormal] [--dry-run] \
   [--clamp-nonfinite] [--dedup-routing-rows] [--clamp-extreme] [--flush-subnormal] \
-  [--out <new_clean_path>] [--json]
+  [--out <new_clean_path>] [--sarif <path.sarif>] [--json]
 secant probe --class <class1|class2|class3|class4|all> --format <safetensors|gguf|both> \
   --out-dir <new_dir> --receipt <new.json> --attempt-id <id> \
   [--base <model>] [--num-experts <2..1048576, default 8>] [--json]

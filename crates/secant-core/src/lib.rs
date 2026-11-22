@@ -20,6 +20,7 @@ pub mod quant;
 pub mod quant_scale;
 pub mod rankk;
 pub mod read;
+pub mod sarif;
 pub mod security;
 pub mod sinks;
 pub mod subspace;

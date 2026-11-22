@@ -4,6 +4,9 @@ All notable changes to **Secant** are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **SARIF 2.1.0 Output (`secant sanitize --sarif <path>`, `crates/secant-core/src/sarif.rs`, `action.yml`):** Added GitHub Code Scanning compliant SARIF 2.1.0 report generation to `secant sanitize` with a deterministically sorted rule catalog, `automationDetails.id` (`secant/sanitize/<attempt_id>`), normalized relative `artifactLocation.uri` values for model and companion config files, positive 1-based `region` coordinates, deterministic SHA-256 `partialFingerprints.primaryLocationLineHash` digests, and atomic `temp + fsync + rename` publication that preserves the `0 / 1 / 2` exit-code contract (failing closed with exit `2` on write errors). Added the optional `sarif-out` input and output to `action.yml` (passed safely via step environment variables) for pairing with `github/codeql-action/upload-sarif@v3`.
+
 ## [0.3.0] - 2026-11-10
 
 ### Added

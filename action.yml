@@ -22,11 +22,18 @@ inputs:
     description: Exclusive routed-expert bound, or 0 when not applicable
     required: false
     default: "0"
+  sarif-out:
+    description: Optional path for a SARIF 2.1.0 report (for github/codeql-action/upload-sarif@v3)
+    required: false
+    default: ""
 
 outputs:
   receipt:
     description: Path to the sanitizer receipt
     value: ${{ inputs.receipt }}
+  sarif-out:
+    description: Path to the SARIF 2.1.0 report, if requested
+    value: ${{ inputs.sarif-out }}
 
 runs:
   using: composite
@@ -45,11 +52,17 @@ runs:
         INPUT_RECEIPT: ${{ inputs.receipt }}
         INPUT_ATTEMPT_ID: ${{ inputs.attempt-id }}
         INPUT_NUM_EXPERTS: ${{ inputs.num-experts }}
+        INPUT_SARIF_OUT: ${{ inputs.sarif-out }}
       run: |
-        secant sanitize \
-          --model="$INPUT_MODEL" \
-          --receipt="$INPUT_RECEIPT" \
-          --attempt-id="$INPUT_ATTEMPT_ID" \
-          --num-experts="$INPUT_NUM_EXPERTS" \
-          --dry-run \
+        args=(
+          --model="$INPUT_MODEL"
+          --receipt="$INPUT_RECEIPT"
+          --attempt-id="$INPUT_ATTEMPT_ID"
+          --num-experts="$INPUT_NUM_EXPERTS"
+          --dry-run
           --json
+        )
+        if [ -n "$INPUT_SARIF_OUT" ]; then
+          args+=(--sarif="$INPUT_SARIF_OUT")
+        fi
+        secant sanitize "${args[@]}"
