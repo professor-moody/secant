@@ -26,7 +26,7 @@ use secant_core::Error;
     after_help = "Example:\n  secant probe --class class1 --format safetensors --out-dir fixtures --receipt probe.json --attempt-id local-check"
 )]
 pub struct Args {
-    /// class1|class2|class3|class4|class5|all
+    /// class1|class2|class3|class4|class5|all (`all` runs class1..class4; class5 is opt-in GGUF quantized scales)
     #[arg(long, default_value = "all")]
     pub class: String,
     /// safetensors|gguf|both

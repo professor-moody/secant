@@ -269,7 +269,15 @@ fn compare_opt(label: &str, go: &str, rs: &Path, root: &Scratch, args: &[&str], 
         // --json prints the receipt: compare as parsed JSON minus the volatile fields.
         if !sg.is_empty() || !sr.is_empty() {
             let (jg, jr) = (parse_json(sg.as_bytes()), parse_json(sr.as_bytes()));
-            let (jg, jr) = (canon_value(&canon_receipt_value(&jg, &map)), canon_value(&canon_receipt_value(&jr, &map)));
+            let (mut jg, mut jr) = (canon_value(&canon_receipt_value(&jg, &map)), canon_value(&canon_receipt_value(&jr, &map)));
+            if lenient_error {
+                if let Some(o) = jg.as_object_mut() {
+                    o.remove("error");
+                }
+                if let Some(o) = jr.as_object_mut() {
+                    o.remove("error");
+                }
+            }
             if let Some(d) = json_diff(&jg, &jr, &["started_utc", "finished_utc", "receipt_sha256"]) {
                 panic!("[{}] --json stdout differs: {}", label, d);
             }
@@ -618,9 +626,18 @@ fn probe_option_errors_and_existing_out_dir() {
     .iter()
     .enumerate()
     {
-        let c = compare(&format!("bad{}", i), &go, &rs, &root, &probe_args(extra));
+        // Case 0 (`--class class9`): Secant advertises opt-in `class5` in addition
+        // to the oracle's `class1..class4|all`; exit code, status, and all other
+        // receipt fields remain strictly identical.
+        let c = compare_opt(&format!("bad{}", i), &go, &rs, &root, &probe_args(extra), i == 0);
         assert_eq!(c.code, 2, "{:?}", extra);
         assert_eq!(status_of(&c), "unknown");
+        if i == 0 {
+            let go_err = serde_json::from_str::<Value>(c.go_receipt.as_ref().unwrap()).unwrap()["error"].as_str().unwrap().to_string();
+            let rs_err = serde_json::from_str::<Value>(c.rs_receipt.as_ref().unwrap()).unwrap()["error"].as_str().unwrap().to_string();
+            assert!(go_err.starts_with("class \"class9\": want "), "unexpected go error: {}", go_err);
+            assert!(rs_err.starts_with("class \"class9\": want ") && rs_err.contains("class5"), "unexpected rs error: {}", rs_err);
+        }
     }
     // missing required flags -> usage, exit 2, no receipt
     let c = compare("noattempt", &go, &rs, &root, &["probe", "--out-dir", "{OUT}", "--receipt", "{REC}"]);
@@ -1628,6 +1645,36 @@ fn sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json() {
     let c = compare_opt("gguf-nvfp4-json", &go, &rs, &root, &args, true);
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
+    let go_nvfp4_err = serde_json::from_str::<Value>(c.go_receipt.as_ref().unwrap()).unwrap()["error"].as_str().unwrap().to_string();
+    let rs_nvfp4_err = serde_json::from_str::<Value>(c.rs_receipt.as_ref().unwrap()).unwrap()["error"].as_str().unwrap().to_string();
+    assert!(go_nvfp4_err.contains("no reviewed B3-2A block-header map for NVFP4"), "{}", go_nvfp4_err);
+    assert!(
+        rs_nvfp4_err.contains("no reviewed B3-2A block-header map for NVFP4")
+            && rs_nvfp4_err.contains("Q8_K")
+            && rs_nvfp4_err.contains("IQ1_M")
+            && rs_nvfp4_err.contains("MXFP4"),
+        "{}",
+        rs_nvfp4_err
+    );
+    // Deliberate 14-format expansion divergence: Secant scans newly supported
+    // formats such as IQ2_XXS (ggml type 16) cleanly (exit 0, clean), while
+    // the 10-format Go oracle still fails closed (exit 2, unknown).
+    let iq2_path = put(&root, "iq2_xxs.gguf", &retag(16));
+    let mut iq2_args = san_args(&iq2_path, &[]);
+    iq2_args.push("--json");
+    let (g_side, r_side) = (Side::new(&root, "gguf-iq2_xxs-div-go"), Side::new(&root, "gguf-iq2_xxs-div-rs"));
+    let og = run_go(&go, &g_side.args(&iq2_args));
+    let or = run_rs(&rs, &r_side.args(&iq2_args));
+    assert_eq!(og.status.code(), Some(2), "go oracle must refuse IQ2_XXS with exit 2");
+    assert_eq!(or.status.code(), Some(0), "secant must scan clean IQ2_XXS with exit 0");
+    let gv: Value = serde_json::from_str(&std::fs::read_to_string(g_side.sub("receipt.json")).unwrap()).unwrap();
+    let rv: Value = serde_json::from_str(&std::fs::read_to_string(r_side.sub("receipt.json")).unwrap()).unwrap();
+    assert_eq!(gv["status"], "unknown");
+    assert_eq!(rv["status"], "clean");
+    assert_eq!(rv["policy_version"], "zero-false-positive-b3-v2");
+    assert_eq!(rv["before"]["quant_tensors"], 1);
+    assert_eq!(rv["before"]["quant_blocks"], 1);
+    assert_eq!(rv["before"]["total_findings"], 0);
     for (id, name) in [(2u32, "Q4_0"), (8, "Q8_0"), (10, "Q2_K"), (12, "Q4_K"), (14, "Q6_K")] {
         let p = put(&root, &format!("{}.gguf", name), &retag(id));
         let mut args = san_args(&p, &[]);
