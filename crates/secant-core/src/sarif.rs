@@ -336,7 +336,7 @@ const BUILTIN_RULES: &[RuleSpec] = &[
         id: "SECANT-B3-2A-QUANT-SCALE-NAN",
         name: "QuantScaleNaN",
         short: "Quantized GGUF block scale header contains NaN",
-        full: "Rule B3-2A rejects IEEE-754 FP16 NaN encodings in quantized block scale headers (d or dmin).",
+        full: "Rule B3-2A rejects NaN encodings in quantized GGUF block scale headers (FP16 d/dmin/m/s, FP32 Q8_K d, packed FP16 IQ1_M d, and MXFP4 E8M0 0xFF e).",
         level: "error",
         category: "rule-b3-2a",
     },
@@ -345,7 +345,7 @@ const BUILTIN_RULES: &[RuleSpec] = &[
         id: "SECANT-B3-2A-QUANT-SCALE-INF",
         name: "QuantScaleInf",
         short: "Quantized GGUF block scale header contains Inf",
-        full: "Rule B3-2A rejects IEEE-754 FP16 infinity encodings in quantized block scale headers (d or dmin).",
+        full: "Rule B3-2A rejects infinity encodings in quantized GGUF block scale headers (FP16 d/dmin/m/s, FP32 Q8_K d, and packed FP16 IQ1_M d).",
         level: "error",
         category: "rule-b3-2a",
     },
@@ -353,8 +353,8 @@ const BUILTIN_RULES: &[RuleSpec] = &[
         kind: "quant_scale_subnormal",
         id: "SECANT-B3-2A-QUANT-SCALE-SUBNORMAL",
         name: "QuantScaleSubnormal",
-        short: "Quantized GGUF block scale header contains FP16 subnormal under strict policy",
-        full: "Under --strict-subnormal or --flush-subnormal, FP16 subnormal block scale headers (d or dmin) are reported.",
+        short: "Quantized GGUF block scale header contains subnormal under strict policy",
+        full: "Under --strict-subnormal or --flush-subnormal, subnormal block scale headers (FP16 d/dmin/m/s, FP32 Q8_K d, or packed FP16 IQ1_M d) are reported.",
         level: "error",
         category: "rule-b3-2a",
     },
@@ -1330,5 +1330,64 @@ mod tests {
         for res in &partial_run.results {
             assert_eq!(res.locations[0].physical_location.artifact_location.uri, "models/dirty.gguf");
         }
+    }
+
+    #[test]
+    fn kquant_iq_and_mxfp4_scale_findings_map_to_builtin_sarif_rules() {
+        let mut counts = BTreeMap::new();
+        counts.insert("quant_scale_nan".to_string(), 3);
+        let scan = SanitizeScan {
+            tensors: 3,
+            quant_tensors: 3,
+            quant_blocks: 3,
+            total_findings: 3,
+            counts,
+            examples: vec![
+                SanitizeFinding {
+                    kind: "quant_scale_nan".to_string(),
+                    tensor: "blk.0.ffn_down.weight".to_string(),
+                    dtype: "Q8_K".to_string(),
+                    index: 0,
+                    row: 0,
+                    file_offset: 128,
+                    bits: "0x7fc00000".to_string(),
+                    field: "d".to_string(),
+                },
+                SanitizeFinding {
+                    kind: "quant_scale_nan".to_string(),
+                    tensor: "blk.1.ffn_down.weight".to_string(),
+                    dtype: "IQ1_M".to_string(),
+                    index: 0,
+                    row: 0,
+                    file_offset: 512,
+                    bits: "0x7e00".to_string(),
+                    field: "d".to_string(),
+                },
+                SanitizeFinding {
+                    kind: "quant_scale_nan".to_string(),
+                    tensor: "blk.2.ffn_down.weight".to_string(),
+                    dtype: "MXFP4".to_string(),
+                    index: 0,
+                    row: 0,
+                    file_offset: 640,
+                    bits: "0xff".to_string(),
+                    field: "e".to_string(),
+                },
+            ],
+            ..Default::default()
+        };
+        let rec = sample_receipt("models/mixed.gguf", "findings", scan);
+        let log = build_sanitize_sarif_with_base_dir(&rec, Some(Path::new("/workspace/repo")));
+        let run = &log.runs[0];
+        assert_eq!(run.tool.driver.rules.len(), BUILTIN_RULES.len());
+        assert_eq!(run.results.len(), 3);
+        for res in &run.results {
+            assert_eq!(res.rule_id, "SECANT-B3-2A-QUANT-SCALE-NAN");
+            assert_eq!(run.tool.driver.rules[res.rule_index].id, "SECANT-B3-2A-QUANT-SCALE-NAN");
+        }
+        let mxfp4 = run.results.iter().find(|r| r.properties.dtype.as_deref() == Some("MXFP4")).unwrap();
+        assert_eq!(mxfp4.properties.first_field.as_deref(), Some("e"));
+        assert_eq!(mxfp4.properties.first_bits.as_deref(), Some("0xff"));
+        assert!(mxfp4.message.text.contains("field 'e'"));
     }
 }

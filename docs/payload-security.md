@@ -43,13 +43,13 @@ The baseline separates values by how inference uses them. A small multiplicative
 |---|---|---|---|
 | **S-0** | .safetensors and .gguf headers plus sibling `config.json`, `generation_config.json`, `tokenizer_config.json`, and `tokenizer.json` (companion-config checks since `v0.3.0`) | Checked 64-bit spans, shapes match the architecture, scalar loads have numel == 1, GGUF MoE metadata satisfies `expert_count > 0` (`s0_expert_count`) and `1 <= expert_used_count <= expert_count` (`s0_expert_used_count`), and (since `v0.3.0`) SafeTensors sibling companion configs fail closed (`UNKNOWN`, exit `2`) on unreadable or malformed JSON while enforcing `vocab_size <= embed_rows` (`s0_companion_vocab_size_mismatch`, accepting `vocab_size == 0` only when no non-empty text embedding tensor exists), `0 <= eos_token_id, bos_token_id, pad_token_id, decoder_start_token_id < vocab_size` (`s0_companion_token_id_oob`), `0 <= added_tokens_decoder[*] < vocab_size` (`s0_companion_added_token_id_oob`), `1 <= num_experts_per_tok <= num_local_experts` (`s0_companion_expert_count`, `s0_companion_expert_used_count`, accepting `0 / 0` only when no MoE tensors exist), and `0 <= leading_dense_block <= num_hidden_layers` (`s0_companion_leading_dense_block`) | Reject malformed geometry and out-of-bounds companion config parameters before any payload value is used. |
 | **B3-1** | Unquantized `F64`, `F32`, `BF16`, `F16`, `F8_E4M3`, and `F8_E5M2` weights, norms, and router biases | Reject NaN and infinity with dtype-exact exponent/bit-pattern checks | Non-finite values break comparisons, casts, sorting, and cumulative sums. |
-| **B3-2A** | Multiplicative GGUF block scales (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K` `d`, `dmin`, `m`) and W4A16/W8A16 weight scales | Permit zero and FP16 subnormals; reject only `(bits & 0x7C00) == 0x7C00` | These fields multiply integer quants. Zero and tiny finite multipliers are valid. |
+| **B3-2A** | Multiplicative GGUF block scales across all 24 reviewed formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q8_1`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `Q8_K`, `IQ2_XXS`, `IQ2_XS`, `IQ3_XXS`, `IQ1_S`, `IQ4_NL`, `IQ3_S`, `IQ2_S`, `IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`) and W4A16/W8A16 weight scales | Permit zero and finite subnormals; reject only non-finite scale encodings (FP16/packed-FP16 `(bits & 0x7C00) == 0x7C00`, FP32 `Q8_K` `(bits & 0x7F800000) == 0x7F800000`, and `MXFP4` E8M0 `e == 0xFF`) | These fields multiply integer or lookup-grid quants. Zero and tiny finite multipliers are valid. |
 | **B3-2B** | Divisor activation and KV-cache scales (`input_scale`, `k_scale`, `v_scale`, `q_scale`, `y_scale`, `prob_scale`, and names ending in `scale_inv`) plus `rope_freqs` | Require finiteness and `s >= --divisor-floor` (default `1e-12f`; `<= 0` emits `divisor_scale_nonpositive`, `0 < s < floor` emits `divisor_scale_below_floor`), and non-zero `rope_freqs` (`rope_freqs_zero`) | Zero or subnormal divisors can produce non-finite or out-of-range results. |
 | **B3-3** | Routing tensors (`expert_ids`, `selected_experts`, `topk_ids`, `router_indices`, `moe_Permute_Map`, plus `hash_indices_table` when `--num-experts > 0`) and integer index/permutation tensors (`g_idx`, `expert_map`, `full_row_indices`, `hash_indices_table`) | Enforce two-sided bounds `[0, bound)` before indexing; fail closed (`UNKNOWN`, exit `2`) when an index tensor has no inferable upper bound | Negative and oversized integers are direct out-of-bounds indices. |
 
 For B3-3, routing tensors require `--num-experts > 0` (reporting `routing_negative`, `routing_oob`, and `routing_duplicate`), whereas integer index tensors (`g_idx`, `expert_map`, `full_row_indices`, `hash_indices_table`, plus `--index-tensor` globs) infer per-tensor bounds from sibling shapes (`g_idx` bounded by GPTQ sibling `scales.shape[0]` with 1-D length checked against `qweight`/`weight` via `index_length_mismatch`; `full_row_indices` bounded by sibling weight/bias/scales extent; `expert_map` and `hash_indices_table` bounded by `--num-experts` when supplied) or an explicit `--index-bound` override, reporting `index_negative` (`v < 0`, or `v < -1` for `expert_map` where `-1` marks an unmapped expert) and `index_oob` (`v >= bound`). When an index tensor has no sibling-inferred or explicit bound, `secant sanitize` increments `index_unbounded` and fails closed with `status: "unknown"` (exit `2`) when no other findings are present. An unsigned comparison such as `static_cast<uint32_t>(idx) < static_cast<uint32_t>(rows)` rejects negative values and upper-bound violations in one check when no negative sentinel is permitted.
 
-`secant sanitize --model <file> --receipt <new.json> --attempt-id <id> [--dry-run]` scans supported static payload values and writes a `secant.wsp.sanitize.v1` receipt. All ten standard GGUF block-quantized formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`) are scanned at the `f16` block-header level (`d`, `dmin`, `m`). A GGUF containing an unreviewed quantized type (`Q8_K`, `IQ*`, `TQ*`) is refused with exit `2` (`status: "unknown"`), even if other tensors are unquantized (`crates/secant-core/src/security.rs`). Passing `--dry-run` explicitly enforces read-only verification and rejects any combination with `--out` or remediation flags.
+`secant sanitize --model <file> --receipt <new.json> --attempt-id <id> [--dry-run]` scans supported static payload values and writes a `secant.wsp.sanitize.v1` receipt. All 24 reviewed GGUF block-quantized formats (`Q4_0` through `Q8_1`, `Q2_K` through `Q8_K`, `IQ1_S` through `IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, and `MXFP4`) are scanned at the block-scale header level (`d`, `dmin`, `m`, `s`, or `e`). A GGUF containing an unreviewed quantized type (such as `NVFP4`, `Q1_0`, or `Q2_0`) is refused with exit `2` (`status: "unknown"`), even if other tensors are unquantized (`crates/secant-core/src/security.rs`). Passing `--dry-run` explicitly enforces read-only verification and rejects any combination with `--out` or remediation flags.
 
 | Finding | Criterion | Repair available |
 |---|---|---|
@@ -66,35 +66,53 @@ For B3-3, routing tensors require `--num-experts > 0` (reporting `routing_negati
 
 Exit codes: `0` clean or remediated under this policy, `1` findings remain, `2` usage, I/O, unsupported input, or incomplete scan. A clean receipt does not prove runtime inference safety.
 
-### Quantized scale headers (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`)
+### Quantized scale headers (24 GGUF standard, K-quant, IQ, ternary, and MXFP4 formats)
 
-Every supported GGUF quantized block stores one or two IEEE-754 `f16` scale/minimum header fields (`d`, `dmin`, or `m`) at fixed byte offsets within the block (`ggml-common.h`):
+Every reviewed GGUF quantized block stores one or two scale/minimum header fields (`d`, `dmin`, `m`, `s`, or `e`) at fixed byte offsets within the block (`ggml-common.h`):
 
-| GGUF Format | `ggml_type` ID | Block Elements (`qk`) | Block Bytes | Inspected `f16` Header Fields & Byte Offsets |
-| --- | :---: | :---: | :---: | --- |
-| **`Q4_0`** | `2` | `32` | `18` | `d` at offset `0` |
-| **`Q4_1`** | `3` | `32` | `20` | `d` at offset `0`, `m` at offset `2` |
-| **`Q5_0`** | `6` | `32` | `22` | `d` at offset `0` |
-| **`Q5_1`** | `7` | `32` | `24` | `d` at offset `0`, `m` at offset `2` |
-| **`Q8_0`** | `8` | `32` | `34` | `d` at offset `0` |
-| **`Q2_K`** | `10` | `256` | `84` | `d` at offset `80`, `dmin` at offset `82` |
-| **`Q3_K`** | `11` | `256` | `110` | `d` at offset `108` |
-| **`Q4_K`** | `12` | `256` | `144` | `d` at offset `0`, `dmin` at offset `2` |
-| **`Q5_K`** | `13` | `256` | `176` | `d` at offset `0`, `dmin` at offset `2` |
-| **`Q6_K`** | `14` | `256` | `210` | `d` at offset `208` |
+| GGUF Format | Family | `ggml_type` ID | Block Elements (`qk`) | Block Bytes | Inspected Scale Header Fields, Encoding & Byte Offsets |
+| --- | --- | :---: | :---: | :---: | --- |
+| **`Q4_0`** | standard | `2` | `32` | `18` | `f16 d` at offset `0` |
+| **`Q4_1`** | standard | `3` | `32` | `20` | `f16 d` at offset `0`, `f16 m` at offset `2` |
+| **`Q5_0`** | standard | `6` | `32` | `22` | `f16 d` at offset `0` |
+| **`Q5_1`** | standard | `7` | `32` | `24` | `f16 d` at offset `0`, `f16 m` at offset `2` |
+| **`Q8_0`** | standard | `8` | `32` | `34` | `f16 d` at offset `0` |
+| **`Q8_1`** | standard | `9` | `32` | `36` | `f16 d` at offset `0`, `f16 s` at offset `2` |
+| **`Q2_K`** | k-quant | `10` | `256` | `84` | `f16 d` at offset `80`, `f16 dmin` at offset `82` |
+| **`Q3_K`** | k-quant | `11` | `256` | `110` | `f16 d` at offset `108` |
+| **`Q4_K`** | k-quant | `12` | `256` | `144` | `f16 d` at offset `0`, `f16 dmin` at offset `2` |
+| **`Q5_K`** | k-quant | `13` | `256` | `176` | `f16 d` at offset `0`, `f16 dmin` at offset `2` |
+| **`Q6_K`** | k-quant | `14` | `256` | `210` | `f16 d` at offset `208` |
+| **`Q8_K`** | k-quant | `15` | `256` | `292` | `f32 d` at offset `0` (4-byte IEEE-754 float) |
+| **`IQ2_XXS`** | iq | `16` | `256` | `66` | `f16 d` at offset `0` |
+| **`IQ2_XS`** | iq | `17` | `256` | `74` | `f16 d` at offset `0` |
+| **`IQ3_XXS`** | iq | `18` | `256` | `98` | `f16 d` at offset `0` |
+| **`IQ1_S`** | iq | `19` | `256` | `50` | `f16 d` at offset `0` |
+| **`IQ4_NL`** | iq | `20` | `32` | `18` | `f16 d` at offset `0` |
+| **`IQ3_S`** | iq | `21` | `256` | `110` | `f16 d` at offset `0` |
+| **`IQ2_S`** | iq | `22` | `256` | `82` | `f16 d` at offset `0` |
+| **`IQ4_XS`** | iq | `23` | `256` | `136` | `f16 d` at offset `0` |
+| **`IQ1_M`** | iq | `29` | `256` | `56` | packed `f16 d` across top 4 bits of each `u16` in `scales[0..8]` at offset `48` |
+| **`TQ1_0`** | ternary | `34` | `256` | `54` | `f16 d` at offset `52` |
+| **`TQ2_0`** | ternary | `35` | `256` | `66` | `f16 d` at offset `64` |
+| **`MXFP4`** | mxfp4 | `39` | `32` | `17` | OCP E8M0 `u8 e` at offset `0` (`0xFF` is NaN; `0x00..=0xFE` finite) |
 
-The fields `d`, `dmin`, and `m` are **multipliers and additive offsets**, not divisors.
+The fields `d`, `dmin`, `m`, `s`, and `e` are **multipliers and additive offsets**, not divisors.
 
-That distinction explains the B3-2A allowlist. A zero-padded block can legitimately store `d = 0.0` (`0x0000`). In `Q4_K`, each 256-weight super-block contains eight 32-weight sub-blocks with 6-bit scales in `[0, 63]`; dividing a small sub-block maximum by `63` (where `max |x_i|` is scaled by `15 * 63 = 945`) naturally produces an FP16 subnormal whenever a sub-block's maximum magnitude sits below `945 * 6.1035e-05 ≈ 0.0577` (or a sub-block scale sits near `2.8e-03`). Examples include dense `blk.*.ffn_down.weight` and `token_embd.weight` in `Qwen3.5-4B` `Q4_K`, as well as `d = 4.55e-05` in row 0 of `blk.0.ffn_down_exps` in `llama.cpp`'s MoE test fixture (`test_metal_moe_experts.c`), below the smallest positive normal FP16 value (`6.1035e-05`). Multiplication by either value remains well-defined and cannot create a division-by-zero cast path.
+That distinction explains the B3-2A allowlist. A zero-padded block can legitimately store `d = 0.0` (`0x0000`). In `Q4_K`, each 256-weight super-block contains eight 32-weight sub-blocks with 6-bit scales in `[0, 63]`; dividing a small sub-block maximum by `63` (where `max |x_i|` is scaled by `15 * 63 = 945`) naturally produces an FP16 subnormal whenever a sub-block's maximum magnitude sits below `945 * 6.1035e-05 ≈ 0.0577` (or a sub-block scale sits near `2.8e-03`). Similarly, `IQ4_XS` divides block magnitudes by `32 * 127 = 4,064`, routinely yielding finite FP16 subnormal `d` values on normal trained weight distributions. Examples include dense `blk.*.ffn_down.weight` and `token_embd.weight` in `Qwen3.5-4B` `Q4_K`, as well as `d = 4.55e-05` in row 0 of `blk.0.ffn_down_exps` in `llama.cpp`'s MoE test fixture (`test_metal_moe_experts.c`), below the smallest positive normal FP16 value (`6.1035e-05`). Multiplication by either value remains well-defined and cannot create a division-by-zero cast path.
 
-The zero-false-positive check is therefore exactly the FP16 exponent test. Values with `(bits & 0x7C00) != 0x7C00`, including signed zero and subnormals, pass. Values with `(bits & 0x7C00) == 0x7C00` are NaN or infinity, are flagged, and are replaced with zero only when an explicit repaired copy is requested. The scan strides by the exact `ggml_type_size(type)` so it reads `d`, `dmin`, and `m` at their exact block offsets across mixed-quantization checkpoints (such as `Q4_K_M`, which mixes `Q4_K` and `Q6_K` tensors, or `Q2_K` checkpoints that mix `Q2_K`, `Q3_K`, and `Q6_K`).
+The zero-false-positive check is therefore strictly the non-finite scale test: FP16/packed-FP16 values with `(bits & 0x7C00) != 0x7C00` (including signed zero and subnormals), FP32 `Q8_K` values with `(bits & 0x7F800000) != 0x7F800000`, and `MXFP4` E8M0 bytes `0x00..=0xFE` pass by default. Non-finite encodings (FP16/FP32 NaN or infinity, packed `IQ1_M` FP16 NaN or infinity, and `MXFP4` E8M0 `0xFF`) are flagged and zeroed only when an explicit repaired copy (`--clamp-nonfinite --out <new-file>`) is requested. The scan strides by the exact `ggml_type_size(type)` so it reads every scale header at its exact offset across mixed-quantization checkpoints (such as `Q4_K_M`, `Q2_K`, `IQ4_XS`, or `IQ1_M`).
 
 | Finding | Criterion | Repair available |
 |---|---|---|
-| quant\_scale\_nan | (bits &amp; 0x7C00) == 0x7C00 and mantissa is non-zero | --clamp-nonfinite: zero the complete affected block |
-| quant\_scale\_inf | (bits &amp; 0x7C00) == 0x7C00 and mantissa is zero | --clamp-nonfinite: zero the complete affected block |
+| quant\_scale\_nan | non-finite NaN scale encoding (FP16/packed-FP16 `(bits & 0x7C00) == 0x7C00 && (bits & 0x03FF) != 0`, FP32 `Q8_K` NaN, or `MXFP4` E8M0 `e == 0xFF`) | --clamp-nonfinite: zero the complete affected block |
+| quant\_scale\_inf | non-finite Inf scale encoding (FP16/packed-FP16 `(bits & 0x7FFF) == 0x7C00`, or FP32 `Q8_K` `+-Inf`) | --clamp-nonfinite: zero the complete affected block |
 
-For these findings `index` is the block index, `row` is the GGUF row (`ne[0]` elements), `file_offset` points at the FP16 field, `bits` is its encoding, and `field` identifies `d`, `dmin`, or `m`. A quantized tensor matched by a norm glob is `unknown` (exit `2`), because norm-row checks are implemented for unquantized floats only. A GGUF file containing an unreviewed quantized type (`Q8_K`, `IQ*`) is refused rather than partially certified.
+For these findings `index` is the block index, `row` is the GGUF row (`ne[0]` elements), `file_offset` points at the scale field (for `IQ1_M`, the start of `scales[0..8]` at offset `48`), `bits` is its fixed-width hex encoding (`0x{:04x}` for FP16/packed-FP16, `0x{:08x}` for FP32 `Q8_K`, `0x{:02x}` for E8M0 `MXFP4`), and `field` identifies `d`, `dmin`, `m`, `s`, or `e`. A quantized tensor matched by a norm glob is `unknown` (exit `2`), because norm-row checks are implemented for unquantized floats only. A GGUF file containing an unreviewed quantized type (`NVFP4`, `Q1_0`, `Q2_0`) is refused rather than partially certified.
+
+#### Differential comparison against `llama.cpp --check-tensors`
+
+`scripts/bench_gguf_quant_coverage.py` generates loadable 1-layer GGUF v3 checkpoints covering all 24 reviewed formats (24 clean controls, 30 planted NaN scale headers, and 29 planted Inf scale headers = 83 cases), runs `secant sanitize --dry-run --json --sarif`, and optionally runs `llama-cli --check-tensors` side by side on the identical files. Across all 83 cases on Linux x86_64 (`secant` release vs CPU `llama-cli --check-tensors`), `secant sanitize` passed `24/24` clean controls (`0.0%` FPR), caught `30/30` planted NaN and `29/29` planted Inf headers with 100% built-in SARIF rule mapping (`SECANT-B3-2A-QUANT-SCALE-NAN` / `INF`) in `16.45 ms` mean wall time (`219.79 ms` for `llama-cli --check-tensors`). Both tools agreed on `100%` of the 22 inference-loadable formats (`Q4_0`..`Q8_0`, `Q2_K`..`Q6_K`, `IQ2_XXS`..`IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`), while `secant sanitize` additionally validated `Q8_1` (`ggml_validate_row_data` reports `invalid type 9`) and `Q8_K` (where clean inference segfaults in `llama-cli` because `Q8_K` is an intermediate dot-product format) safely on disk without loading weights. On real benign `Qwen3.5-0.8B` GGUF checkpoints (`BF16`, `Q4_0`, `Q8_0`, `Q2_K`, `Q3_K_S`, `Q4_K_S`, `Q6_K`) and 16 `llama-quantize`-encoded standard/K-quant/IQ/ternary checkpoints (`Q4_0`..`Q6_K`, `IQ4_NL`, `IQ4_XS`, `IQ3_S`, `IQ3_XXS`, `TQ1_0`, `TQ2_0`), `secant sanitize` recorded `0` false positives (`0.0%` FPR).
 
 (measured-on-10-real-safetensors-and-mixed-gguf-checkpoints-with-planted-controls)=
 #### Measured on 10 real SafeTensors and mixed GGUF checkpoints, with planted controls
@@ -156,8 +174,9 @@ GPU ordering has a separate mechanism. NVIDIA CUB `cub::BlockRadixSort` uses `Tw
 | class2 | NaN, +10³⁸, −10³⁸ scale / bias floats (float-to-int saturation vs. overflow) |
 | class3 | NaN arrays: sign, payload and signalling NaN variants, ties, ±∞ mixes |
 | class4 | I32 / I64 routing tables: -1, INT\_MIN, num\_experts, INT\_MAX, 2³², duplicate ids; plus all-zero and subnormal norm vectors |
+| class5 | GGUF quantized block-scale headers across all 24 reviewed formats (`Q4_0`..`Q8_1`, `Q2_K`..`Q8_K`, `IQ1_S`..`IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`): clean control blocks alongside planted NaN and +Inf headers (GGUF only) |
 
-`secant probe --class <class1..class4|all> --format <safetensors|gguf|both> --out-dir <new-dir> --receipt <new.json> --attempt-id <id>`. With `--base <model>`, probe cells replace selected values in a copy of an existing model. Each fixture is self-verified before publication (container inspection, and `sanitize` must report the intended finding kinds). Fixtures are byte-deterministic for a given class, format and `--num-experts`. Exit codes: `0` generated and self-verified, `2` usage, I/O, or could not verify.
+`secant probe --class <class1..class5|all> --format <safetensors|gguf|both> --out-dir <new-dir> --receipt <new.json> --attempt-id <id>`. (`--class all` generates `class1` through `class4`; request `class5` explicitly with `--format gguf` or `--format both`.) With `--base <model>`, probe cells replace selected values in a copy of an existing model (`class1`..`class4`). Each fixture is self-verified before publication (container inspection, and `sanitize` must report the intended finding kinds). Fixtures are byte-deterministic for a given class, format and `--num-experts`. Exit codes: `0` generated and self-verified, `2` usage, I/O, or could not verify.
 
 ---
 

@@ -1080,7 +1080,7 @@ fn sanitize_malformed_and_unsupported_layouts_fail_closed() {
         println!("gguf v{} -> exit {}", v, c.code);
     }
     // Quantized GGUF: B3-2A block-quantized formats (e.g. Q4_0, type 2) scan clean;
-    // unsupported quantized types (e.g. IQ2_XXS, type 16) are refused on both sides.
+    // unreviewed quantized types (e.g. NVFP4, type 40) are refused on both sides.
     let mut q = gg(&[bt("w", "F32", &[32], raw_bits("F32", &[0; 32]))]);
     // find "w" tensor info: name_len(1) 'w' ndims(1) dim(32) type(0)
     let pat: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 1u32.to_le_bytes().to_vec(), 32u64.to_le_bytes().to_vec()].concat();
@@ -1089,11 +1089,11 @@ fn sanitize_malformed_and_unsupported_layouts_fail_closed() {
     let c = compare_opt("gguf-q4_0", &go, &rs, &root, &san_args(&put(&root, "q4_0.gguf", &q), &[]), true);
     assert_eq!(c.code, 0);
     assert_eq!(status_of(&c), "clean");
-    let mut iq2 = gg(&[bt("w", "F32", &[256], raw_bits("F32", &[0; 256]))]);
+    let mut nvfp4 = gg(&[bt("w", "F32", &[256], raw_bits("F32", &[0; 256]))]);
     let pat256: Vec<u8> = [1u64.to_le_bytes().to_vec(), vec![b'w'], 1u32.to_le_bytes().to_vec(), 256u64.to_le_bytes().to_vec()].concat();
-    let at256 = iq2.windows(pat256.len()).position(|w| w == pat256.as_slice()).expect("tensor info");
-    iq2[at256 + pat256.len()..at256 + pat256.len() + 4].copy_from_slice(&16u32.to_le_bytes()); // IQ2_XXS
-    let c = compare_opt("gguf-iq2_xxs", &go, &rs, &root, &san_args(&put(&root, "iq2_xxs.gguf", &iq2), &[]), true);
+    let at256 = nvfp4.windows(pat256.len()).position(|w| w == pat256.as_slice()).expect("tensor info");
+    nvfp4[at256 + pat256.len()..at256 + pat256.len() + 4].copy_from_slice(&40u32.to_le_bytes()); // NVFP4
+    let c = compare_opt("gguf-nvfp4", &go, &rs, &root, &san_args(&put(&root, "nvfp4.gguf", &nvfp4), &[]), true);
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
     println!("quantized GGUF error go: {}", serde_json::from_str::<Value>(c.go_receipt.as_ref().unwrap()).unwrap()["error"]);
@@ -1606,11 +1606,11 @@ fn extension_cli_flags_and_oracle_equivalence_on_nonfinite_only() {
     assert_eq!(got, vec![0x447a, 0xc47a, 0x0000, 0x8000]); // 1000.0 rounded down from 1000.5, signs kept, subnormals flushed
 }
 
-/// Milestone S-4, JSON mode (immune to the human-report wording): an IQ2_XXS GGUF
-/// is refused identically by both tools (exit 2, unknown), and standard f16-header
-/// block-quantized GGUF files (Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K,
-/// Q5_K, Q6_K) scan their scale headers identically on both tools (exit 0, clean,
-/// `zero-false-positive-b3-v2`).
+/// Milestone S-4, JSON mode (immune to the human-report wording): an unreviewed
+/// NVFP4 GGUF is refused identically by both tools (exit 2, unknown), and
+/// standard f16-header block-quantized GGUF files (Q4_0, Q4_1, Q5_0, Q5_1,
+/// Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K) scan their scale headers identically on
+/// both tools (exit 0, clean, `zero-false-positive-b3-v2`).
 #[test]
 fn sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json() {
     let Some((go, rs)) = bins("sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json") else { return };
@@ -1622,10 +1622,10 @@ fn sanitize_quantized_q4_0_parity_and_q8_q4k_scale_divergence_json() {
         q[at + pat.len()..at + pat.len() + 4].copy_from_slice(&id.to_le_bytes());
         q
     };
-    let p = put(&root, "iq2_xxs.gguf", &retag(16));
+    let p = put(&root, "nvfp4.gguf", &retag(40));
     let mut args = san_args(&p, &[]);
     args.push("--json");
-    let c = compare_opt("gguf-iq2_xxs-json", &go, &rs, &root, &args, true);
+    let c = compare_opt("gguf-nvfp4-json", &go, &rs, &root, &args, true);
     assert_eq!(c.code, 2);
     assert_eq!(status_of(&c), "unknown");
     for (id, name) in [(2u32, "Q4_0"), (8, "Q8_0"), (10, "Q2_K"), (12, "Q4_K"), (14, "Q6_K")] {

@@ -13,6 +13,7 @@ pub const BITS_F16_POS_INF: u16 = 0x7C00;
 pub const BITS_F8_E4M3_NAN: u8 = 0x7F;
 pub const BITS_F8_E5M2_NAN: u8 = 0x7E;
 pub const BITS_F8_E5M2_POS_INF: u8 = 0x7C;
+pub const BITS_E8M0_NAN: u8 = 0xFF;
 
 pub fn le_u16(b: &[u8]) -> u16 {
     u16::from_le_bytes([b[0], b[1]])
@@ -185,6 +186,18 @@ pub fn f32_from_f8_e5m2(b: u8) -> f32 {
         }
         _ => f32::from_bits((sign << 31) | (((exp - 15 + 127) as u32) << 23) | (frac << 21)),
     }
+}
+
+/// Decode one OCP MX `E8M0` shared exponent byte scaled by `0.5` for ggml
+/// `MXFP4` (`kvalues_mxfp4` stores doubled E2M1 values, matching
+/// `ggml_e8m0_to_fp32_half`). Unlike ggml's unchecked helper, `0xFF` returns
+/// `NaN` per the OCP MX specification and `ggml_validate_row_data`.
+pub fn f32_from_e8m0_half(e: u8) -> f32 {
+    if e == BITS_E8M0_NAN {
+        return f32::from_bits(BITS_F32_NAN);
+    }
+    let bits = if e < 2 { 0x0020_0000u32 << e } else { ((e as u32) - 1) << 23 };
+    f32::from_bits(bits)
 }
 
 /// Byte width of a float/int/bool dtype label; 0 for quantized/unknown labels.
@@ -518,6 +531,23 @@ mod tests {
         // Positive finite + +Inf monotonicity 0x00..=0x7C
         for b in 0u8..0x7C {
             assert!(f32_from_f8_e5m2(b) < f32_from_f8_e5m2(b + 1), "non-monotone at 0x{:02x}", b);
+        }
+    }
+
+    #[test]
+    fn e8m0_half_exhaustive_256() {
+        assert!(f32_from_e8m0_half(BITS_E8M0_NAN).is_nan());
+        assert_eq!(f32_from_e8m0_half(0x00).to_bits(), 0x0020_0000); // 2^-128
+        assert_eq!(f32_from_e8m0_half(0x01).to_bits(), 0x0040_0000); // 2^-127
+        assert_eq!(f32_from_e8m0_half(0x02), 2.0f32.powi(-126));
+        assert_eq!(f32_from_e8m0_half(0x7F), 0.5);
+        assert_eq!(f32_from_e8m0_half(0x80), 1.0);
+        assert_eq!(f32_from_e8m0_half(0xFE), 2.0f32.powi(126));
+        for e in 0u8..0xFE {
+            let a = f32_from_e8m0_half(e);
+            let b = f32_from_e8m0_half(e + 1);
+            assert!(a.is_finite() && a > 0.0 && b.is_finite() && a < b, "e=0x{:02x}: {} vs {}", e, a, b);
+            assert_eq!(b, a * 2.0, "exact factor of 2 at e=0x{:02x}", e);
         }
     }
 }

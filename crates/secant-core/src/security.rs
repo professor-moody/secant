@@ -1278,13 +1278,12 @@ pub mod sanitize {
                     Err(e) => return Err(e),
                 }
             };
-            // The 10 reviewed B3-2A block-quantized formats (Q4_0, Q4_1, Q5_0,
-            // Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K) have their f16 scale
+            // All 24 reviewed B3-2A block-quantized formats have their scale
             // headers scanned; every other quantized type is refused.
             for t in &l.tensors {
                 if t.is_quantized() && quant_scale::QuantScaleFormat::from_dtype(&t.dtype).is_none() {
                     return Err(Error::msg(format!(
-                        "tensor {:?}: no reviewed B3-2A block-header map for {} (supported: Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K)",
+                        "tensor {:?}: no reviewed B3-2A block-header map for {} (supported: Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q8_1, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, Q8_K, IQ2_XXS, IQ2_XS, IQ3_XXS, IQ1_S, IQ4_NL, IQ3_S, IQ2_S, IQ4_XS, IQ1_M, TQ1_0, TQ2_0, MXFP4)",
                         t.name, t.dtype
                     )));
                 }
@@ -3002,11 +3001,10 @@ pub mod sanitize {
                 s.quant_blocks += 1;
                 let policy =
                     quant_scale::ScanPolicy { strict_subnormal: o.strict_subnormal || o.flush_subnormal, check_extreme: o.clamp_extreme };
-                for &(_, foff) in q.fields() {
-                    let u = u16::from_le_bytes([blk[foff], blk[foff + 1]]);
-                    if u & 0x7fff == 0 {
+                for hf in quant_scale::header_fields(q, blk) {
+                    if hf.is_zero() {
                         *s.info.entry("quant_scale_zero".to_string()).or_insert(0) += 1;
-                    } else if u & 0x7c00 == 0 && !policy.strict_subnormal {
+                    } else if hf.kind == Kind::Subnormal && !policy.strict_subnormal {
                         *s.info.entry("quant_scale_subnormal_tolerated".to_string()).or_insert(0) += 1;
                     }
                 }
@@ -3021,7 +3019,7 @@ pub mod sanitize {
                             index: i,
                             row: i / per_row,
                             file_offset: t.offset + i * bb + fd.offset as i64,
-                            bits: if fd.field.is_empty() { String::new() } else { format!("0x{:04x}", fd.bits) },
+                            bits: fd.format_bits(),
                             field: fd.field.into(),
                         });
                     } else {
@@ -3380,6 +3378,8 @@ pub mod probe {
         fn classes(&self) -> Vec<&'static str> {
             if self.class == "all" {
                 PROBE_CLASSES.to_vec()
+            } else if self.class == "class5" {
+                vec!["class5"]
             } else {
                 PROBE_CLASSES.iter().copied().filter(|c| *c == self.class).collect()
             }
@@ -3936,6 +3936,7 @@ pub mod probe {
             "class1" => "router-nan-neginf",
             "class2" => "scale-bias-nan-extreme",
             "class3" => "nan-sort-arrays",
+            "class5" => "quant-scales",
             _ => "routing-and-norm",
         }
     }
@@ -3976,11 +3977,17 @@ pub mod probe {
         if o.out_dir.is_empty() {
             return Err(Error::msg("out_dir is required"));
         }
-        if !(o.class == "all" || PROBE_CLASSES.contains(&o.class.as_str())) {
-            return Err(Error::msg(format!("class {:?}: want class1|class2|class3|class4|all", o.class)));
+        if !(o.class == "all" || o.class == "class5" || PROBE_CLASSES.contains(&o.class.as_str())) {
+            return Err(Error::msg(format!("class {:?}: want class1|class2|class3|class4|class5|all", o.class)));
         }
         if o.format != "safetensors" && o.format != "gguf" && o.format != "both" {
             return Err(Error::msg(format!("format {:?}: want safetensors|gguf|both", o.format)));
+        }
+        if o.class == "class5" && o.format == "safetensors" {
+            return Err(Error::msg("class5 (GGUF quantized block scales) requires --format gguf or both"));
+        }
+        if o.class == "class5" && !o.base.is_empty() {
+            return Err(Error::msg("class5 (GGUF quantized block scales) is synthetic-only and does not accept --base"));
         }
         if o.num_experts < 2 || o.num_experts > 1 << 20 {
             return Err(Error::msg(format!("num_experts {} outside [2, {}]", o.num_experts, 1 << 20)));
@@ -4052,6 +4059,13 @@ pub mod probe {
                 if o.format != "both" && o.format != format {
                     continue;
                 }
+                if class == "class5" && format == "safetensors" {
+                    rep.unavailable.push(ProbeUnavailable {
+                        class: "class5".into(),
+                        reason: "GGUF quantized block scales do not apply to safetensors".into(),
+                    });
+                    continue;
+                }
                 let fx = synthetic(&o, class, format, created).map_err(|e| Error::msg(format!("{} {}: {}", class, format, e.message())))?;
                 rep.fixtures.push(fx);
             }
@@ -4094,7 +4108,89 @@ pub mod probe {
         Ok(detect_format_bytes(&head, base)?.to_string())
     }
 
+    fn synthetic_quant_scales(o: &ProbeOptions, created: &mut Vec<String>) -> Result<ProbeFixture> {
+        use crate::quant_scale::{QuantScaleFormat, KIND_INF, KIND_NAN};
+
+        let mut tensors: Vec<BuildTensor> = Vec::new();
+        let mut meta: Vec<ProbeTensor> = Vec::new();
+
+        for (idx, fmt) in QuantScaleFormat::ALL.iter().enumerate() {
+            let specs = fmt.field_specs();
+            let has_inf = specs.iter().any(|sp| sp.encoding.pos_inf_bits().is_some());
+            // Block 0: clean finite control (scale = 1.0); Block 1: planted NaN;
+            // Block 2 (when Inf is representable): planted +Inf.
+            let nblocks = if has_inf { 3usize } else { 2usize };
+            let bb = fmt.block_bytes();
+            let mut data = vec![0u8; nblocks * bb];
+            for blk_idx in 0..nblocks {
+                let blk = &mut data[blk_idx * bb..(blk_idx + 1) * bb];
+                for (i, byte) in blk.iter_mut().enumerate() {
+                    *byte = ((i * 29 + blk_idx * 17 + idx + 7) % 251) as u8;
+                }
+                for &sp in specs {
+                    sp.encoding.write_bits(blk, sp.offset, sp.encoding.unit_bits());
+                }
+            }
+            let mut written = 0i64;
+            let mut expected = BTreeSet::new();
+            for &sp in specs {
+                let b1 = &mut data[bb..2 * bb];
+                sp.encoding.write_bits(b1, sp.offset, sp.encoding.nan_bits());
+                written += 1;
+                expected.insert(KIND_NAN.to_string());
+                if let Some(inf_bits) = sp.encoding.pos_inf_bits() {
+                    let b2 = &mut data[2 * bb..3 * bb];
+                    sp.encoding.write_bits(b2, sp.offset, inf_bits);
+                    written += 1;
+                    expected.insert(KIND_INF.to_string());
+                }
+            }
+            let name = format!("blk.{}.ffn_down.weight", idx);
+            let shape = vec![nblocks, fmt.block_elems()];
+            meta.push(ProbeTensor {
+                name: name.clone(),
+                dtype: fmt.name().into(),
+                shape: shape.clone(),
+                role: "quant-scale".into(),
+                cells_written: written,
+                cells_skipped: 0,
+                expected_kinds: expected.into_iter().collect(),
+                observed_kinds: Vec::new(),
+            });
+            tensors.push(BuildTensor { name, dtype: fmt.name().into(), shape, data });
+        }
+
+        let kv = vec![
+            ("general.architecture".to_string(), MetaValue::Str(PROBE_ARCHITECTURE.into())),
+            ("general.name".to_string(), MetaValue::Str(format!("{}-class5", PROBE_ARCHITECTURE))),
+            (PROBE_META_CLASS.to_string(), MetaValue::Str("class5".into())),
+            (PROBE_META_NUM_EXPERTS.to_string(), MetaValue::U32(o.num_experts as u32)),
+            ("general.alignment".to_string(), MetaValue::U32(32)),
+        ];
+        let data = build_gguf(&kv, &tensors, 32)?;
+        let file = format!("class5-{}.gguf", slug("class5"));
+        let path = gopath::join(&o.out_dir, &file);
+        write_file_exclusive(&path, &data)?;
+        created.push(path.clone());
+        let mut fx = ProbeFixture {
+            class: "class5".into(),
+            mode: "synthetic".into(),
+            format: "gguf".into(),
+            file,
+            path,
+            bytes: data.len() as i64,
+            sha256: sha256_bytes_hex(&data),
+            tensors: meta,
+            ..Default::default()
+        };
+        self_check(&mut fx, o, true)?;
+        Ok(fx)
+    }
+
     fn synthetic(o: &ProbeOptions, class: &str, format: &str, created: &mut Vec<String>) -> Result<ProbeFixture> {
+        if class == "class5" {
+            return synthetic_quant_scales(o, created);
+        }
         let n = o.num_experts;
         let specs = synth_specs(class, n);
         let mut tensors: Vec<BuildTensor> = Vec::new();

@@ -15,8 +15,8 @@
 //! Quantized GGUF support: Secant lists all GGUF quantized tensor types
 //! (`Q8_0`, `Q4_K`, ...) with their exact block-derived byte size so `inspect`,
 //! `verify-patch` and the block-aligned `quant` surgery work on them, while
-//! `sanitize` scans the 10 B3-2A block-quantized formats at the scale-header
-//! level; float-only edits refuse a quantized target.
+//! `sanitize` scans all 24 reviewed B3-2A block-quantized formats at the
+//! scale-header level; float-only edits refuse a quantized target.
 
 use crate::dtype::*;
 use crate::error::{Error, Result};
@@ -246,15 +246,34 @@ pub fn ggml_type_id(dtype: &str) -> Option<u32> {
         "Q5_0" => Some(6),
         "Q5_1" => Some(7),
         "Q8_0" => Some(8),
+        "Q8_1" => Some(9),
         "Q2_K" => Some(10),
         "Q3_K" => Some(11),
         "Q4_K" => Some(12),
         "Q5_K" => Some(13),
         "Q6_K" => Some(14),
+        "Q8_K" => Some(15),
+        "IQ2_XXS" => Some(16),
+        "IQ2_XS" => Some(17),
+        "IQ3_XXS" => Some(18),
+        "IQ1_S" => Some(19),
+        "IQ4_NL" => Some(20),
+        "IQ3_S" => Some(21),
+        "IQ2_S" => Some(22),
+        "IQ4_XS" => Some(23),
+        "I8" => Some(24),
+        "I16" => Some(25),
         "I32" => Some(26),
         "I64" => Some(27),
         "F64" => Some(28),
+        "IQ1_M" => Some(29),
         "BF16" => Some(30),
+        "TQ1_0" => Some(34),
+        "TQ2_0" => Some(35),
+        "MXFP4" => Some(39),
+        "NVFP4" => Some(40),
+        "Q1_0" => Some(41),
+        "Q2_0" => Some(42),
         _ => None,
     }
 }

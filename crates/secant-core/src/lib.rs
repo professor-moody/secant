@@ -18,6 +18,7 @@ pub mod numeric;
 pub mod plan;
 pub mod quant;
 pub mod quant_scale;
+mod quant_scale_tables;
 pub mod rankk;
 pub mod read;
 pub mod sarif;

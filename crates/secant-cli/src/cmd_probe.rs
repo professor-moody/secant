@@ -6,6 +6,9 @@
 //!   class3  NaN arrays: sign/payload/signalling NaN variants, ties, +-Inf mixes
 //!   class4  I32/I64 routing tables (tid2eid / expert_id): -1, INT_MIN, num_experts,
 //!           INT_MAX, 2^32, duplicate ids; plus all-zero and subnormal norm vectors
+//!   class5  GGUF quantized block-scale headers across all 24 reviewed formats
+//!           (Q4_0..Q8_1, Q2_K..Q8_K, IQ1_S..IQ4_XS, TQ1_0, TQ2_0, MXFP4): clean
+//!           control blocks alongside planted NaN and +Inf scale headers (GGUF only)
 //!
 //! Each fixture is self-verified (container inspection plus the sanitizer must
 //! report the intended finding kinds) before it is published. Output goes to a
@@ -23,7 +26,7 @@ use secant_core::Error;
     after_help = "Example:\n  secant probe --class class1 --format safetensors --out-dir fixtures --receipt probe.json --attempt-id local-check"
 )]
 pub struct Args {
-    /// class1|class2|class3|class4|all
+    /// class1|class2|class3|class4|class5|all
     #[arg(long, default_value = "all")]
     pub class: String,
     /// safetensors|gguf|both

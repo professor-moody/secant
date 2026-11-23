@@ -62,7 +62,7 @@ secant sanitize --model model.gguf --receipt scan.json --attempt-id pre-load
 On CPU, with no inference, `sanitize` checks for:
 
 - `NaN` and `Inf` weights
-- bad scale headers in ten GGUF block formats (Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, and Q2_K to Q6_K)
+- bad scale headers in 24 GGUF block formats (`Q4_0` to `Q8_1`, `Q2_K` to `Q8_K`, `IQ1_S` to `IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, and `MXFP4`)
 - zero or tiny divisor scales such as `k_scale` and `*scale_inv`
 - MoE expert indices outside the expert count (pass `--num-experts N`)
 - token IDs in `config.json`, `generation_config.json`, and `tokenizer_config.json` that point past the vocabulary
@@ -157,7 +157,7 @@ This builds tiny SafeTensors and GGUF files, runs nine checks (clean files, brok
 
 - **A clean scan covers the listed checks.** It will not find a behavioral backdoor hidden in normal-looking weights. On 105 benign test configurations (100 synthetic, 5 retained) the scanner raised no false positives on either test host ([benchmark](docs/benchmarks/benign-fpr-v0.3.0.md)).
 - **Diffing needs a trusted base with the same tensor names and shapes.** Without one, `audit-trojan` can only flag edits large enough to stand out from the layer's own structure; the [paper](docs/PAPER.md) measures that threshold. A quantized file compared with a full-precision base shows small rounding changes everywhere, so look for tensors that changed much more than their neighbors.
-- **Patching supports float tensors and `Q8_0` blocks.** `Q4_K` files can be read, diffed, scanned, and verified, but not patched. The other GGUF block formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q2_K`, `Q3_K`, `Q5_K`, `Q6_K`) are checked by `sanitize` only. The patcher holds the file in memory (about twice its size), so patch sharded checkpoints one shard at a time. `--in-place` writes a verified temporary file in the same folder and renames it over the original, so it needs free disk space equal to the file.
+- **Patching supports float tensors and `Q8_0` blocks.** `Q4_K` files can be read, diffed, scanned, and verified, but not patched. The other 22 reviewed GGUF block formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_1`, `Q2_K`, `Q3_K`, `Q5_K`, `Q6_K`, `Q8_K`, `IQ2_XXS`, `IQ2_XS`, `IQ3_XXS`, `IQ1_S`, `IQ4_NL`, `IQ3_S`, `IQ2_S`, `IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`) are checked by `sanitize` only. The patcher holds the file in memory (about twice its size), so patch sharded checkpoints one shard at a time. `--in-place` writes a verified temporary file in the same folder and renames it over the original, so it needs free disk space equal to the file.
 - **The LoRA lock covers the wrapped layers and the directions you pass in.** Measure leakage again after merging or quantizing.
 
 ## More
