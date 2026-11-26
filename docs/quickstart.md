@@ -104,8 +104,8 @@ pytest python/tests
 | | secant inspect | Lists tensor names, shapes, storage types, and byte offsets. |
 | | secant read | Measures matrix size, leading directions, and optional vocabulary scores. With --reference, reports how each tensor differs from a base checkpoint. |
 | | secant audit-trojan | Ranks matrices by unusual spectral structure; with --reference, ranks the changes against a base checkpoint and lists the tokens they promote. |
-| | secant sanitize | Static weight-value scanner and optional repair for NaN, Inf, divisor scales, and routing IDs. Q8\_0 and Q4\_K zero or FP16 subnormal block scales pass by default; --flush-subnormal is opt-in. |
-| | secant probe | Deterministic generator for boundary-value test fixtures (class1..class4). |
+| | secant sanitize | Static weight-value scanner and optional repair for NaN, Inf, scale headers across all 24 reviewed GGUF block formats (`Q4_0`..`Q8_1`, `Q2_K`..`Q8_K`, `IQ1_S`..`IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`), divisor scales, routing IDs, and companion configs, with optional `--sarif` 2.1.0 output. Zero and finite subnormal multiplier scales pass by default; `--flush-subnormal` is opt-in. |
+| | secant probe | Deterministic generator for boundary-value test fixtures (`class1`..`class4` via `--class all`; opt-in `--class class5 --format gguf` for all 24 GGUF scale formats). |
 | **02 · Analyze & Compose** | secant analyze | Combines layer rankings from captured signal-to-noise measurements. |
 | | secant compose | Makes supplied directions perpendicular, selects layers from --analysis, and sizes edits from reference activations. |
 | **03 · Patch** | secant patch | Edits F32, F16, BF16, F64, I32, and I64 tensors, writing a copy by default or the same file with --in-place. |
@@ -332,9 +332,19 @@ secant read --model clean.safetensors --tensor 'blk.0.*' --top-k-singular 1 --to
 secant verify-patch --base fixtures/class3-nan-sort-arrays.safetensors --patched clean.safetensors \
   --expect-changed blk.0.router_scores.weight,blk.1.router_scores.weight,blk.2.router_scores.weight --json
 # -> header_bytes_identical=true, other_tensors_byte_identical=true, ok=true (exit 0)
+
+# 6. Optional: exercise all 24 GGUF quantized scale formats with `class5`
+secant probe --class class5 --format gguf \
+  --out-dir fixtures-c5 --receipt probe-c5.json --attempt-id quickstart-c5
+# -> 8,128 bytes, 24 tensors (71 blocks), 59 findings, sha256 = 7af1ef9437b10194f299293e5528fd05ec62ce203d06553082851df7775c6e82
+
+secant sanitize --model fixtures-c5/class5-quant-scales.gguf \
+  --receipt c5-fix.json --sarif c5-fix.sarif --attempt-id quickstart-c5 \
+  --clamp-nonfinite --out c5-clean.gguf
+# -> exit 0, status="remediated", after=0 findings, sha256 = 9712c61401dd60afa3ea2dc52c9d7d89d55bac249200f73e082d86aa8f4bb8ed
 ```
 
-> **Takeaway:** If your hashes match the ones above, your build reproduces the reference outputs byte for byte.
+> **Takeaway:** If your hashes match the ones above, your build reproduces the reference outputs byte for byte. For the 83-case differential comparison across all 24 GGUF formats against `llama.cpp --check-tensors`, see [Recipe 7](RECIPES.md#recipe-7-test-a-scanner-with-synthetic-fixtures).
 
 (7-watch-it-run-real-terminal-recordings)=
 ## 7. Watch It Run Real Terminal Recordings

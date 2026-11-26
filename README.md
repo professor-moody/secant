@@ -123,6 +123,15 @@ python3 examples/test-drive/test_drive.py
 
 This builds tiny SafeTensors and GGUF files, runs nine checks (clean files, broken values, a repair, and a planted rank-one edit found with `--reference`), and prints `RESULT: 9/9`. No model download, GPU, or Python packages are needed. The first run builds the CLI, which needs Rust and can take a few minutes. Add `--work-dir demo` to keep the files, then follow the [quickstart](docs/quickstart.md#try-the-four-jobs-on-demo-files) to run each job on them.
 
+To exercise all 24 GGUF scale formats directly, generate a deterministic `class5` fixture or run the `llama.cpp --check-tensors` differential benchmark:
+
+```sh
+secant probe --class class5 --format gguf --out-dir c5 --receipt c5-probe.json --attempt-id demo
+python3 scripts/bench_gguf_quant_coverage.py --run-dir bench-24fmt --binary target/release/secant
+```
+
+Pass `--llama-cli /path/to/llama-cli` to `bench_gguf_quant_coverage.py` to compare `secant sanitize` side by side against `llama.cpp --check-tensors` across all 83 generated cases.
+
 ## Recipes
 
 | You want to | Recipe |
@@ -133,7 +142,7 @@ This builds tiny SafeTensors and GGUF files, runs nine checks (clean files, brok
 | Edit a few weights without re-exporting the model | [4. Patch weights on disk](docs/RECIPES.md#recipe-4-patch-weights-on-disk) |
 | Train a LoRA that cannot touch protected directions | [5. Fine-tune and export in ten lines](docs/RECIPES.md#recipe-5-fine-tune-and-export-in-ten-lines) |
 | Check a Q8_0 or Q4_K export kept those directions | [6. Verify a quantized export](docs/RECIPES.md#recipe-6-verify-a-quantized-export) |
-| Test a model-file scanner with known-bad fixtures | [7. Test a scanner](docs/RECIPES.md#recipe-7-test-a-scanner-with-synthetic-fixtures) |
+| Test a model-file scanner across all 24 GGUF formats and `llama.cpp` | [7. Test a scanner](docs/RECIPES.md#recipe-7-test-a-scanner-with-synthetic-fixtures) |
 
 ## Exit codes
 
@@ -155,7 +164,7 @@ This builds tiny SafeTensors and GGUF files, runs nine checks (clean files, brok
 
 ## Scope
 
-- **A clean scan covers the listed checks.** It will not find a behavioral backdoor hidden in normal-looking weights. On 105 benign test configurations (100 synthetic, 5 retained) the scanner raised no false positives on either test host ([benchmark](docs/benchmarks/benign-fpr-v0.3.0.md)).
+- **A clean scan covers the listed checks.** It will not find a behavioral backdoor hidden in normal-looking weights. On 105 benign test configurations (100 synthetic, 5 retained) the scanner raised no false positives on either test host ([benign FPR benchmark](docs/benchmarks/benign-fpr-v0.3.0.md)). Across all 24 reviewed GGUF block formats, the differential suite ([payload checks](docs/payload-security.md#quantized-scale-headers-24-gguf-standard-k-quant-iq-ternary-and-mxfp4-formats)) verified 24/24 clean controls, 30/30 planted NaN headers, and 29/29 planted Inf headers against `llama.cpp --check-tensors`.
 - **Diffing needs a trusted base with the same tensor names and shapes.** Without one, `audit-trojan` can only flag edits large enough to stand out from the layer's own structure; the [paper](docs/PAPER.md) measures that threshold. A quantized file compared with a full-precision base shows small rounding changes everywhere, so look for tensors that changed much more than their neighbors.
 - **Patching supports float tensors and `Q8_0` blocks.** `Q4_K` files can be read, diffed, scanned, and verified, but not patched. The other 22 reviewed GGUF block formats (`Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_1`, `Q2_K`, `Q3_K`, `Q5_K`, `Q6_K`, `Q8_K`, `IQ2_XXS`, `IQ2_XS`, `IQ3_XXS`, `IQ1_S`, `IQ4_NL`, `IQ3_S`, `IQ2_S`, `IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`) are checked by `sanitize` only. The patcher holds the file in memory (about twice its size), so patch sharded checkpoints one shard at a time. `--in-place` writes a verified temporary file in the same folder and renames it over the original, so it needs free disk space equal to the file.
 - **The LoRA lock covers the wrapped layers and the directions you pass in.** Measure leakage again after merging or quantizing.

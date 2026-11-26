@@ -66,6 +66,8 @@ To upload findings to GitHub Code Scanning, pass `--sarif "$scan_dir/scan.sarif"
 
 For MoE routing tables, pass the real expert count with `--num-experts N`. If an index bound cannot be inferred from sibling tensors, pass a verified `--index-bound N`. Use the real values; a guessed bound can hide a finding. Common divisor-scale names (`input_scale`, `k_scale`, `v_scale`, `q_scale`, `y_scale`, `prob_scale`, `*scale_inv`) are checked by default. Add others with `--divisor-scale-tensor GLOB` only when the runtime divides by them.
 
+For `.gguf` checkpoints, `sanitize` scans block-scale headers across all 24 reviewed formats (`Q4_0` through `Q8_1`, `Q2_K` through `Q8_K`, `IQ1_S` through `IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, and `MXFP4`). Under Rule B3-2A, legitimate zero and finite subnormal multiplier scales pass by default; non-finite encodings (FP16/packed-FP16 NaN/Inf, FP32 `Q8_K` NaN/Inf, and `MXFP4` E8M0 `0xFF`) exit `1`. Any unreviewed GGUF quantized type (`NVFP4`, `Q1_0`, `Q2_0`) fails closed with exit `2` (`status: "unknown"`).
+
 `inspect` lists layout and types without checking values. `sanitize` checks values against fixed rules, which cannot see a behavioral backdoor in normal-looking weights. If you have the base model, also run [Recipe 1](#recipe-1-diff-against-a-base-model).
 
 ## Recipe 3 Repair a Copy and Verify Its Hashes
@@ -87,7 +89,7 @@ printf 'repair exit = %s\n' "$repair_exit"
 
 Continue only if repair exited `0` and the hash check passed. The repaired copy is written only after it passes a rescan.
 
-What `--clamp-nonfinite` does: `NaN` becomes `0`, `Inf` becomes `--max-abs` (default `1e4`) with the same sign, a non-finite divisor scale becomes `--divisor-floor`, and a quantized GGUF block with a non-finite scale header is zeroed. Zeroing a block removes its 32 or 256 weights; it does not restore them. Finite zero or negative divisor scales, out-of-range routing IDs, and collapsed norm vectors have no automatic repair. If any remain, nothing is published.
+What `--clamp-nonfinite` does: `NaN` becomes `0`, `Inf` becomes `--max-abs` (default `1e4`) with the same sign, a non-finite divisor scale becomes `--divisor-floor`, and a quantized GGUF block with a non-finite scale header across any of the 24 reviewed formats is zeroed (including `IQ1_M` packed FP16 `d` and `MXFP4` E8M0 `0xFF`, where zeroing sets `e = 0x00` and `qs = 0` so all 32 weights decode to `0.0`). Zeroing a block removes its 32 or 256 weights; it does not restore them. Finite zero or negative divisor scales, out-of-range routing IDs, and collapsed norm vectors have no automatic repair. If any remain, nothing is published.
 
 Rescan the output on its own:
 
@@ -221,26 +223,55 @@ Quantization can add leakage back even when the float adapter was locked. Pick t
 Use known-bad files to check that a scanner, Secant or your own, catches what it claims to. These are small numerical fixtures. They are scanner inputs, and they do not exercise any runtime.
 
 ```sh
-# Nine checks, including clean controls, repair, and a planted rank-one edit
+# 1. Nine checks, including clean controls, repair, and a planted rank-one edit
 python3 examples/test-drive/test_drive.py
 
-# A larger generated corpus
+# 2. One deterministic GGUF fixture covering all 24 reviewed quantized scale formats (`class5`)
+c5_dir=$(mktemp -d)
+secant probe --class class5 --format gguf \
+  --out-dir "$c5_dir/fixtures" --receipt "$c5_dir/probe.json" --attempt-id scanner-c5
+secant sanitize --model "$c5_dir/fixtures/class5-quant-scales.gguf" --dry-run \
+  --receipt "$c5_dir/scan.json" --sarif "$c5_dir/scan.sarif" --attempt-id scanner-c5
+# Expect exit 1 with 59 findings (30 quant_scale_nan + 29 quant_scale_inf across 24 tensors / 71 blocks)
+secant sanitize --model "$c5_dir/fixtures/class5-quant-scales.gguf" --clamp-nonfinite \
+  --out "$c5_dir/fixed.gguf" --receipt "$c5_dir/fix.json" --sarif "$c5_dir/fix.sarif" --attempt-id scanner-c5-fix
+# Expect exit 0, status="remediated", 0 findings remaining
+
+# 3. Larger benign-FPR + positive-control corpus (F32, F16, BF16, Q8_0, Q4_K)
 cargo build --release -p secant-core --example benign_fpr_fixtures
 fixture_dir=$(mktemp -d)
 target/release/examples/benign_fpr_fixtures "$fixture_dir/suite" scanner-check
 ```
 
-Add `--work-dir` with a new directory to keep the test-drive files and receipts. The generated `suite/manifest.json` lists each file, its SHA-256, its role, and the expected finding. Keep clean and altered files apart when counting false positives and detections, and count each file once.
+`secant probe --class all` generates `class1` through `class4`; request `class5` explicitly with `--format gguf` (or `--format both`). The generated `class5-quant-scales.gguf` file is byte-deterministic (`8,128` bytes, SHA-256 `7af1ef9437b10194f299293e5528fd05ec62ce203d06553082851df7775c6e82`; repaired copy SHA-256 `9712c61401dd60afa3ea2dc52c9d7d89d55bac249200f73e082d86aa8f4bb8ed`).
+
+Add `--work-dir` with a new directory to `test_drive.py` to keep its files and receipts. The generated `suite/manifest.json` from `benign_fpr_fixtures` lists each file, its SHA-256, its role, and the expected finding. Keep clean and altered files apart when counting false positives and detections, and count each file once.
 
 | Condition | Where it is covered | What a scanner should report |
 | --- | --- | --- |
-| NaN or Inf weights | Test-drive router case | A non-finite finding and exit `1` |
+| NaN or Inf weights | Test-drive router case (`class1`) | A non-finite finding and exit `1` |
 | Zero or below-floor divisor scale | `quant_sanitize_cli` Rust tests and generated `positive-divisor_subnormal` | A divisor-scale finding; `--clamp-nonfinite` does not repair a finite zero |
-| Q8_0 or Q4_K NaN/Inf scale header | Generated `positive-Q8_0-quant_nan`, `positive-Q8_0-quant_inf`, and the Q4_K equivalents | `quant_scale_nan` or `quant_scale_inf`; zero or subnormal multiplier scales are legitimate |
-| Out-of-range MoE expert IDs | Test-drive routing case with `--num-experts 8` | Routing findings with the expected bounds |
+| All 24 GGUF block formats (`Q4_0`..`Q8_1`, `Q2_K`..`Q8_K`, `IQ1_S`..`IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`) | `secant probe --class class5 --format gguf` and `scripts/bench_gguf_quant_coverage.py` | `quant_scale_nan` or `quant_scale_inf` (`SECANT-B3-2A-QUANT-SCALE-NAN` / `INF` in SARIF); zero and finite subnormal multiplier scales pass by default |
+| Out-of-range MoE expert IDs | Test-drive routing case with `--num-experts 8` (`class4`) | Routing findings with the expected bounds |
 | Rank-one edit | Test-drive case 9 | The edited layer ranks first, and the `--reference` difference sits in one direction |
 
-For a repeatable benchmark with retained receipts:
+### Run the 24-format `llama.cpp --check-tensors` differential benchmark
+
+`scripts/bench_gguf_quant_coverage.py` generates 83 loadable 1-layer GGUF v3 checkpoints across all 24 reviewed formats (`24` clean controls, `30` planted NaN scale headers, and `29` planted Inf scale headers; `MXFP4` E8M0 has `0xFF` NaN and no Inf encoding), runs `secant sanitize --dry-run --json --sarif`, and seals a `SHA256SUMS` manifest alongside `summary.json` and `summary.md`. Pass `--llama-cli` to run `llama.cpp`'s `llama-cli --check-tensors` side by side on the identical files:
+
+```sh
+cargo build --release --locked -p secant-cli
+python3 scripts/bench_gguf_quant_coverage.py \
+  --run-dir bench-24fmt-run \
+  --binary target/release/secant \
+  --llama-cli /path/to/llama-cli
+```
+
+Omit `--llama-cli` to run the Secant-only 83-case coverage and SARIF check, or pass `--formats Q4_K,Q8_K,IQ1_M,MXFP4` to test a subset. On Linux x86_64 against CPU `llama-cli --check-tensors`, both tools agreed on 100% of the 22 inference-loadable formats (`22/22` clean, `28/28` NaN, `27/27` Inf), while `secant sanitize` also validated `Q8_1` (`ggml_validate_row_data` reports `invalid type 9`) and `Q8_K` (an intermediate dot-product format that segfaults `llama-cli` during clean inference) safely on disk in `16.45 ms` mean wall time vs `219.79 ms` for `llama-cli --check-tensors`.
+
+### Run the benign-FPR benchmark
+
+For a repeatable benign-FPR benchmark with retained receipts across 105 configurations:
 
 ```sh
 cargo build --release --locked -p secant-cli -p secant-core --bins --examples

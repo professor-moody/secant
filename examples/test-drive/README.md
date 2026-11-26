@@ -60,6 +60,38 @@ RESULT: 9/9 test cases matched expected policy. Temporary directory cleaned up.
 
 The spectral check is a numerical demonstration, not a behavioral backdoor test. A completed audit exits `0` even when its report contains outliers. First-time compilation is outside the short test-drive runtime.
 
+## Go Further: All 24 GGUF Formats (`class5` Probe + `llama.cpp` Differential Benchmark)
+
+The 9-case test drive above covers `Q4_K` as its representative GGUF block format. To exercise all **24 reviewed GGUF formats** (`Q4_0`..`Q8_1`, `Q2_K`..`Q8_K`, `IQ1_S`..`IQ4_XS`, `IQ1_M`, `TQ1_0`, `TQ2_0`, `MXFP4`), run the opt-in `class5` probe or the 83-case differential benchmark from the repository root:
+
+```sh
+# 1. Generate one deterministic 8,128-byte GGUF fixture spanning all 24 formats
+c5_dir=$(mktemp -d)
+./target/release/secant probe --class class5 --format gguf \
+  --out-dir "$c5_dir/c5" --receipt "$c5_dir/c5-probe.json" --attempt-id demo-c5
+# -> class5-quant-scales.gguf (24 tensors, 71 blocks, 59 findings, sha256 = 7af1ef9437b10194f299293e5528fd05ec62ce203d06553082851df7775c6e82)
+
+# 2. Scan with SARIF 2.1.0 output (expect exit 1: 30 quant_scale_nan + 29 quant_scale_inf)
+./target/release/secant sanitize --model "$c5_dir/c5/class5-quant-scales.gguf" --dry-run \
+  --receipt "$c5_dir/c5-scan.json" --sarif "$c5_dir/c5-scan.sarif" --attempt-id demo-c5
+
+# 3. Repair into a verified copy (expect exit 0, status="remediated", 0 findings remaining)
+./target/release/secant sanitize --model "$c5_dir/c5/class5-quant-scales.gguf" --clamp-nonfinite \
+  --out "$c5_dir/c5-fixed.gguf" --receipt "$c5_dir/c5-fix.json" --sarif "$c5_dir/c5-fix.sarif" --attempt-id demo-c5-fix
+# -> output_sha256 = 9712c61401dd60afa3ea2dc52c9d7d89d55bac249200f73e082d86aa8f4bb8ed
+```
+
+To benchmark all 24 formats individually (24 clean controls, 30 planted NaN scale headers, and 29 planted Inf scale headers = 83 loadable 1-layer GGUF v3 checkpoints) and optionally compare side by side against `llama.cpp --check-tensors`:
+
+```sh
+python3 scripts/bench_gguf_quant_coverage.py \
+  --run-dir "$c5_dir/bench-24fmt" \
+  --binary ./target/release/secant \
+  --llama-cli /path/to/llama-cli   # omit --llama-cli to run Secant-only
+```
+
+The script emits `summary.md`, `summary.json`, per-case receipts and SARIF 2.1.0 logs, and a verified `SHA256SUMS` manifest.
+
 ## Next Steps
 
 - [Practical recipes](../../docs/RECIPES.md) cover scanning, repair, fine-tuning, and quantized-export verification.
